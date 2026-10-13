@@ -26,7 +26,17 @@ function err(e){console.error(e);pop(e?.message||String(e),true);}
 async function initial(){
  if(!db){$.innerHTML='<div class="startup">Could not load the Supabase library. Check your connection and refresh.</div>';return;}
  try{const {data,error}=await db.from('schools').select('id,name,is_active').order('name');if(error)throw error;state.schools=data||[];}catch(e){state.issue=e.message;show();return;}
- db.auth.onAuthStateChange((_event,session)=>{state.session=session;setTimeout(sync,0);});
+ db.auth.onAuthStateChange((event,session)=>{
+  // Mobile file pickers can background the PWA. Supabase then refreshes its
+  // access token or repeats SIGNED_IN when the chooser closes. Neither
+  // changes the logged-in identity, so do not destroy an in-progress form.
+  const previousId=state.session?.user?.id||null;
+  const nextId=session?.user?.id||null;
+  state.session=session;
+  if(state.profile && previousId===nextId &&
+    ['TOKEN_REFRESHED','SIGNED_IN','INITIAL_SESSION','USER_UPDATED'].includes(event)) return;
+  setTimeout(sync,0);
+ });
  const {data:{session}}=await db.auth.getSession();state.session=session;await sync();
  if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('./sw.js').catch(()=>{});
 }
