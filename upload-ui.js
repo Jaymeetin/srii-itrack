@@ -5,11 +5,47 @@
 "use strict";
 const root=document.getElementById("app");
 const settings=window.ITRACK_CONFIG;
-if(!root||!window.supabase||!settings?.url||!settings?.publishableKey)return;
-const db=window.supabase.createClient(settings.url,settings.publishableKey,{
- auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}
-});
+// Use the authenticated session already owned by app.js. Creating separate
+// browser auth clients was causing repeated session checks on some phones.
+const db=window.ITRACK_DB;
+if(!root||!db||!settings?.url||!settings?.publishableKey)return;
 const MB=4*1024*1024;
+async function withDeadline(promise,label,ms=18000){
+ let timer;
+ try{
+  return await Promise.race([
+   promise,
+   new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error(
+    label+" took too long. Check your connection, then tap Retry Account Check."
+   )),ms);})
+  ]);
+ }finally{clearTimeout(timer);}
+}
+function loadingMessage(node,text){
+ const area=node.querySelector(".iu-loading");
+ if(area&&node.isConnected)area.textContent=text;
+}
+function retryAccountCheck(node,kind){
+ if(!node.isConnected)return;
+ let retry=node.querySelector(".iu-retry");
+ if(retry)return;
+ retry=document.createElement("button");
+ retry.type="button";
+ retry.className="btn alt iu-retry";
+ retry.textContent="Retry Account Check";
+ retry.addEventListener("click",()=>{
+  if(!node.isConnected)return;
+  retry.remove();
+  const area=node.querySelector(".iu-message:not(.iu-loading)");
+  if(area)area.hidden=true;
+  const progress=document.createElement("div");
+  progress.className="iu-loading iu-message";
+  progress.textContent="Rechecking your account…";
+  node.querySelector(".iu-controls")?.before(progress);
+  initialize(node,kind);
+ });
+ node.append(retry);
+}
 const TYPES={
  ".jpg":"image/jpeg",".jpeg":"image/jpeg",".png":"image/png",
  ".webp":"image/webp",".pdf":"application/pdf",".doc":"application/msword",
@@ -120,9 +156,15 @@ function updateFile(node){
 }
 async function initialize(node,kind){
  try{
-  const {data:{user},error:userError}=await db.auth.getUser();
+  loadingMessage(node,"Checking your current login…");
+  // The profile SELECT below is checked against authenticated RLS on the server;
+  // the browser only needs the existing session, not an extra /auth/v1/user call.
+  const {data:sessionData,error:userError}=await withDeadline(db.auth.getSession(),"Login check");
+  const user=sessionData?.session?.user;
   if(userError||!user)throw Error("Please sign in again to submit documents.");
-  const p=await db.from("profiles").select("id,school_id,role,account_status").eq("id",user.id).single();
+  loadingMessage(node,"Checking your approved account…");
+  const p=await withDeadline(db.from("profiles")
+   .select("id,school_id,role,account_status").eq("id",user.id).single(),"Account approval check");
   if(p.error)throw p.error;
   if(p.data?.account_status!=="active")throw Error("Your account must be approved before uploading.");
   const profile=p.data;
@@ -131,16 +173,22 @@ async function initialize(node,kind){
   node._iuKind=kind;
   const admin=["main_admin","backup_admin"].includes(profile.role);
   if(!admin){
-   const school=await db.from("schools").select("name,is_active").eq("id",profile.school_id).single();
+   const school=await withDeadline(db.from("schools")
+    .select("name,is_active").eq("id",profile.school_id).single(),"School approval check");
    if(school.error||!school.data?.is_active)throw Error("Your approved school is not active.");
    if(profile.role!=="school_user"||school.data.name!=="SINUNDOLAN ES")
     throw Error("Secure file uploads are currently available to the district administrators and SINUNDOLAN ES pilot accounts only.");
   }
   let options=[];
+  loadingMessage(node,"Loading assigned "+(kind==="announcement"?"requirements":"documents")+"…");
   if(kind==="announcement"){
-   const a=await db.from("announcement_assignments").select("id,announcement_id,school_id,assigned_user_id").eq("obligation_status","required");
+   const a=await withDeadline(db.from("announcement_assignments")
+    .select("id,announcement_id,school_id,assigned_user_id").eq("obligation_status","required"),
+    "Requirements loading");
    if(a.error)throw a.error;
-   const n=await db.from("announcements").select("id,title,status,deadline_at").eq("status","open").order("created_at",{ascending:false});
+   const n=await withDeadline(db.from("announcements")
+    .select("id,title,status,deadline_at").eq("status","open").order("created_at",{ascending:false}),
+    "Announcement loading");
    if(n.error)throw n.error;
    options=(a.data||[]).filter(a=>a.assigned_user_id===user.id||
     (!!profile.school_id && a.school_id===profile.school_id)).map(a=>{
@@ -148,7 +196,9 @@ async function initialize(node,kind){
     return ann?{id:a.id,label:ann.title,deadline:ann.deadline_at}:null;
    }).filter(Boolean);
   }else{
-   const d=await db.from("documents").select("id,tracking_number,subject").order("created_at",{ascending:false}).limit(200);
+   const d=await withDeadline(db.from("documents")
+    .select("id,tracking_number,subject").order("created_at",{ascending:false}).limit(200),
+    "Document loading");
    if(d.error)throw d.error;
    options=(d.data||[]).map(x=>({id:x.id,label:x.tracking_number+" — "+x.subject,deadline:null}));
   }
@@ -192,6 +242,7 @@ async function initialize(node,kind){
   if(!node.isConnected)return;
   node.querySelector(".iu-loading")?.remove();
   notify(node,e?.message||String(e),"error");
+  retryAccountCheck(node,kind);
  }
 }
 async function updateTarget(node,kind){
@@ -220,7 +271,7 @@ async function refreshHistory(node,kind){
   const query=kind==="announcement"?
    db.from("submissions").select("id,original_filename,content_type,file_size_bytes,first_received_at,version_number,verification_status,storage_status").eq("assignment_id",id).order("version_number",{ascending:false}).limit(6):
    db.from("document_attachments").select("id,original_filename,content_type,file_size_bytes,uploaded_at").eq("document_id",id).order("uploaded_at",{ascending:false}).limit(6);
-  const {data,error}=await query;
+  const {data,error}=await withDeadline(query,"Submission history loading",15000);
   if(error)throw error;
   if(!node.isConnected||node.querySelector(".iu-select")?.value!==id)return;
   if(!data?.length){history.textContent="No files submitted for this requirement yet.";return;}
