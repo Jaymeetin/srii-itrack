@@ -110,7 +110,7 @@ async function handleReview(e){
   loading=false;
   await load();
   message(approve?"Submission verified successfully.":"Submission rejected. A new version will be required.","success");
- }catch(e){errorMessage(e);loading=false;await load();}
+ }catch(e){loading=false;await load();errorMessage(e);}
  finally{refresh.disabled=false;}
 }
 init();
