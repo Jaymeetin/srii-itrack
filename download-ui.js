@@ -6,10 +6,9 @@
 "use strict";
 const root=document.getElementById("app");
 const cfg=window.ITRACK_CONFIG;
-if(!root||!window.supabase||!cfg?.url||!cfg.publishableKey)return;
-const db=window.supabase.createClient(cfg.url,cfg.publishableKey,{
- auth:{persistSession:true,detectSessionInUrl:true,autoRefreshToken:true}
-});
+// Reuse the same authenticated client as the main district application.
+const db=window.ITRACK_DB;
+if(!root||!db||!cfg?.url||!cfg.publishableKey)return;
 const FILE_MAX=4*1024*1024;
 let inProgress=false;
 const activeButtons=()=>[...root.querySelectorAll(".iu-file-action")];
