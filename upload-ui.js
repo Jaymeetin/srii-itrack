@@ -185,8 +185,8 @@ async function refreshHistory(node,kind){
  history.textContent="Loading saved files…";
  try{
   const query=kind==="announcement"?
-   db.from("submissions").select("original_filename,file_size_bytes,first_received_at,version_number,verification_status,storage_status").eq("assignment_id",id).order("version_number",{ascending:false}).limit(6):
-   db.from("document_attachments").select("original_filename,file_size_bytes,uploaded_at").eq("document_id",id).order("uploaded_at",{ascending:false}).limit(6);
+   db.from("submissions").select("id,original_filename,content_type,file_size_bytes,first_received_at,version_number,verification_status,storage_status").eq("assignment_id",id).order("version_number",{ascending:false}).limit(6):
+   db.from("document_attachments").select("id,original_filename,content_type,file_size_bytes,uploaded_at").eq("document_id",id).order("uploaded_at",{ascending:false}).limit(6);
   const {data,error}=await query;
   if(error)throw error;
   if(!node.isConnected||node.querySelector(".iu-select")?.value!==id)return;
@@ -195,8 +195,15 @@ async function refreshHistory(node,kind){
    const state=kind==="announcement"?x.verification_status:"stored";
    const when=displayTime(kind==="announcement"?x.first_received_at:x.uploaded_at);
    const details=(kind==="announcement"?"Version "+x.version_number+" · ":"")+size(x.file_size_bytes)+" · "+when;
+   const available=kind==="document"||x.storage_status==="uploaded";
+   const viewable=x.content_type==="application/pdf"||["image/png","image/jpeg","image/webp"].includes(x.content_type);
+   const actions=available?
+     '<div class="iu-file-actions">'+
+     (viewable?'<button type="button" class="btn tiny alt iu-file-action" data-mode="view" data-kind="'+kind+'" data-id="'+esc(x.id)+'" data-name="'+esc(x.original_filename)+'">View</button>':'')+
+     '<button type="button" class="btn tiny alt iu-file-action" data-mode="download" data-kind="'+kind+'" data-id="'+esc(x.id)+'" data-name="'+esc(x.original_filename)+'">Download</button></div>':
+     '<span class="iu-archived">Archived offline</span>';
    return '<div class="iu-history-item"><div><strong>'+esc(x.original_filename)+'</strong><small>'+esc(details)+'</small></div>'+
-    '<span class="iu-state '+esc(state)+'">'+esc(state.toUpperCase())+'</span></div>';
+    '<div class="iu-history-controls"><span class="iu-state '+esc(state)+'">'+esc(state.toUpperCase())+'</span>'+actions+'</div></div>';
   }).join("");
  }catch(e){if(node.isConnected)history.textContent="Could not load history: "+(e?.message||e);}
 }
