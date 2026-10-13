@@ -115,7 +115,6 @@ function markPanel(){
   const old=[...content.querySelectorAll(".panel")].find(x=>x!==newPanel&&x.querySelector("h3")?.textContent?.trim()==="Compress a Screenshot");
   if(old)old.hidden=true;
  }
- lastMount=newPanel;
  initialize(newPanel,kind);
 }
 function setProcessing(node,yes){
