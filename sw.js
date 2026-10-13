@@ -1,1 +1,33 @@
-const NAME='srii-itrack-trial-v1';const assets=['./','./index.html','./styles.css','./app.js','./config.js','./assets/icon.svg'];self.addEventListener('install',e=>e.waitUntil(caches.open(NAME).then(c=>c.addAll(assets)).then(()=>self.skipWaiting())));self.addEventListener('activate',e=>e.waitUntil(self.clients.claim()));self.addEventListener('fetch',e=>{const u=new URL(e.request.url);if(e.request.method!=='GET'||u.origin!==self.location.origin)return;e.respondWith(fetch(e.request).then(r=>{if(r.ok)caches.open(NAME).then(c=>c.put(e.request,r.clone()));return r;}).catch(()=>caches.match(e.request)));});
+/* SRII i-TRACK app shell cache v2: assets only, always prefer the network. */
+const CACHE_NAME="srii-itrack-mobile-v2";
+const CORE_ASSETS=[
+ "./","./index.html","./styles.css","./mobile.css",
+ "./app.js","./mobile-shell.js","./config.js",
+ "./manifest.webmanifest","./assets/icon.svg"
+];
+self.addEventListener("install",event=>{
+ event.waitUntil(caches.open(CACHE_NAME)
+  .then(cache=>cache.addAll(CORE_ASSETS))
+  .then(()=>self.skipWaiting()));
+});
+self.addEventListener("activate",event=>{
+ event.waitUntil(
+  caches.keys()
+   .then(names=>Promise.all(names.filter(name=>name.startsWith("srii-itrack-")&&name!==CACHE_NAME).map(name=>caches.delete(name))))
+   .then(()=>self.clients.claim())
+ );
+});
+self.addEventListener("fetch",event=>{
+ if(event.request.method!=="GET")return;
+ const url=new URL(event.request.url);
+ if(url.origin!==self.location.origin)return;
+ event.respondWith(
+  fetch(event.request).then(response=>{
+   if(response.ok&&response.type==="basic"){
+    const copy=response.clone();
+    event.waitUntil(caches.open(CACHE_NAME).then(cache=>cache.put(event.request,copy)));
+   }
+   return response;
+  }).catch(()=>caches.match(event.request))
+ );
+});
