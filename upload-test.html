@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>SRII i-TRACK · Secure Upload Pilot</title>
+<link rel="stylesheet" href="./styles.css">
+<style>
+.pilot{max-width:800px;margin:25px auto;padding:0 15px}
+.pilot-head{display:flex;justify-content:space-between;gap:12px;align-items:center;margin:25px 0}
+.pilot-screen{padding:22px;background:var(--paper);border:1px solid var(--line);border-radius:16px}
+.pilot-section{margin:24px 0;padding-top:16px;border-top:1px solid var(--line)}
+.pilot-section:first-child{margin-top:12px}
+.pilot-step{font-size:12px;letter-spacing:.1em;text-transform:uppercase;font-weight:800;color:var(--blue)}
+.pilot-note{padding:12px;border-radius:10px;background:var(--light);font-size:13px}
+.pilot-preview{width:100%;max-width:440px;display:block;margin:15px auto;border-radius:10px;border:1px solid var(--line)}
+.pilot-result{white-space:pre-wrap;overflow-wrap:anywhere;font-family:ui-monospace,monospace;font-size:12px}
+.pilot-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.pilot-row>*{max-width:100%}
+.pilot-message{padding:12px;border-radius:10px;margin-top:12px;background:var(--light)}
+.pilot-message.error{background:#ffe7e7;color:#952a2a}
+.pilot-message.success{background:#d9f7e6;color:#16613f}
+</style>
+</head><body>
+<div class="pilot"><header class="pilot-head">
+<div class="brand"><div class="brandmark">i<span>•</span></div><div>SRII i-TRACK<small>SECURE UPLOAD PILOT</small></div></div>
+<a href="./" class="btn alt tiny">← Back to dashboard</a>
+</header><main class="pilot-screen">
+<div class="eyebrow">Controlled integration test</div>
+<h1>Test Google Drive Upload</h1>
+<p class="sub">This page accepts only harmless test PNGs, linked to an existing SYSTEM TEST announcement or TEST DOCUMENT. Normal school uploads remain disabled.</p>
+<div id="pilot-status" class="pilot-note">Checking your signed-in account…</div>
+<div id="pilot-controls" hidden>
+<section class="pilot-section"><div class="pilot-step">1 · Signed-in account</div><div id="pilot-account"></div></section>
+<section class="pilot-section"><div class="pilot-step">2 · Choose a test record</div>
+<div class="field"><label for="pilot-target">Upload destination</label><select id="pilot-target"></select></div>
+<p class="note">School personnel should choose the TEST announcement assigned to their own school. Main Administrator can choose TEST DOCUMENT ROUTING.</p></section>
+<section class="pilot-section"><div class="pilot-step">3 · Generate a harmless test image</div>
+<p class="note">The system creates a simple test image. Do not upload private, personal, or real school records during this test.</p>
+<div class="pilot-row"><button class="btn alt" id="make-test">Generate TEST PNG</button><span id="pilot-file-info" class="note">No test file generated</span></div>
+<img id="pilot-preview" class="pilot-preview" alt="Preview of generated non-sensitive test file" hidden>
+</section>
+<section class="pilot-section"><div class="pilot-step">4 · Send test file</div>
+<p class="pilot-note">The system verifies your Supabase session, school assignment, test record, file type and integrity. A successful transfer is saved inside the existing SRII i-TRACK DOCUMENTS folder.</p>
+<button class="btn" id="pilot-submit" disabled>Upload Test PNG to Google Drive</button>
+<div id="pilot-message" aria-live="polite"></div></section>
+</div>
+</main><p class="note" style="margin-top:15px">This is an alpha test. Wait for verified success before using the system for official submissions. If upload fails, do not repeatedly submit the same file; report the error and we'll check the database.</p>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" defer></script>
+<script src="./config.js" defer></script>
+<script src="./upload-test.js" defer></script>
+</body></html>
