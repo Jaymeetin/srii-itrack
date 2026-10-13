@@ -91,6 +91,7 @@ function openMore(){
  const archive=app.querySelector('.sidebar nav button[data-page="archive"]');
  const accountActions=[
   admin?'<button type="button" class="mobile-menu-button" data-mobile="navigate" data-page="approvals">Account Management <small>›</small></button>':"",
+  admin?'<button type="button" class="mobile-menu-button" data-mobile="link" data-href="./admin-review.html">Verify Test Submissions <small>›</small></button>':"",
   archive?'<button type="button" class="mobile-menu-button" data-mobile="navigate" data-page="archive">Document Archiving <small>›</small></button>':""
  ].join("");
  const section=accountActions?'<span class="mobile-sheet-label">DISTRICT ADMINISTRATION</span>'+accountActions:"";
@@ -103,6 +104,8 @@ function openMore(){
   '<div class="mobile-more-top"><strong>More options</strong><button type="button" class="mobile-close" data-mobile="close" aria-label="Close menu">×</button></div>'+
   '<div class="mobile-identity"><span class="mobile-avatar" aria-hidden="true">'+safe(user.initials)+'</span><div><strong>'+safe(user.name)+'</strong><small>'+safe(user.detail)+'</small></div></div>'+
   section+
+  '<span class="mobile-sheet-label">SYSTEM TEST TOOLS</span>'+
+  '<button type="button" class="mobile-menu-button" data-mobile="link" data-href="./upload-test.html">Test Google Drive Upload <small>›</small></button>'+
   '<span class="mobile-sheet-label">PREFERENCES</span>'+
   '<button type="button" class="mobile-menu-button" data-mobile="theme">◐ &nbsp; Switch Light / Dark Mode <small>›</small></button>'+
   '<button type="button" class="mobile-menu-button danger" data-mobile="logout">↩ &nbsp; Sign Out <small>›</small></button>'+
@@ -121,7 +124,12 @@ function handle(e){
  if(action==="close"){closeMore();return;}
  if(action==="more"){openMore();return;}
  const page=button.dataset.page;
+ const href=button.dataset.href;
  closeMore();
+ if(action==="link"){
+  if(["./upload-test.html","./admin-review.html"].includes(href))window.location.href=href;
+  return;
+ }
  if(action==="navigate"){
   const original=page?root.querySelector('.sidebar nav button[data-page="'+page+'"]'):null;
   original?.click();
