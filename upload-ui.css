@@ -60,3 +60,10 @@
  .iu-file-actions{flex:1;justify-content:flex-end}
  .iu-file-action{min-width:78px}
 }
+
+/* Mobile upload account-check recovery */
+.iu-retry{display:inline-flex;margin:8px 0 16px;min-height:44px}
+.iu-loading{border-left:3px solid var(--blue);animation:iu-pulse 1.65s ease-in-out infinite}
+@keyframes iu-pulse{0%,100%{opacity:1}50%{opacity:.62}}
+@media(prefers-reduced-motion:reduce){.iu-loading{animation:none}}
+@media(max-width:730px){.iu-retry{width:100%}}
