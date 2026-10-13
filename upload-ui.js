@@ -22,7 +22,12 @@ const mimeFor=file=>{
  const extension=/\.[^.]+$/.exec(file.name)?.[0]?.toLowerCase();
  return TYPES[extension]||"";
 };
-let lastMount=null;
+// Preserve files only in process memory (never localStorage or sessionStorage).
+const liveDrafts=new Map();
+let draftOwner=null;
+db.auth.onAuthStateChange(event=>{
+ if(event==="SIGNED_OUT"){liveDrafts.clear();draftOwner=null;}
+});
 function notify(node,text,kind=""){
  const message=node.querySelector(".iu-message");
  if(!message||!node.isConnected)return;
@@ -97,6 +102,14 @@ function preview(node,file){
  }else{image.hidden=true;image.removeAttribute("src");}
 }
 function updateFile(node){
+ if(node._iuKind&&node._iuOwner){
+   liveDrafts.set(node._iuKind,{
+    owner:node._iuOwner,
+    original:node._iuOriginal||null,
+    file:node._iuFile||null,
+    targetId:node.querySelector(".iu-select")?.value||null
+   });
+ }
  const f=node._iuFile;
  const caption=node.querySelector(".iu-selection");
  caption.innerHTML=f?
@@ -113,6 +126,9 @@ async function initialize(node,kind){
   if(p.error)throw p.error;
   if(p.data?.account_status!=="active")throw Error("Your account must be approved before uploading.");
   const profile=p.data;
+  if(draftOwner!==user.id){liveDrafts.clear();draftOwner=user.id;}
+  node._iuOwner=user.id;
+  node._iuKind=kind;
   const admin=["main_admin","backup_admin"].includes(profile.role);
   if(!admin){
    const school=await db.from("schools").select("name,is_active").eq("id",profile.school_id).single();
@@ -149,7 +165,14 @@ async function initialize(node,kind){
   const select=node.querySelector(".iu-select");
   select.innerHTML=options.map(x=>'<option value="'+esc(x.id)+'">'+esc(x.label)+'</option>').join("");
   node.querySelector(".iu-controls").hidden=false;
-  node._iuOriginal=null;node._iuFile=null;
+  const saved=liveDrafts.get(kind);
+  if(saved?.owner===user.id){
+    if(saved.targetId&&options.some(x=>x.id===saved.targetId))select.value=saved.targetId;
+    node._iuOriginal=saved.original||null;
+    node._iuFile=saved.file||null;
+  }else{
+    node._iuOriginal=null;node._iuFile=null;
+  }
   const input=node.querySelector(".iu-input");
   input.addEventListener("change",()=>{
    const file=input.files?.[0]||null;
@@ -164,6 +187,7 @@ async function initialize(node,kind){
   node.querySelector(".iu-compress").addEventListener("click",()=>compress(node));
   node.querySelector(".iu-upload").addEventListener("click",()=>upload(node,kind));
   await updateTarget(node,kind);
+  if(node.isConnected&&node._iuFile)updateFile(node);
  }catch(e){
   if(!node.isConnected)return;
   node.querySelector(".iu-loading")?.remove();
@@ -176,6 +200,15 @@ async function updateTarget(node,kind){
  const extra=node.querySelector(".iu-date");
  extra.textContent=opt?.deadline?"Deadline: "+displayTime(opt.deadline)+" (Philippine time)":"";
  await refreshHistory(node,kind);
+ if(node._iuOwner&&node._iuKind){
+   const previous=liveDrafts.get(node._iuKind)||{};
+   liveDrafts.set(node._iuKind,{
+     owner:node._iuOwner,
+     original:node._iuOriginal||previous.original||null,
+     file:node._iuFile||previous.file||null,
+     targetId:id||null
+   });
+ }
  setProcessing(node,false);
 }
 async function refreshHistory(node,kind){
