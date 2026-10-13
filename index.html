@@ -2,13 +2,17 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#173e88">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="SRII i-TRACK">
 <meta name="description" content="SRII i-TRACK — San Remigio II District Document Tracking System">
 <title>SRII i-TRACK · District Document Tracking System</title>
 <link rel="icon" href="./assets/icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="stylesheet" href="./styles.css">
+<link rel="stylesheet" href="./mobile.css">
 </head>
 <body>
 <div id="app"><div class="startup"><div class="logo-big">i<span>•</span></div><h2>SRII i-TRACK</h2><p>Preparing your district workspace…</p></div></div>
@@ -16,5 +20,6 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" defer></script>
 <script src="./config.js" defer></script>
 <script src="./app.js" defer></script>
+<script src="./mobile-shell.js" defer></script>
 </body>
 </html>
