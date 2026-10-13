@@ -77,9 +77,9 @@ async function loadRecipients(){const {data,error}=await db.rpc('i_track_recipie
 async function loadMonitor(){if(!state.selectedId){state.monitor=[];return;}const {data,error}=await db.rpc('i_track_monitor',{p_announcement_id:state.selectedId});if(error)throw error;state.monitor=data||[];}
 function show(){
  if(state.issue){$.innerHTML=`<div class="startup"><h2>Connection problem</h2><p>${esc(state.issue)}</p><button class="btn" data-a="retry">Retry</button></div>`;return;}
- if(!state.session){authPage();return;}
+ if(!state.session){window.ITRACK_CONTEXT=null;authPage();return;}
  if(!state.profile){$.innerHTML='<div class="startup">Preparing account…</div>';return;}
- if(!active()){pendingPage();return;}
+ if(!active()){window.ITRACK_CONTEXT=null;pendingPage();return;}
  appPage();
 }
 function authPage(){
@@ -104,6 +104,16 @@ function appPage(){
  const school=state.schools.find(x=>x.id===state.profile.school_id)?.name||'District Office';
  const name=state.profile.display_name||'District Administrator';
  const body={dashboard:dashboardPage,announcements:announcementPage,monitoring:monitorPage,documents:documentPage,approvals:approvalPage,archive:archivePage}[state.view]?.()||dashboardPage();
+ // Read-only presentation context for the upload panel. Not an authorization
+ // mechanism: Supabase RLS and the Edge Function enforce permissions.
+ window.ITRACK_CONTEXT={
+   userId:state.session?.user?.id||null,
+   profile:{role:state.profile.role,school_id:state.profile.school_id,
+            account_status:state.profile.account_status},
+   schools:state.schools.map(s=>({id:s.id,name:s.name,is_active:s.is_active})),
+   announcements:state.announcements.map(a=>({id:a.id,title:a.title,status:a.status,deadline_at:a.deadline_at})),
+   docs:state.docs.map(d=>({id:d.id,tracking_number:d.tracking_number,subject:d.subject}))
+ };
  $.innerHTML=`<div class="app"><aside class="sidebar">${brand()}<nav>${nav}</nav><div class="sidebar-footer"><button data-a="theme">◐ Light / Dark Mode</button><button data-a="logout">↩ Sign Out</button><div class="user-mini">${esc(name)}<br>${esc(label(state.profile.role))} · ${esc(school)}</div></div></aside>
  <div class="main"><header class="topbar"><div><h2>${esc(title)}</h2><div class="note">Connecting Schools. Tracking Documents. Ensuring Accountability.</div></div>${pTag('active')}</header><div class="content">${body}</div></div></div>${state.modal?modalHtml():''}`;
 }
