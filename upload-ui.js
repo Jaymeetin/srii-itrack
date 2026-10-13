@@ -9,6 +9,11 @@ const settings=window.ITRACK_CONFIG;
 // browser auth clients was causing repeated session checks on some phones.
 const db=window.ITRACK_DB;
 if(!root||!db||!settings?.url||!settings?.publishableKey)return;
+// Frontend display gate only. Supabase Edge Functions + database RLS enforce access.
+const PILOT_SCHOOL_IDS=new Set([
+ "68ece6a5-941c-4385-8062-5e4223877b60", // SINUNDOLAN ES
+ "d526729d-ee5e-4c1a-87f9-77f513c8778b"  // BUGO CS
+]);
 const MB=4*1024*1024;
 async function withDeadline(promise,label,ms=18000){
  let timer;
@@ -78,7 +83,7 @@ function markPanel(){
    const paragraphs=conn.querySelectorAll("p");
    if(paragraphs.length>=3){
      paragraphs[1].innerHTML='<span class="tag warn">PILOT</span> DepEd Google Drive uploads';
-     paragraphs[2].textContent="Authenticated uploads are being tested with district administrators and SINUNDOLAN ES before wider rollout.";
+     paragraphs[2].textContent="Authenticated uploads are being tested with district administrators, SINUNDOLAN ES and BUGO CS before wider rollout.";
    }
  }
  const title=content.querySelector("h1")?.textContent?.trim();
@@ -175,8 +180,8 @@ async function initialize(node,kind){
    const school=await withDeadline(db.from("schools")
     .select("name,is_active").eq("id",profile.school_id).single(),"School approval check");
    if(school.error||!school.data?.is_active)throw Error("Your approved school is not active.");
-   if(profile.role!=="school_user"||school.data.name!=="SINUNDOLAN ES")
-    throw Error("Secure file uploads are currently available to the district administrators and SINUNDOLAN ES pilot accounts only.");
+   if(profile.role!=="school_user"||!PILOT_SCHOOL_IDS.has(profile.school_id))
+    throw Error("Secure file uploads are currently available to district administrators and approved SINUNDOLAN ES or BUGO CS pilot accounts only.");
   }
   let options=[];
   loadingMessage(node,"Loading assigned "+(kind==="announcement"?"requirements":"documents")+"…");
