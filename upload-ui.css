@@ -48,3 +48,15 @@
 }
 
 .iu-controls[hidden],.iu-message[hidden],.itrack-upload[hidden],.panel[hidden]{display:none!important}
+
+/* Secure Drive view/download controls */
+.iu-history-detail{min-width:0;flex:1}
+.iu-history-controls{display:flex;align-items:center;justify-content:flex-end;gap:9px;flex-wrap:wrap}
+.iu-file-actions{display:flex;gap:7px;flex-wrap:wrap}
+.iu-file-action{min-height:37px;white-space:nowrap}
+.iu-archived{font-size:11px;color:var(--muted);font-weight:650}
+@media(max-width:730px){
+ .iu-history-controls{justify-content:space-between;width:100%}
+ .iu-file-actions{flex:1;justify-content:flex-end}
+ .iu-file-action{min-width:78px}
+}
