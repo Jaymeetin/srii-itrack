@@ -32,6 +32,14 @@ function notify(node,text,kind=""){
 function markPanel(){
  const content=root.querySelector(".app .content");
  if(!content)return;
+ const conn=[...content.querySelectorAll(".panel")].find(x=>x.querySelector("h3")?.textContent?.trim()==="Connections");
+ if(conn){
+   const paragraphs=conn.querySelectorAll("p");
+   if(paragraphs.length>=3){
+     paragraphs[1].innerHTML='<span class="tag warn">PILOT</span> DepEd Google Drive uploads';
+     paragraphs[2].textContent="Authenticated uploads are being tested with district administrators and SINUNDOLAN ES before wider rollout.";
+   }
+ }
  const title=content.querySelector("h1")?.textContent?.trim();
  const kind=title==="Announcements"?"announcement":title==="My Documents"?"document":null;
  if(!kind)return;
@@ -75,7 +83,7 @@ function setProcessing(node,yes){
  const upload=node.querySelector(".iu-upload");
  if(upload){upload.disabled=!ready;upload.textContent=yes?"Uploading, please wait…":"Upload to Google Drive";}
  const comp=node.querySelector(".iu-compress");
- if(comp)comp.disabled=yes||!node._iuOriginal||!/^image\//.test(node._iuOriginal.type);
+ if(comp)comp.disabled=yes||!node._iuOriginal||!/^image\//.test(mimeFor(node._iuOriginal));
  node.querySelector(".iu-input")?.toggleAttribute("disabled",yes);
  node.querySelector(".iu-select")?.toggleAttribute("disabled",yes);
 }
@@ -83,7 +91,7 @@ function preview(node,file){
  const image=node.querySelector(".iu-image");
  if(!image)return;
  if(node._iuBlobUrl){URL.revokeObjectURL(node._iuBlobUrl);node._iuBlobUrl=null;}
- if(file&&file.type.startsWith("image/")){
+ if(file&&mimeFor(file).startsWith("image/")){
   node._iuBlobUrl=URL.createObjectURL(file);
   image.src=node._iuBlobUrl;image.hidden=false;
  }else{image.hidden=true;image.removeAttribute("src");}
@@ -149,8 +157,6 @@ async function initialize(node,kind){
    const mime=file&&mimeFor(file);
    if(file&&!mime){
     node._iuFile=null;notify(node,"Unsupported file extension. Choose PDF, Word, JPG, PNG or WebP.","error");
-   }else if(file&&file.type&&file.type!==mime){
-    node._iuFile=null;notify(node,"The selected file's type does not match its extension.","error");
    }else{node.querySelector(".iu-message").hidden=true;}
    updateFile(node);
   });
@@ -196,7 +202,7 @@ async function refreshHistory(node,kind){
 }
 async function compress(node){
  const original=node._iuOriginal;
- if(!original||!/^image\//.test(original.type)){notify(node,"Choose an image first. PDF and Word files are preserved without compression.","error");return;}
+ if(!original||!/^image\//.test(mimeFor(original))){notify(node,"Choose an image first. PDF and Word files are preserved without compression.","error");return;}
  try{
   const bmp=await createImageBitmap(original);
   const scale=Math.min(1,2100/Math.max(bmp.width,bmp.height));
