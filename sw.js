@@ -1,8 +1,8 @@
 /* SRII i-TRACK app shell cache v2: assets only, always prefer the network. */
-const CACHE_NAME="srii-itrack-mobile-v2";
+const CACHE_NAME="srii-itrack-upload-v3";
 const CORE_ASSETS=[
  "./","./index.html","./styles.css","./mobile.css",
- "./app.js","./mobile-shell.js","./config.js",
+ "./app.js","./mobile-shell.js","./upload-ui.css","./upload-ui.js","./config.js",
  "./manifest.webmanifest","./assets/icon.svg"
 ];
 self.addEventListener("install",event=>{
