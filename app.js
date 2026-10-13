@@ -5,6 +5,9 @@ const C=window.ITRACK_CONFIG;
 const $=document.getElementById('app');
 const toast=document.getElementById('toast');
 const db=window.supabase?.createClient(C.url,C.publishableKey,{auth:{persistSession:true,detectSessionInUrl:true,autoRefreshToken:true}});
+// Reuse one authenticated client across tracking, upload and download screens.
+// Multiple clients refreshing the same mobile session can reset upload forms.
+window.ITRACK_DB=db;
 const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],recipients:[],monitor:[],selectedId:'',view:'dashboard',authMode:'login',modal:null,detail:null,routes:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,issue:null};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
