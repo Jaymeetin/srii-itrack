@@ -8,7 +8,7 @@ const db=window.supabase?.createClient(C.url,C.publishableKey,{auth:{persistSess
 // Reuse one authenticated client across tracking, upload and download screens.
 // Multiple clients refreshing the same mobile session can reset upload forms.
 window.ITRACK_DB=db;
-const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],recipients:[],monitor:[],selectedId:'',view:'dashboard',authMode:'login',modal:null,detail:null,routes:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],issue:null};
+const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],recipients:[],monitor:[],selectedId:'',view:'dashboard',authMode:'login',modal:null,detail:null,routes:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],docAttachmentError:'',issue:null};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=x=>x?new Date(x).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}):'—';
@@ -61,7 +61,7 @@ async function load(){
    tasks.push((async()=>{const {data,error}=await db.from('announcements').select('id,title,description,status,deadline_at,original_deadline_at,created_at').order('created_at',{ascending:false});if(error)throw error;state.announcements=data||[];if(!state.selectedId||!state.announcements.some(x=>x.id===state.selectedId))state.selectedId=state.announcements.find(x=>x.status!=='draft')?.id||'';})());
   }
   if(['dashboard','documents'].includes(state.view)){
-   tasks.push((async()=>{const {data,error}=await db.from('documents').select('id,tracking_number,subject,document_type,status,created_by,origin_school_id,created_at').order('created_at',{ascending:false}).limit(200);if(error)throw error;state.docs=data||[];})());
+   tasks.push((async()=>{const {data,error}=await db.from('documents').select('id,tracking_number,subject,document_type,status,created_by,origin_school_id,created_at').order('created_at',{ascending:false}).limit(200);if(error)throw error;state.docs=data||[];if(state.view==='documents')await loadDocumentAttachments();})());
   }
   if(yesAdmin()&&['dashboard','approvals'].includes(state.view)){
    tasks.push((async()=>{const {data,error}=await db.from('profiles').select('id,display_name,school_id,requested_school_id,position_title,role,account_status,created_at').order('created_at',{ascending:false});if(error)throw error;state.profiles=data||[];})());
@@ -89,6 +89,57 @@ async function load(){
   show();
  }catch(e){err(e);show();}
 }
+async function loadDocumentAttachments(){
+ // The user's Supabase JWT and attachment RLS limit results to authorized documents.
+ // Never request or expose Drive file IDs in the browser.
+ const ids=state.docs.map(d=>d.id).filter(Boolean);
+ state.docAttachments=[];
+ state.docAttachmentError='';
+ if(!ids.length)return;
+ const records=[];
+ for(let i=0;i<ids.length;i+=40){
+  const {data,error}=await db.from('document_attachments')
+   .select('id,document_id,original_filename,content_type,file_size_bytes,uploaded_at')
+   .in('document_id',ids.slice(i,i+40))
+   .order('uploaded_at',{ascending:false})
+   .limit(500);
+  if(error){
+   state.docAttachmentError='Could not load attachments. Try reopening Documents.';
+   console.error('Document attachment list failed',error);
+   return;
+  }
+  records.push(...(data||[]));
+ }
+ state.docAttachments=records.sort((a,b)=>new Date(b.uploaded_at)-new Date(a.uploaded_at));
+}
+function attachmentListHtml(documentId){
+ if(state.docAttachmentError)return '<p class="doc-att-empty">'+esc(state.docAttachmentError)+'</p>';
+ const files=state.docAttachments.filter(x=>x.document_id===documentId);
+ if(!files.length)return '<span class="doc-att-empty">No file attached yet</span>';
+ return '<div class="doc-att-list">'+files.map(f=>{
+  const filename=String(f.original_filename||'Attachment');
+  const previewable=['application/pdf','image/jpeg','image/png','image/webp'].includes(f.content_type);
+  const data=' data-kind="document" data-id="'+esc(f.id)+'" data-name="'+esc(filename)+'"';
+  return '<div class="doc-att-row"><span class="doc-att-icon" aria-hidden="true">▤</span>'+
+   '<span class="doc-att-name" title="'+esc(filename)+'">'+esc(filename)+'</span>'+
+   '<span class="doc-att-actions">'+(previewable?
+   '<button type="button" class="btn tiny alt iu-file-action"'+data+' data-mode="view" aria-label="View '+esc(filename)+'">View</button>':'')+
+   '<button type="button" class="btn tiny alt iu-file-action"'+data+' data-mode="download" aria-label="Download '+esc(filename)+'">Download</button>'+
+   '</span></div>';
+ }).join('')+'</div>';
+}
+window.addEventListener('itrack:document-uploaded',async event=>{
+ const id=event.detail?.documentId;
+ if(!active()||state.view!=='documents'||!state.docs.some(x=>x.id===id))return;
+ try{
+  await loadDocumentAttachments();
+  if(state.view!=='documents')return;
+  $.querySelectorAll('[data-doc-files]').forEach(el=>{
+   const docId=el.getAttribute('data-doc-files');
+   if(state.docs.some(d=>d.id===docId))el.innerHTML=attachmentListHtml(docId);
+  });
+ }catch(error){console.error('Could not refresh document attachments',error);}
+});
 async function loadRecipients(){const {data,error}=await db.rpc('i_track_recipient_directory');if(error)throw error;state.recipients=data||[];}
 async function loadMonitor(){if(!state.selectedId){state.monitor=[];return;}const {data,error}=await db.rpc('i_track_monitor',{p_announcement_id:state.selectedId});if(error)throw error;state.monitor=data||[];}
 function show(){
@@ -218,9 +269,16 @@ function monitorPage(){
  <div class="notice">Privacy: this view does not show other schools' files, upload dates, names of submitters, or download links.</div>`;
 }
 function documentPage(){
- const rows=state.docs.map(d=>`<tr><td><b>${esc(d.tracking_number)}</b></td><td>${esc(d.subject)}</td><td>${esc(d.document_type)}</td><td>${pTag(d.status)}</td><td><button class="btn tiny alt" data-a="detail" data-id="${d.id}">Open</button></td></tr>`);
- return `<div class="sectionhead"><div><div class="eyebrow">Routing and acknowledgment</div><h1>My Documents</h1><p class="sub">Permanent tracking numbers, receipt acknowledgment, forwarding and returns.</p></div><button class="btn" data-a="send">+ Route Document</button></div><div class="panel"><h3>Document Registry</h3>${table(['Tracking #','Subject','Type','Status',''],rows)}</div>
- <div class="panel"><h3>Compress a Screenshot</h3><div class="notice">Image compression works locally and is free. Online Google Drive file uploads are not connected yet.</div><div class="filebox"><input id="image-file" type="file" accept="image/jpeg,image/png,image/webp,.pdf,.doc,.docx"><p id="file-status" class="note" style="margin:9px 0 0">${esc(state.fileNote||'Choose a screenshot, PDF, or Word document.')}</p></div><div class="toolbar" style="margin-top:13px"><button class="btn alt" data-a="compress">Compress File</button>${state.compressed?'<button class="btn alt" data-a="save-compressed">Download Compressed Image</button>':''}<button class="btn" disabled>Upload to Drive — Coming Soon</button></div></div>`;
+ const rows=state.docs.map(d=>'<tr>'+
+  '<td><b>'+esc(d.tracking_number)+'</b></td>'+
+  '<td>'+esc(d.subject)+'</td>'+
+  '<td>'+esc(d.document_type)+'</td>'+
+  '<td>'+pTag(d.status)+'</td>'+
+  '<td class="doc-attachment-cell"><div data-doc-files="'+esc(d.id)+'">'+attachmentListHtml(d.id)+'</div></td>'+
+  '<td><button class="btn tiny alt" data-a="detail" data-id="'+esc(d.id)+'">Open</button></td>'+
+  '</tr>');
+ return `<div class="sectionhead"><div><div class="eyebrow">Routing and acknowledgment</div><h1>My Documents</h1><p class="sub">Open a document or view its attached files directly below.</p></div><button class="btn" data-a="send">+ Route Document</button></div><div class="panel"><h3>Document Registry</h3>${table(['Tracking #','Document Name','Type','Status','Attachments','Action'],rows)}</div>
+ <div class="panel"><h3>Compress a Screenshot</h3><div class="notice">Image compression works locally and is free. Documents can be attached using the secure upload panel above.</div><div class="filebox"><input id="image-file" type="file" accept="image/jpeg,image/png,image/webp,.pdf,.doc,.docx"><p id="file-status" class="note" style="margin:9px 0 0">${esc(state.fileNote||'Choose a screenshot, PDF, or Word document.')}</p></div><div class="toolbar" style="margin-top:13px"><button class="btn alt" data-a="compress">Compress File</button>${state.compressed?'<button class="btn alt" data-a="save-compressed">Download Compressed Image</button>':''}<button class="btn" disabled>Upload to Drive — Use secure panel above</button></div></div>`;
 }
 function approvalPage(){
  if(!yesAdmin())return '<div class="notice danger">Administrator access required.</div>';
@@ -243,7 +301,7 @@ function modalHtml(){
   const d=state.detail;title=d.tracking_number;
   const routes=state.routes;const last=routes.at(-1);const mine=last?.to_user_id===state.session.user.id;
   const canAck=mine&&last.status==='awaiting_ack';const canForward=mine&&last.status==='received'&&!last.processed_at;
-  body=`<h3>${esc(d.subject)}</h3><p class="sub">${esc(d.document_type)} · ${pTag(d.status)} · ${date(d.created_at)}</p><h3>Routing History</h3><div class="timeline">${routes.map(r=>`<div class="event"><strong>${esc(label(r.route_action))} · ${esc(label(r.status))}</strong><span class="small muted">${date(r.sent_at)}</span>${r.note?`<p>${esc(r.note)}</p>`:''}${r.acknowledged_at?`<p class="note">Acknowledged: ${date(r.acknowledged_at)}</p>`:''}</div>`).join('')}</div>`;
+  body=`<h3>${esc(d.subject)}</h3><p class="sub">${esc(d.document_type)} · ${pTag(d.status)} · ${date(d.created_at)}</p><section class="doc-detail-attachments"><h3>Attached Files</h3><div data-doc-files="${esc(d.id)}">${attachmentListHtml(d.id)}</div></section><h3>Routing History</h3><div class="timeline">${routes.map(r=>`<div class="event"><strong>${esc(label(r.route_action))} · ${esc(label(r.status))}</strong><span class="small muted">${date(r.sent_at)}</span>${r.note?`<p>${esc(r.note)}</p>`:''}${r.acknowledged_at?`<p class="note">Acknowledged: ${date(r.acknowledged_at)}</p>`:''}</div>`).join('')}</div>`;
   if(canForward)body+=`<div class="field"><label>Next recipient</label><select id="next-person"><option value="">Choose recipient</option>${state.recipients.filter(x=>x.user_id!==state.session.user.id).map(x=>`<option value="${x.user_id}">${esc(x.display_name)} · ${esc(x.school_name)}</option>`).join('')}</select></div><div class="field"><label>Note (optional)</label><input id="route-note"></div>`;
   footer=`<button class="btn alt" data-a="close">Close</button>${canAck?`<button class="btn" data-a="ack" data-id="${last.id}">Acknowledge Receipt</button>`:''}${canForward?`<button class="btn alt" data-a="route" data-id="${last.id}" data-return="true">Return</button><button class="btn" data-a="route" data-id="${last.id}" data-return="false">Forward</button>`:''}`;
  }
