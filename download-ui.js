@@ -14,10 +14,20 @@ let inProgress=false;
 const activeButtons=()=>[...root.querySelectorAll(".iu-file-action")];
 function notify(panel,text,success=false){
  const area=panel?.querySelector(".iu-message");
- if(!area||!panel?.isConnected)return;
- area.hidden=false;
- area.className="iu-message "+(success?"success":"error");
- area.textContent=text;
+ if(area&&panel?.isConnected){
+  area.hidden=false;
+  area.className="iu-message "+(success?"success":"error");
+  area.textContent=text;
+  return;
+ }
+ // Registry and acknowledgment buttons have no upload panel: use the app toast.
+ const toast=document.getElementById("toast");
+ if(!toast)return;
+ toast.textContent=text;
+ toast.style.background=success?"#116949":"#9d2d39";
+ toast.classList.add("show");
+ clearTimeout(notify.timer);
+ notify.timer=setTimeout(()=>toast.classList.remove("show"),6500);
 }
 async function perform(button){
  if(inProgress||button.disabled)return;
