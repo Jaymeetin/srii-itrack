@@ -8,7 +8,7 @@ const db=window.supabase?.createClient(C.url,C.publishableKey,{auth:{persistSess
 // Reuse one authenticated client across tracking, upload and download screens.
 // Multiple clients refreshing the same mobile session can reset upload forms.
 window.ITRACK_DB=db;
-const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],recipients:[],monitor:[],selectedId:'',view:'dashboard',authMode:'login',modal:null,detail:null,routes:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,issue:null};
+const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],recipients:[],monitor:[],selectedId:'',view:'dashboard',authMode:'login',modal:null,detail:null,routes:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],issue:null};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=x=>x?new Date(x).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}):'—';
@@ -66,7 +66,23 @@ async function load(){
   if(yesAdmin()&&['dashboard','approvals'].includes(state.view)){
    tasks.push((async()=>{const {data,error}=await db.from('profiles').select('id,display_name,school_id,requested_school_id,position_title,role,account_status,created_at').order('created_at',{ascending:false});if(error)throw error;state.profiles=data||[];})());
   }
-  if(state.view==='dashboard')tasks.push((async()=>{const {data,error}=await db.rpc('i_track_registration_counts');if(!error)state.counts=Array.isArray(data)?data[0]:data;})());
+  if(state.view==='dashboard'){
+   if(yesAdmin())tasks.push((async()=>{const {data,error}=await db.rpc('i_track_registration_counts');if(!error)state.counts=Array.isArray(data)?data[0]:data;})());
+   else tasks.push((async()=>{
+     const {data:assignments,error:aError}=await db.from('announcement_assignments')
+       .select('id,announcement_id,school_id,assigned_user_id,obligation_status')
+       .eq('obligation_status','required');
+     if(aError)throw aError;
+     state.schoolAssignments=(assignments||[]).filter(a=>a.school_id===state.profile.school_id||a.assigned_user_id===state.profile.id);
+     if(!state.schoolAssignments.length){state.schoolSubmissions=[];return;}
+     const {data:submissions,error:sError}=await db.from('submissions')
+       .select('assignment_id,first_received_at,version_number,storage_status')
+       .in('assignment_id',state.schoolAssignments.map(a=>a.id))
+       .in('storage_status',['uploaded','archived']);
+     if(sError)throw sError;
+     state.schoolSubmissions=submissions||[];
+   })());
+  }
   await Promise.all(tasks);
   if(state.view==='monitoring')await loadMonitor();
   if(state.view==='documents')await loadRecipients();
@@ -97,10 +113,10 @@ function authPage(){
 function pendingPage(){
  $.innerHTML=`<div class="pending">${brand()}<h2 style="margin-top:24px">${state.profile.account_status==='pending'?'Waiting for Approval':'Account Not Active'}</h2><p class="sub">${state.profile.account_status==='pending'?'Your registration needs approval and school assignment by the District Administrator.':'Contact the District Administrator if you believe this is a mistake.'}</p>${pTag(state.profile.account_status)}<p></p><div class="toolbar"><button class="btn" data-a="refresh">Check Again</button><button class="btn alt" data-a="logout">Sign Out</button></div></div>`;
 }
-const menu=[['dashboard','▤ Dashboard'],['announcements','▣ Announcements'],['monitoring','◉ Submission Monitoring'],['documents','⇄ My Documents']];
+const menu=[['dashboard','⌂ Home'],['announcements','▤ Announcements'],['monitoring','▥ Submission Status'],['documents','▣ My Documents']];
 function appPage(){
  const nav=[...menu,...(yesAdmin()?[['approvals','♙ Account Approvals'],['archive','▤ Archive Documents']]:[])].map(([id,title])=>`<button class="${state.view===id?'active':''}" data-a="nav" data-page="${id}">${title}</button>`).join('');
- const title={dashboard:'District Overview',announcements:'Announcements',monitoring:'Submission Monitoring',documents:'My Documents',approvals:'Account Management',archive:'Document Archiving'}[state.view]||'Overview';
+ const title={dashboard:'Home',announcements:'Announcements',monitoring:'Submission Monitoring',documents:'My Documents',approvals:'Account Management',archive:'Document Archiving'}[state.view]||'Overview';
  const school=state.schools.find(x=>x.id===state.profile.school_id)?.name||'District Office';
  const name=state.profile.display_name||'District Administrator';
  const body={dashboard:dashboardPage,announcements:announcementPage,monitoring:monitorPage,documents:documentPage,approvals:approvalPage,archive:archivePage}[state.view]?.()||dashboardPage();
@@ -115,18 +131,78 @@ function appPage(){
    docs:state.docs.map(d=>({id:d.id,tracking_number:d.tracking_number,subject:d.subject}))
  };
  $.innerHTML=`<div class="app"><aside class="sidebar">${brand()}<nav>${nav}</nav><div class="sidebar-footer"><button data-a="theme">◐ Light / Dark Mode</button><button data-a="logout">↩ Sign Out</button><div class="user-mini">${esc(name)}<br>${esc(label(state.profile.role))} · ${esc(school)}</div></div></aside>
- <div class="main"><header class="topbar"><div><h2>${esc(title)}</h2><div class="note">Connecting Schools. Tracking Documents. Ensuring Accountability.</div></div>${pTag('active')}</header><div class="content">${body}</div></div></div>${state.modal?modalHtml():''}`;
+ <div class="main"><header class="topbar"><div><h2>${esc(title)}</h2><div class="note">One District. One Direction.</div></div>${pTag('active')}</header><div class="content">${body}</div></div></div>${state.modal?modalHtml():''}`;
 }
 function dashboardPage(){
- const total=state.schools.filter(s=>s.is_active).length;
- const open=state.announcements.filter(a=>a.status==='open').length;
- const pending=state.profiles.filter(p=>p.account_status==='pending').length;
- const stats=stat('Schools with Approved Accounts',state.counts?.schools_with_approved_accounts??'—',`${total} schools in district`)+stat('Open Announcements',open,'Requirements currently open')+stat('Visible Documents',state.docs.length,'Routed documents on your account')+stat(yesAdmin()?'Pending Approvals':'Account Status',yesAdmin()?pending:'Active',yesAdmin()?'Users awaiting approval':'Approved user');
- const an=state.announcements.slice(0,6).map(x=>`<tr><td>${esc(x.title)}</td><td>${pTag(x.status)}</td><td>${short(x.deadline_at)}</td><td><button class="btn tiny alt" data-a="monitor" data-id="${x.id}">View</button></td></tr>`);
- const dox=state.docs.slice(0,6).map(x=>`<tr><td>${esc(x.tracking_number)}</td><td>${esc(x.subject)}</td><td>${pTag(x.status)}</td><td><button class="btn tiny alt" data-a="detail" data-id="${x.id}">View</button></td></tr>`);
- return `<div class="eyebrow">San Remigio II District</div><h1>Welcome to your district workspace</h1><p class="sub">Announcements, compliance, and document routing in one place.</p><div class="hero"><div><h2>Track with clarity. Submit with confidence.</h2><p>Your district's secure document tracking portal.</p></div><div class="seal">SRII</div></div>
- <div class="stats">${stats}</div><div class="grid2"><div><div class="panel"><div class="panel-head"><h3>Recent Announcements</h3><button class="btn tiny alt" data-a="nav" data-page="announcements">View all</button></div>${table(['Announcement','Status','Deadline',''],an)}</div><div class="panel"><div class="panel-head"><h3>Recent Documents</h3><button class="btn tiny alt" data-a="nav" data-page="documents">View all</button></div>${table(['Tracking #','Subject','Status',''],dox)}</div></div>
- <div><div class="panel"><h3>Quick Actions</h3><div class="toolbar">${yesAdmin()?'<button class="btn" data-a="new-announcement">+ Announcement</button>':''}<button class="btn alt" data-a="nav" data-page="documents">Route Document</button><button class="btn alt" data-a="nav" data-page="monitoring">Monitor Submissions</button></div></div><div class="panel"><h3>Connections</h3><p>${pTag('active')} Supabase login and database</p><p>${pTag('Pending')} Google Drive web uploads</p><p class="note">DepEd Google Drive access was tested separately using Apps Script. Uploads are disabled here until secure authorization is implemented.</p></div></div></div>`;
+ const name=state.profile.display_name||"District User";
+ const school=state.schools.find(x=>x.id===state.profile.school_id)?.name||"District Office";
+ const admin=yesAdmin();
+ const assigned=state.schoolAssignments||[];
+ const submissions=state.schoolSubmissions||[];
+ const byAnn=new Map();
+ if(!admin){
+  for(const a of assigned){
+   const ann=state.announcements.find(n=>n.id===a.announcement_id);
+   if(ann&&ann.status!=="draft")byAnn.set(ann.id,{...ann,assignmentId:a.id});
+  }
+ }
+ const mine=[...byAnn.values()];
+ const latest=(admin?state.announcements.filter(a=>a.status!=="draft"):mine).slice(0,5);
+ function receipt(assignmentId){
+  const dates=submissions.filter(s=>s.assignment_id===assignmentId).map(s=>new Date(s.first_received_at).getTime()).filter(Number.isFinite);
+  return dates.length?Math.min(...dates):null;
+ }
+ function schoolStatus(a){
+  const time=receipt(a.assignmentId);
+  if(time!==null)return time>new Date(a.deadline_at).getTime()?"Late":"Submitted";
+  return a.deadline_at&&Date.now()>new Date(a.deadline_at).getTime()?"Pending":"Pending";
+ }
+ const submitted=mine.filter(a=>schoolStatus(a)==="Submitted").length;
+ const late=mine.filter(a=>schoolStatus(a)==="Late").length;
+ const pending=mine.filter(a=>schoolStatus(a)==="Pending").length;
+ const metrics=admin?[
+  ["Schools",state.schools.filter(s=>s.is_active).length,"school"],
+  ["Open Notices",state.announcements.filter(a=>a.status==="open").length,"file-text"],
+  ["Documents",state.docs.length,"folder"],
+  ["Approvals",state.profiles.filter(p=>p.account_status==="pending").length,"user"]
+ ]:[
+  ["Requirements",mine.length,"file-text"],
+  ["Submitted",submitted,"check"],
+  ["Pending",pending,"clock"],
+  ["Late",late,"alert"]
+ ];
+ const signs={school:"▥","file-text":"▤",folder:"▣",user:"♙",check:"✓",clock:"◷",alert:"!"};
+ const metricHtml=metrics.map(([title,num,key],i)=>
+  '<div class="v2-metric v2-metric-'+i+'"><span class="v2-metric-icon" aria-hidden="true">'+signs[key]+'</span><div><span class="v2-metric-label">'+esc(title)+'</span><strong>'+esc(num)+'</strong></div></div>'
+ ).join("");
+ const announcements=latest.map(a=>{
+  const status=admin?a.status:schoolStatus(a);
+  const detail=admin?"View status":status==="Submitted"?"View":"Open";
+  return '<div class="v2-notice-item"><span class="v2-notice-symbol" aria-hidden="true">▤</span><div class="v2-notice-copy"><strong>'+esc(a.title)+'</strong><small>'+esc(short(a.deadline_at))+'</small></div>'+
+   '<span class="v2-notice-state">'+pTag(status)+'</span>'+
+   '<button class="btn tiny alt" data-a="nav" data-page="announcements">'+detail+'</button></div>';
+ }).join("")||'<div class="empty">No assigned announcements yet.</div>';
+ const upcoming=latest.filter(a=>a.deadline_at&&new Date(a.deadline_at)>new Date()&&a.status!=="closed")
+  .sort((a,b)=>new Date(a.deadline_at)-new Date(b.deadline_at)).slice(0,3);
+ const reminders=upcoming.map(a=>'<div class="v2-reminder"><span class="v2-dot"></span><span>'+esc(short(a.deadline_at))+'</span><strong>'+esc(a.title)+'</strong></div>').join("")||
+  '<p class="note">No upcoming deadlines.</p>';
+ const quick='<div class="v2-actions">'+
+  '<button data-a="nav" data-page="announcements"><span>↥</span><strong>Submit a File</strong><small>School requirements</small></button>'+
+  '<button data-a="nav" data-page="documents"><span>▣</span><strong>My Documents</strong><small>Route and track</small></button>'+
+  '<button data-a="nav" data-page="monitoring"><span>▥</span><strong>District Status</strong><small>Submission progress</small></button>'+
+  (admin?'<button data-a="nav" data-page="approvals"><span>♙</span><strong>Account Review</strong><small>Approve school users</small></button>':
+  '<button data-a="nav" data-page="announcements"><span>◷</span><strong>Due Dates</strong><small>Latest notices</small></button>')+
+  '</div>';
+ return '<section class="v2-intro"><div><div class="eyebrow">SAN REMIGIO II DISTRICT</div><h1>Welcome back, '+esc(name)+'!</h1><p class="v2-role">'+esc(admin?"District Administrator":school)+'</p></div><div class="v2-motto">One District. One Direction.<br><strong>Organized for a Stronger SRII.</strong></div></section>'+
+  '<div class="v2-metrics">'+metricHtml+'</div>'+
+  '<div class="v2-home-grid"><div class="v2-home-primary">'+
+  '<section class="panel v2-board"><div class="panel-head"><h3>Latest Announcements</h3><button class="btn tiny alt" data-a="nav" data-page="announcements">View All</button></div><div class="v2-notice-list">'+announcements+'</div></section>'+
+  '<section class="panel v2-board"><h3>Quick Actions</h3>'+quick+'</section>'+
+  '</div><div class="v2-home-secondary">'+
+  '<section class="panel v2-board"><h3>At a Glance</h3><div class="v2-summary-big">'+esc(admin?state.announcements.filter(a=>a.status==="open").length:submitted)+'<small>'+esc(admin?"Open announcements":"Submitted requirements")+'</small></div>'+
+   '<button class="btn alt block" data-a="nav" data-page="monitoring">View Submission Status</button></section>'+
+  '<section class="panel v2-board"><h3>Upcoming Deadlines</h3>'+reminders+'</section>'+
+  '</div></div>';
 }
 function announcementPage(){
  const rows=state.announcements.map(a=>`<tr><td><strong>${esc(a.title)}</strong><div class="small muted">${esc(a.description||'')}</div></td><td>${pTag(a.status)}</td><td>${short(a.deadline_at)}</td><td><button class="btn tiny alt" data-a="monitor" data-id="${a.id}">Monitor</button></td></tr>`);
