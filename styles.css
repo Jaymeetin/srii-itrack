@@ -135,3 +135,27 @@
 @media(max-width:820px){
  .auth-aside .brand{padding:9px 12px;border-radius:14px}
 }
+
+
+/* View attached documents directly beside Open in the document registry. */
+.doc-attachment-cell{min-width:185px;max-width:410px}
+.doc-att-list{display:grid;gap:7px;min-width:0}
+.doc-att-row{display:flex;align-items:center;gap:7px;flex-wrap:wrap;min-width:0;padding:7px 9px;border:1px solid var(--line);border-radius:11px;background:var(--bg)}
+.doc-att-icon{font-size:21px;line-height:1;color:var(--blue);flex:0 0 auto}
+.doc-att-name{font-size:12px;line-height:1.4;min-width:90px;flex:1 1 115px;overflow-wrap:anywhere;word-break:break-word;font-weight:650}
+.doc-att-actions{display:flex;gap:5px;flex:0 0 auto;flex-wrap:wrap}
+.doc-att-actions .btn{font-size:11px;padding:5px 8px;min-height:30px;white-space:nowrap}
+.doc-att-empty{font-size:12px;color:var(--muted);margin:0}
+.doc-detail-attachments{margin:15px 0 23px;padding:12px;border-radius:14px;background:var(--bg);border:1px solid var(--line)}
+.doc-detail-attachments h3{margin:0 0 12px}
+.doc-detail-attachments .doc-att-row{background:var(--paper)}
+@media(max-width:820px){
+ .data td.doc-attachment-cell{display:block;padding:10px 1px}
+ .data td.doc-attachment-cell::before{display:block;margin:0 0 9px}
+ .doc-attachment-cell{min-width:0;max-width:none}
+ .doc-att-row{padding:9px;gap:8px}
+ .doc-att-name{font-size:12px}
+ .doc-att-actions .btn{min-height:36px;padding:7px 10px}
+ .data td.mobile-action-cell .btn.iu-file-action{width:auto}
+ .doc-detail-attachments{padding:10px}
+}
