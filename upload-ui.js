@@ -364,6 +364,8 @@ async function upload(node,kind){
   node._iuFile=null;node._iuOriginal=null;node.querySelector(".iu-input").value="";
   updateFile(node);
   await refreshHistory(node,kind);
+  // Update the inline attachment beside Open without rebuilding the upload form.
+  if(kind==="document")window.dispatchEvent(new CustomEvent("itrack:document-uploaded",{detail:{documentId:id}}));
   notify(node,"File uploaded and recorded successfully! Received: "+displayTime(body.received_at)+". Your school's submission status will update in Submission Monitoring. Administrator verification is a separate step.","success");
  }catch(e){
   notify(node,e?.name==="AbortError"?
