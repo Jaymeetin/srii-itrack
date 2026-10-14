@@ -1,5 +1,5 @@
 /* SRII i-TRACK app shell cache v2: assets only, always prefer the network. */
-const CACHE_NAME="srii-itrack-approved-logo-v10";
+const CACHE_NAME="srii-itrack-transparent-brand-v11";
 const CORE_ASSETS=[
  "./","./index.html","./styles.css","./mobile.css",
  "./app.js","./mobile-shell.js","./upload-ui.css","./upload-ui.js","./download-ui.js","./config.js",
