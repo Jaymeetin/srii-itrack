@@ -76,6 +76,8 @@ function notify(node,text,kind=""){
  message.className="iu-message"+(kind?" "+kind:"");
 }
 function markPanel(){
+ // OIC-PSDS oversight is read-only. The upload Edge Function also rejects it.
+ if(window.ITRACK_CONTEXT?.profile?.role==="oic_psds")return;
  const content=root.querySelector(".app .content");
  if(!content)return;
  const conn=[...content.querySelectorAll(".panel")].find(x=>x.querySelector("h3")?.textContent?.trim()==="Connections");
