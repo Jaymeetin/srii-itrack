@@ -29,10 +29,10 @@ async function init(){
   verifiedAdmin=true;
   account.textContent=(profile.display_name||"District Administrator")+" ("+profile.role.replaceAll("_"," ")+")";
   schools=await fetchOrThrow(db.from("schools").select("id,name"),"School list");
-  const anns=await fetchOrThrow(db.from("announcements").select("id,title,status,deadline_at").in("status",["open","closed"]),"Announcement list");
+  const anns=await fetchOrThrow(db.from("announcements").select("id,announcement_code,title,status,deadline_at").in("status",["open","closed"]),"Announcement list");
   allAnnouncements=anns.filter(x=>x.title.toUpperCase().startsWith("SYSTEM TEST"));
   if(!allAnnouncements.length){message("No SYSTEM TEST announcement found for this pilot.","error");return;}
-  chooser.innerHTML=allAnnouncements.map(x=>'<option value="'+esc(x.id)+'">'+esc(x.title)+'</option>').join("");
+  chooser.innerHTML=allAnnouncements.map(x=>'<option value="'+esc(x.id)+'">'+esc((x.announcement_code?x.announcement_code+' — ':'')+x.title)+'</option>').join("");
   chooser.addEventListener("change",load);
   refresh.addEventListener("click",load);
   rows.addEventListener("click",handleReview);
