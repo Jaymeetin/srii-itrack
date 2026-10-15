@@ -191,13 +191,13 @@ async function initialize(node,kind){
     "Requirements loading");
    if(a.error)throw a.error;
    const n=await withDeadline(db.from("announcements")
-    .select("id,title,status,deadline_at").eq("status","open").order("created_at",{ascending:false}),
+    .select("id,announcement_code,title,status,deadline_at").eq("status","open").order("created_at",{ascending:false}),
     "Announcement loading");
    if(n.error)throw n.error;
    options=(a.data||[]).filter(a=>a.assigned_user_id===user.id||
     (!!profile.school_id && a.school_id===profile.school_id)).map(a=>{
     const ann=(n.data||[]).find(x=>x.id===a.announcement_id);
-    return ann?{id:a.id,label:ann.title,deadline:ann.deadline_at}:null;
+    return ann?{id:a.id,label:(ann.announcement_code?ann.announcement_code+" — ":"")+ann.title,deadline:ann.deadline_at}:null;
    }).filter(Boolean);
   }else{
    const d=await withDeadline(db.from("documents")
@@ -366,7 +366,7 @@ async function upload(node,kind){
   await refreshHistory(node,kind);
   // Update the inline attachment beside Open without rebuilding the upload form.
   if(kind==="document")window.dispatchEvent(new CustomEvent("itrack:document-uploaded",{detail:{documentId:id}}));
-  notify(node,"File uploaded and recorded successfully! Received: "+displayTime(body.received_at)+". Your school's submission status will update in Submission Monitoring. Administrator verification is a separate step.","success");
+  notify(node,"File uploaded and recorded successfully! Received: "+displayTime(body.received_at)+". "+(body.stored_file_name?"Saved in Drive as: "+body.stored_file_name+". ":"")+"Your school's submission status will update in Submission Monitoring. Administrator verification is a separate step.","success");
  }catch(e){
   notify(node,e?.name==="AbortError"?
    "The upload confirmation timed out. DO NOT retry yet; ask the administrator to check Drive and the upload log for duplicates.":
