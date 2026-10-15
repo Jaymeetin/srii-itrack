@@ -10,6 +10,7 @@ const icons={
  home:'<path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M9 21v-8h6v8"/>',
  notices:'<path d="m3 10 18-6v15L3 13z"/><path d="M7 14v6a2 2 0 0 0 4 0v-5"/>',
  status:'<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 17v-5m4 5V7m4 10v-8"/>',
+ reports:'<path d="M3 3h18v18H3z"/><path d="M7 17v-4m5 4V7m5 10v-7"/>',
  docs:'<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 9h6M9 13h6M9 17h4"/>',
  more:'<circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/>',
  chevron:'<path d="m9 18 6-6-6-6"/>'
@@ -59,7 +60,11 @@ function makeShell(app){
   nav.className="mobile-bottom-nav";
   nav.setAttribute("aria-label","Primary mobile navigation");
   const active=app.querySelector(".sidebar nav button.active")?.getAttribute("data-page")||"dashboard";
-  nav.innerHTML=tabs.map(t=>
+  const hasDocuments=!!app.querySelector('.sidebar nav button[data-page="documents"]');
+  const visibleTabs=hasDocuments?tabs:
+   [...tabs.filter(t=>t.page!=="documents"),{page:"reports",label:"Reports",icon:"reports"}];
+  nav.style.gridTemplateColumns="repeat("+(visibleTabs.length+1)+",minmax(0,1fr))";
+  nav.innerHTML=visibleTabs.map(t=>
     '<button type="button" class="mobile-tab" data-mobile="navigate" data-page="'+t.page+'"'+
       (active===t.page?' aria-current="page"':'')+'>'+
     icon(t.icon)+'<span>'+t.label+'</span></button>').join("")+
@@ -88,10 +93,12 @@ function openMore(){
  if(root.querySelector(".mobile-more-overlay")){closeMore();return;}
  const user=identity(app);
  const admin=app.querySelector('.sidebar nav button[data-page="approvals"]');
+ const reports=app.querySelector('.sidebar nav button[data-page="reports"]');
  const verification=app.querySelector('.sidebar nav button[data-page="verification"]');
  const archive=app.querySelector('.sidebar nav button[data-page="archive"]');
  const accountActions=[
   verification?'<button type="button" class="mobile-menu-button" data-mobile="navigate" data-page="verification">Submission Verification <small>›</small></button>':"",
+  reports?'<button type="button" class="mobile-menu-button" data-mobile="navigate" data-page="reports">District Reports <small>›</small></button>':"",
   admin?'<button type="button" class="mobile-menu-button" data-mobile="navigate" data-page="approvals">Account Management <small>›</small></button>':"",
   archive?'<button type="button" class="mobile-menu-button" data-mobile="navigate" data-page="archive">Document Archiving <small>›</small></button>':""
  ].join("");
@@ -105,8 +112,9 @@ function openMore(){
   '<div class="mobile-more-top"><strong>More options</strong><button type="button" class="mobile-close" data-mobile="close" aria-label="Close menu">×</button></div>'+
   '<div class="mobile-identity"><span class="mobile-avatar" aria-hidden="true">'+safe(user.initials)+'</span><div><strong>'+safe(user.name)+'</strong><small>'+safe(user.detail)+'</small></div></div>'+
   section+
-  '<span class="mobile-sheet-label">SYSTEM TEST TOOLS</span>'+
-  '<button type="button" class="mobile-menu-button" data-mobile="link" data-href="./upload-test.html">Test Google Drive Upload <small>›</small></button>'+
+  (admin||app.querySelector('.sidebar nav button[data-page="documents"]')?
+   '<span class="mobile-sheet-label">SYSTEM TEST TOOLS</span>'+
+   '<button type="button" class="mobile-menu-button" data-mobile="link" data-href="./upload-test.html">Test Google Drive Upload <small>›</small></button>':'')+
   '<span class="mobile-sheet-label">PREFERENCES</span>'+
   '<button type="button" class="mobile-menu-button" data-mobile="theme">◐ &nbsp; Switch Light / Dark Mode <small>›</small></button>'+
   '<button type="button" class="mobile-menu-button danger" data-mobile="logout">↩ &nbsp; Sign Out <small>›</small></button>'+
