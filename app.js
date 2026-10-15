@@ -8,7 +8,7 @@ const db=window.supabase?.createClient(C.url,C.publishableKey,{auth:{persistSess
 // Reuse one authenticated client across tracking, upload and download screens.
 // Multiple clients refreshing the same mobile session can reset upload forms.
 window.ITRACK_DB=db;
-const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],recipients:[],monitor:[],selectedId:'',view:'dashboard',authMode:'login',modal:null,detail:null,routes:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],docAttachmentError:'',issue:null};
+const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],recipients:[],monitor:[],selectedId:'',view:(new URLSearchParams(location.search).get('view')==='verification'?'verification':'dashboard'),authMode:'login',modal:null,detail:null,routes:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],docAttachmentError:'',reviewSelectedId:'',reviewRows:[],reviewRequired:0,issue:null};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=x=>x?new Date(x).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}):'—';
@@ -58,7 +58,7 @@ async function load(){
  if(!active()){show();return;}
  try{
   const tasks=[];
-  if(['dashboard','announcements','monitoring'].includes(state.view)){
+  if(['dashboard','announcements','monitoring','verification'].includes(state.view)){
    tasks.push((async()=>{const {data,error}=await db.from('announcements').select('id,announcement_code,title,description,status,deadline_at,original_deadline_at,created_at').order('created_at',{ascending:false});if(error)throw error;state.announcements=data||[];if(!state.selectedId||!state.announcements.some(x=>x.id===state.selectedId))state.selectedId=state.announcements.find(x=>x.status!=='draft')?.id||'';})());
   }
   if(['dashboard','documents'].includes(state.view)){
@@ -86,6 +86,7 @@ async function load(){
   }
   await Promise.all(tasks);
   if(state.view==='monitoring')await loadMonitor();
+  if(state.view==='verification'&&yesAdmin())await loadVerification();
   if(state.view==='documents')await loadRecipients();
   show();
  }catch(e){err(e);show();}
@@ -143,6 +144,81 @@ window.addEventListener('itrack:document-uploaded',async event=>{
 });
 async function loadRecipients(){const {data,error}=await db.rpc('i_track_recipient_directory');if(error)throw error;state.recipients=data||[];}
 async function loadMonitor(){if(!state.selectedId){state.monitor=[];return;}const {data,error}=await db.rpc('i_track_monitor',{p_announcement_id:state.selectedId});if(error)throw error;state.monitor=data||[];}
+async function loadVerification(){
+ if(!yesAdmin()||!active())throw new Error('Administrator access required.');
+ const announcements=state.announcements.filter(a=>['open','closed'].includes(a.status));
+ if(!state.reviewSelectedId||!announcements.some(a=>a.id===state.reviewSelectedId))
+  state.reviewSelectedId=announcements[0]?.id||'';
+ const id=state.reviewSelectedId;
+ state.reviewRows=[];
+ state.reviewRequired=0;
+ if(!id)return;
+ const {data:assignments,error:assignmentError}=await db.from('announcement_assignments')
+  .select('id,school_id,assigned_user_id').eq('announcement_id',id).eq('obligation_status','required');
+ if(assignmentError)throw assignmentError;
+ if(state.reviewSelectedId!==id)return;
+ state.reviewRequired=(assignments||[]).length;
+ if(!state.reviewRequired)return;
+ const ids=assignments.map(a=>a.id);
+ const files=[];
+ for(let i=0;i<ids.length;i+=40){
+  const {data,error}=await db.from('submissions')
+   .select('id,assignment_id,original_filename,content_type,file_size_bytes,first_received_at,version_number,verification_status,verified_at,storage_status')
+   .in('assignment_id',ids.slice(i,i+40)).in('storage_status',['uploaded','archived'])
+   .order('version_number',{ascending:false}).order('first_received_at',{ascending:false}).limit(1000);
+  if(error)throw error;
+  files.push(...(data||[]));
+ }
+ if(state.reviewSelectedId!==id)return;
+ const assigned=new Map(assignments.map(a=>[a.id,a]));
+ const latest=new Map();
+ for(const f of files){
+  const old=latest.get(f.assignment_id);
+  if(!old||f.version_number>old.version_number||
+      (f.version_number===old.version_number&&new Date(f.first_received_at)>new Date(old.first_received_at)))
+   latest.set(f.assignment_id,f);
+ }
+ state.reviewRows=[...latest.values()].map(f=>{
+  const a=assigned.get(f.assignment_id);
+  return {...f,school_name:state.schools.find(sc=>sc.id===a?.school_id)?.name||'Individual assignment'};
+ }).sort((a,b)=>a.school_name.localeCompare(b.school_name));
+}
+function verificationPage(){
+ if(!yesAdmin())return '<div class="notice danger">Administrator access required.</div>';
+ const notices=state.announcements.filter(a=>['open','closed'].includes(a.status));
+ const opts=notices.map(a=>'<option value="'+esc(a.id)+'"'+(a.id===state.reviewSelectedId?' selected':'')+'>'+esc(announcementName(a))+'</option>').join('');
+ const uploaded=state.reviewRows.length;
+ const pending=state.reviewRows.filter(s=>s.verification_status==='pending').length;
+ const rows=state.reviewRows.map(s=>{
+  const name=String(s.original_filename||'Uploaded document');
+  const status=['pending','verified','rejected'].includes(s.verification_status)?s.verification_status:'pending';
+  const attr=' data-kind="announcement" data-id="'+esc(s.id)+'" data-name="'+esc(name)+'"';
+  const previewable=['application/pdf','image/jpeg','image/png','image/webp'].includes(s.content_type);
+  const buttons='<div class="verify-file-actions">'+(previewable?
+   '<button type="button" class="btn tiny alt iu-file-action" data-mode="view"'+attr+'>View File</button>':'')+
+   '<button type="button" class="btn tiny alt iu-file-action" data-mode="download"'+attr+'>Download</button></div>';
+  const approval=status==='pending'?
+   '<div class="verify-action-buttons"><button type="button" class="btn tiny" data-a="verify-submission" data-id="'+esc(s.id)+'">Verify</button>'+
+   '<button type="button" class="btn tiny danger" data-a="reject-submission" data-id="'+esc(s.id)+'">Reject</button></div>':
+   '<span class="small muted">Reviewed '+esc(date(s.verified_at))+'</span>';
+  return '<tr><td><strong>'+esc(s.school_name)+'</strong></td>'+
+   '<td class="verify-file-cell"><strong class="verify-file-name">'+esc(name)+'</strong><div class="small muted">Version '+esc(s.version_number)+' · '+(Number(s.file_size_bytes||0)/1024).toFixed(1)+' KB</div>'+buttons+'</td>'+
+   '<td>'+esc(date(s.first_received_at))+'</td>'+
+   '<td><span class="verify-status verify-status-'+status+'">'+esc(label(status))+'</span></td>'+
+   '<td>'+approval+'</td></tr>';
+ });
+ return '<div class="sectionhead"><div><div class="eyebrow">District administrator</div>'+
+  '<h1>Submission Verification</h1><p class="sub">Inspect school submissions, then verify or reject the latest version. Account approvals are managed separately.</p>'+
+  '</div><button class="btn alt" data-a="refresh-verification">↻ Refresh</button></div>'+
+  '<section class="panel verify-panel"><div class="verify-picker"><div class="field">'+
+  '<label for="review-ann">Announcement to review</label><select id="review-ann"><option value="">Choose an announcement</option>'+opts+'</select></div>'+
+  '<div class="verify-summary"><strong>'+pending+'</strong><span>Awaiting verification</span><small>'+uploaded+' submissions · '+state.reviewRequired+' assignments</small></div></div>'+
+  '<div class="notice warn">Open and inspect each file before approving it. Verification of content does not change whether the submission was on time or late. Rejected versions remain in the audit history.</div>'+
+  (state.reviewSelectedId?table(['School','Submitted file','Received (PHT)','Verification','Action'],rows):
+   '<div class="empty">No published announcements available for verification.</div>')+
+  (state.reviewSelectedId&&!rows.length?'<p class="note">No uploaded submissions for this announcement yet.</p>':'')+
+  '</section>';
+}
 function show(){
  if(state.issue){$.innerHTML=`<div class="startup"><h2>Connection problem</h2><p>${esc(state.issue)}</p><button class="btn" data-a="retry">Retry</button></div>`;return;}
  if(!state.session){window.ITRACK_CONTEXT=null;authPage();return;}
@@ -167,11 +243,11 @@ function pendingPage(){
 }
 const menu=[['dashboard','⌂ Home'],['announcements','▤ Announcements'],['monitoring','▥ Submission Status'],['documents','▣ My Documents']];
 function appPage(){
- const nav=[...menu,...(yesAdmin()?[['approvals','♙ Account Approvals'],['archive','▤ Archive Documents']]:[])].map(([id,title])=>`<button class="${state.view===id?'active':''}" data-a="nav" data-page="${id}">${title}</button>`).join('');
- const title={dashboard:'Home',announcements:'Announcements',monitoring:'Submission Monitoring',documents:'My Documents',approvals:'Account Management',archive:'Document Archiving'}[state.view]||'Overview';
+ const nav=[...menu,...(yesAdmin()?[['verification','✓ Submission Verification'],['approvals','♙ Account Approvals'],['archive','▤ Archive Documents']]:[])].map(([id,title])=>`<button class="${state.view===id?'active':''}" data-a="nav" data-page="${id}">${title}</button>`).join('');
+ const title={dashboard:'Home',announcements:'Announcements',monitoring:'Submission Monitoring',documents:'My Documents',verification:'Submission Verification',approvals:'Account Management',archive:'Document Archiving'}[state.view]||'Overview';
  const school=state.schools.find(x=>x.id===state.profile.school_id)?.name||'District Office';
  const name=state.profile.display_name||'District Administrator';
- const body={dashboard:dashboardPage,announcements:announcementPage,monitoring:monitorPage,documents:documentPage,approvals:approvalPage,archive:archivePage}[state.view]?.()||dashboardPage();
+ const body={dashboard:dashboardPage,announcements:announcementPage,monitoring:monitorPage,documents:documentPage,verification:verificationPage,approvals:approvalPage,archive:archivePage}[state.view]?.()||dashboardPage();
  // Read-only presentation context for the upload panel. Not an authorization
  // mechanism: Supabase RLS and the Edge Function enforce permissions.
  window.ITRACK_CONTEXT={
@@ -336,7 +412,37 @@ async function click(e){
   if(a==='theme'){state.theme=state.theme==='dark'?'light':'dark';localStorage.setItem('srii-theme',state.theme);document.documentElement.dataset.theme=state.theme;show();return;}
   if(a==='logout'){await db.auth.signOut();state.session=null;state.profile=null;state.view='dashboard';state.modal=null;show();return;}
   if(a==='refresh'){await sync();return;}
-  if(a==='nav'){state.view=t.dataset.page;state.modal=null;await load();return;}
+  if(a==='nav'){
+   if(t.dataset.page==='verification'&&!yesAdmin())throw new Error('Administrator access required.');
+   state.view=t.dataset.page;state.modal=null;
+   const url=new URL(location.href);
+   if(state.view==='verification')url.searchParams.set('view','verification');
+   else url.searchParams.delete('view');
+   history.replaceState(null,'',url);
+   await load();return;
+  }
+  if(a==='refresh-verification'){
+   if(!yesAdmin()||state.view!=='verification')throw new Error('Administrator access required.');
+   await loadVerification();show();pop('Verification list refreshed.');return;
+  }
+  if(a==='verify-submission'||a==='reject-submission'){
+   if(!yesAdmin()||state.view!=='verification')throw new Error('Administrator access required.');
+   const submission=state.reviewRows.find(x=>x.id===t.dataset.id);
+   if(!submission||submission.verification_status!=='pending')throw new Error('Submission is no longer pending. Refresh the list.');
+   const approving=a==='verify-submission';
+   const confirmation=approving?
+    'Have you opened and inspected "'+submission.original_filename+'" from '+submission.school_name+'? Verify Version '+submission.version_number+'?':
+    'Reject "'+submission.original_filename+'" from '+submission.school_name+'? Its original upload and audit history will remain saved.';
+   if(!confirm(confirmation))return;
+   state.busy=true;t.disabled=true;
+   try{
+    const {error}=await db.rpc('i_track_verify_submission',{p_submission_id:submission.id,p_approved:approving});
+    if(error)throw error;
+    await loadVerification();show();
+    pop(approving?'Submission verified.':'Submission rejected. A corrected version can be uploaded.');
+   }finally{state.busy=false;t.disabled=false;}
+   return;
+  }
   if(a==='monitor'){state.selectedId=t.dataset.id;state.view='monitoring';await load();return;}
   if(a==='close'){state.modal=null;show();return;}
   if(a==='new-announcement'){state.modal='new-announcement';show();return;}
@@ -404,6 +510,7 @@ $.addEventListener('submit',submit);
 $.addEventListener('change',async e=>{
  if(e.target.id==='all-schools')document.querySelectorAll('.school-checkbox').forEach(c=>c.checked=e.target.checked);
  if(e.target.id==='pick-ann'){state.selectedId=e.target.value;try{await loadMonitor();show();}catch(ex){err(ex);}}
+ if(e.target.id==='review-ann'&&yesAdmin()){state.reviewSelectedId=e.target.value;try{await loadVerification();show();}catch(ex){err(ex);}}
  if(e.target.id==='image-file'){state.file=e.target.files?.[0]||null;state.compressed=null;state.fileNote=state.file?`Selected ${state.file.name} — ${(state.file.size/1024).toFixed(0)} KB`:'';const note=document.getElementById('file-status');if(note)note.textContent=state.fileNote;}
 });
 initial();
