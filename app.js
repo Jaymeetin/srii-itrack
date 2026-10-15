@@ -8,7 +8,7 @@ const db=window.supabase?.createClient(C.url,C.publishableKey,{auth:{persistSess
 // Reuse one authenticated client across tracking, upload and download screens.
 // Multiple clients refreshing the same mobile session can reset upload forms.
 window.ITRACK_DB=db;
-const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],recipients:[],monitor:[],selectedId:'',view:(new URLSearchParams(location.search).get('view')==='verification'?'verification':'dashboard'),authMode:'login',modal:null,detail:null,routes:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],docAttachmentError:'',reviewSelectedId:'',reviewRows:[],reviewRequired:0,issue:null};
+const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],recipients:[],monitor:[],selectedId:'',view:(new URLSearchParams(location.search).get('view')==='verification'?'verification':'dashboard'),authMode:'login',modal:null,detail:null,routes:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],docAttachmentError:'',reviewSelectedId:'',reviewRows:[],reviewVersions:[],reviewRequired:0,issue:null};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=x=>x?new Date(x).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}):'—';
@@ -149,73 +149,127 @@ async function loadVerification(){
  const announcements=state.announcements.filter(a=>['open','closed'].includes(a.status));
  if(!state.reviewSelectedId||!announcements.some(a=>a.id===state.reviewSelectedId))
   state.reviewSelectedId=announcements[0]?.id||'';
- const id=state.reviewSelectedId;
- state.reviewRows=[];
- state.reviewRequired=0;
- if(!id)return;
+ const requestedId=state.reviewSelectedId;
+ if(!requestedId){
+  state.reviewRows=[];state.reviewVersions=[];state.reviewRequired=0;
+  return;
+ }
  const {data:assignments,error:assignmentError}=await db.from('announcement_assignments')
-  .select('id,school_id,assigned_user_id').eq('announcement_id',id).eq('obligation_status','required');
+  .select('id,school_id,assigned_user_id').eq('announcement_id',requestedId).eq('obligation_status','required');
  if(assignmentError)throw assignmentError;
- if(state.reviewSelectedId!==id)return;
- state.reviewRequired=(assignments||[]).length;
- if(!state.reviewRequired)return;
- const ids=assignments.map(a=>a.id);
- const files=[];
- for(let i=0;i<ids.length;i+=40){
-  const {data,error}=await db.from('submissions')
-   .select('id,assignment_id,original_filename,content_type,file_size_bytes,first_received_at,version_number,verification_status,verified_at,storage_status')
-   .in('assignment_id',ids.slice(i,i+40)).in('storage_status',['uploaded','archived'])
-   .order('version_number',{ascending:false}).order('first_received_at',{ascending:false}).limit(1000);
-  if(error)throw error;
-  files.push(...(data||[]));
+ if(state.reviewSelectedId!==requestedId)return;
+ const required=(assignments||[]).length;
+ const versions=[];
+ if(required){
+  const ids=assignments.map(a=>a.id);
+  for(let i=0;i<ids.length;i+=40){
+   // Pagination is important: old versions must not silently disappear when
+   // there are hundreds of records across the district.
+   for(let offset=0;;offset+=500){
+    const {data,error}=await db.from('submissions')
+     .select('id,assignment_id,original_filename,content_type,file_size_bytes,first_received_at,version_number,verification_status,verified_at,storage_status')
+     .in('assignment_id',ids.slice(i,i+40))
+     .in('storage_status',['uploaded','archived'])
+     .order('version_number',{ascending:false})
+     .order('first_received_at',{ascending:false})
+     .order('id',{ascending:false})
+     .range(offset,offset+499);
+    if(error)throw error;
+    versions.push(...(data||[]));
+    if(!data||data.length<500)break;
+    if(offset>=9500)throw new Error('Submission history exceeds the current display limit. Contact district support.');
+   }
+  }
  }
- if(state.reviewSelectedId!==id)return;
- const assigned=new Map(assignments.map(a=>[a.id,a]));
- const latest=new Map();
- for(const f of files){
-  const old=latest.get(f.assignment_id);
-  if(!old||f.version_number>old.version_number||
-      (f.version_number===old.version_number&&new Date(f.first_received_at)>new Date(old.first_received_at)))
-   latest.set(f.assignment_id,f);
+ if(state.reviewSelectedId!==requestedId)return;
+ const assigned=new Map((assignments||[]).map(a=>[a.id,a]));
+ const byAssignment=new Map();
+ for(const file of versions){
+  if(!byAssignment.has(file.assignment_id))byAssignment.set(file.assignment_id,[]);
+  byAssignment.get(file.assignment_id).push(file);
  }
- state.reviewRows=[...latest.values()].map(f=>{
-  const a=assigned.get(f.assignment_id);
-  return {...f,school_name:state.schools.find(sc=>sc.id===a?.school_id)?.name||'Individual assignment'};
- }).sort((a,b)=>a.school_name.localeCompare(b.school_name));
+ const rows=[];
+ for(const [assignmentId,files] of byAssignment){
+  files.sort((a,b)=>Number(b.version_number)-Number(a.version_number)||
+   new Date(b.first_received_at)-new Date(a.first_received_at));
+  const current=files[0];
+  const latestVerified=files.find(f=>f.verification_status==='verified')||null;
+  const assignment=assigned.get(assignmentId);
+  const schoolName=state.schools.find(sc=>sc.id===assignment?.school_id)?.name||'Individual assignment';
+  rows.push({...current,school_name:schoolName,latestVerified,versions:files});
+ }
+ state.reviewRequired=required;
+ state.reviewVersions=versions;
+ state.reviewRows=rows.sort((a,b)=>a.school_name.localeCompare(b.school_name));
+}
+function reviewFileActions(file,compact=false){
+ const filename=String(file.original_filename||'Document');
+ if(file.storage_status==='archived')
+  return '<span class="small muted">Archived to SSD — online file unavailable</span>';
+ const previewable=['application/pdf','image/jpeg','image/png','image/webp'].includes(file.content_type);
+ const attrs=' data-kind="announcement" data-id="'+esc(file.id)+'" data-name="'+esc(filename)+'"';
+ return '<span class="verify-file-actions'+(compact?' is-compact':'')+'">'+
+  (previewable?'<button type="button" class="btn tiny alt iu-file-action" data-mode="view"'+attrs+'>View</button>':'')+
+  '<button type="button" class="btn tiny alt iu-file-action" data-mode="download"'+attrs+'>Download</button></span>';
 }
 function verificationPage(){
  if(!yesAdmin())return '<div class="notice danger">Administrator access required.</div>';
  const notices=state.announcements.filter(a=>['open','closed'].includes(a.status));
- const opts=notices.map(a=>'<option value="'+esc(a.id)+'"'+(a.id===state.reviewSelectedId?' selected':'')+'>'+esc(announcementName(a))+'</option>').join('');
- const uploaded=state.reviewRows.length;
- const pending=state.reviewRows.filter(s=>s.verification_status==='pending').length;
+ const options=notices.map(a=>'<option value="'+esc(a.id)+'"'+(a.id===state.reviewSelectedId?' selected':'')+'>'+esc(announcementName(a))+'</option>').join('');
+ const uploadedSchools=state.reviewRows.length;
+ const awaitingNow=state.reviewRows.filter(s=>s.verification_status==='pending').length;
+ const oldPending=state.reviewRows.reduce((count,s)=>count+s.versions.slice(1).filter(f=>f.verification_status==='pending').length,0);
+ const currentVerified=state.reviewRows.filter(s=>s.verification_status==='verified').length;
  const rows=state.reviewRows.map(s=>{
   const name=String(s.original_filename||'Uploaded document');
-  const status=['pending','verified','rejected'].includes(s.verification_status)?s.verification_status:'pending';
-  const attr=' data-kind="announcement" data-id="'+esc(s.id)+'" data-name="'+esc(name)+'"';
-  const previewable=['application/pdf','image/jpeg','image/png','image/webp'].includes(s.content_type);
-  const buttons='<div class="verify-file-actions">'+(previewable?
-   '<button type="button" class="btn tiny alt iu-file-action" data-mode="view"'+attr+'>View File</button>':'')+
-   '<button type="button" class="btn tiny alt iu-file-action" data-mode="download"'+attr+'>Download</button></div>';
-  const approval=status==='pending'?
-   '<div class="verify-action-buttons"><button type="button" class="btn tiny" data-a="verify-submission" data-id="'+esc(s.id)+'">Verify</button>'+
-   '<button type="button" class="btn tiny danger" data-a="reject-submission" data-id="'+esc(s.id)+'">Reject</button></div>':
-   '<span class="small muted">Reviewed '+esc(date(s.verified_at))+'</span>';
+  const currentStatus=['pending','verified','rejected'].includes(s.verification_status)?s.verification_status:'pending';
+  const approved=s.latestVerified;
+  const approvedText=approved?
+   '<div class="verify-approved"><span class="verify-status verify-status-verified">Verified V'+esc(approved.version_number)+'</span>'+
+   '<span class="small muted">'+esc(approved.original_filename)+'</span>'+
+   '<span class="small muted">Reviewed '+esc(date(approved.verified_at))+'</span></div>':
+   '<span class="small muted">No verified version yet</span>';
+  const decision=currentStatus==='pending'?
+   '<div class="verify-action-buttons"><button class="btn tiny" type="button" data-a="verify-submission" data-id="'+esc(s.id)+'">Verify V'+esc(s.version_number)+'</button>'+
+   '<button class="btn tiny danger" type="button" data-a="reject-submission" data-id="'+esc(s.id)+'">Reject</button></div>':
+   '<span class="small muted">'+(currentStatus==='verified'?'Latest upload already verified':'Latest upload rejected')+'</span>';
+  const history=s.versions.map((f,index)=>{
+   const versionStatus=['pending','verified','rejected'].includes(f.verification_status)?f.verification_status:'pending';
+   const superseded=index>0;
+   const flag=superseded?'Previous version': 'Latest upload';
+   const statusLabel=superseded&&versionStatus==='pending'?'Pending (superseded)':label(versionStatus);
+   return '<div class="verify-history-entry'+(superseded?' is-prior':' is-current')+'">'+
+    '<div class="verify-history-top"><strong>V'+esc(f.version_number)+' · '+flag+'</strong>'+
+    '<span class="verify-status verify-status-'+versionStatus+(superseded&&versionStatus==='pending'?' verify-status-superseded':'')+'">'+esc(statusLabel)+'</span></div>'+
+    '<div class="verify-history-file">'+esc(f.original_filename)+'</div>'+
+    '<div class="small muted">Received '+esc(date(f.first_received_at))+
+    (f.verified_at?' · Reviewed '+esc(date(f.verified_at)):'')+'</div>'+
+    reviewFileActions(f,true)+'</div>';
+  }).join('');
+  const historyControl='<details class="verify-history"><summary>View version history ('+s.versions.length+')</summary>'+
+   '<div class="verify-history-list">'+history+'</div></details>';
   return '<tr><td><strong>'+esc(s.school_name)+'</strong></td>'+
-   '<td class="verify-file-cell"><strong class="verify-file-name">'+esc(name)+'</strong><div class="small muted">Version '+esc(s.version_number)+' · '+(Number(s.file_size_bytes||0)/1024).toFixed(1)+' KB</div>'+buttons+'</td>'+
-   '<td>'+esc(date(s.first_received_at))+'</td>'+
-   '<td><span class="verify-status verify-status-'+status+'">'+esc(label(status))+'</span></td>'+
-   '<td>'+approval+'</td></tr>';
+   '<td class="verify-file-cell"><span class="verify-current-label">Latest upload · V'+esc(s.version_number)+'</span>'+
+   '<strong class="verify-file-name">'+esc(name)+'</strong>'+
+   '<div class="small muted">Received '+esc(date(s.first_received_at))+' · '+(Number(s.file_size_bytes||0)/1024).toFixed(1)+' KB</div>'+
+   reviewFileActions(s)+'</td>'+
+   '<td class="verify-approved-cell">'+approvedText+'</td>'+
+   '<td><span class="verify-status verify-status-'+currentStatus+'">'+esc(label(currentStatus))+'</span></td>'+
+   '<td class="verify-review-cell">'+decision+historyControl+'</td></tr>';
  });
  return '<div class="sectionhead"><div><div class="eyebrow">District administrator</div>'+
-  '<h1>Submission Verification</h1><p class="sub">Inspect school submissions, then verify or reject the latest version. Account approvals are managed separately.</p>'+
-  '</div><button class="btn alt" data-a="refresh-verification">↻ Refresh</button></div>'+
+  '<h1>Submission Verification</h1>'+
+  '<p class="sub">Review the latest upload, compare it with the latest verified version, and inspect every earlier version.</p></div>'+
+  '<button class="btn alt" data-a="refresh-verification">↻ Refresh</button></div>'+
   '<section class="panel verify-panel"><div class="verify-picker"><div class="field">'+
-  '<label for="review-ann">Announcement to review</label><select id="review-ann"><option value="">Choose an announcement</option>'+opts+'</select></div>'+
-  '<div class="verify-summary"><strong>'+pending+'</strong><span>Awaiting verification</span><small>'+uploaded+' submissions · '+state.reviewRequired+' assignments</small></div></div>'+
-  '<div class="notice warn">Open and inspect each file before approving it. Verification of content does not change whether the submission was on time or late. Rejected versions remain in the audit history.</div>'+
-  (state.reviewSelectedId?table(['School','Submitted file','Received (PHT)','Verification','Action'],rows):
-   '<div class="empty">No published announcements available for verification.</div>')+
+  '<label for="review-ann">Announcement to review</label><select id="review-ann">'+options+'</select></div>'+
+  '<div class="verify-summary"><strong>'+awaitingNow+'</strong><span>Latest uploads awaiting review</span>'+
+  '<small>'+currentVerified+' current versions verified · '+uploadedSchools+' schools with uploads · '+state.reviewRequired+' required assignments</small></div></div>'+
+  '<div class="notice">Verify or reject the latest submitted version only. Approval does not change the submission deadline or timeliness.</div>'+
+  (oldPending?'<p class="verify-historical-note"><strong>'+oldPending+' earlier version'+(oldPending===1?' is':'s are')+' still marked Pending.</strong> '+
+   'They are superseded and shown in Version History, not in the current review queue. No historical decisions have been changed.</p>':'')+
+  (state.reviewSelectedId?table(['School','Latest submission','Latest verified','Current status','Review / History'],rows):
+   '<div class="empty">No published announcements are available for verification.</div>')+
   (state.reviewSelectedId&&!rows.length?'<p class="note">No uploaded submissions for this announcement yet.</p>':'')+
   '</section>';
 }
