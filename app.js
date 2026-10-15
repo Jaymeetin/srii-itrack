@@ -8,7 +8,7 @@ const db=window.supabase?.createClient(C.url,C.publishableKey,{auth:{persistSess
 // Reuse one authenticated client across tracking, upload and download screens.
 // Multiple clients refreshing the same mobile session can reset upload forms.
 window.ITRACK_DB=db;
-const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],recipients:[],monitor:[],selectedId:'',view:(new URLSearchParams(location.search).get('view')==='verification'?'verification':'dashboard'),authMode:'login',modal:null,detail:null,routes:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],docAttachmentError:'',reviewSelectedId:'',reviewRows:[],reviewVersions:[],reviewRequired:0,issue:null};
+const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],recipients:[],monitor:[],selectedId:'',view:(['verification','reports'].includes(new URLSearchParams(location.search).get('view'))?new URLSearchParams(location.search).get('view'):'dashboard'),authMode:'login',modal:null,detail:null,routes:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],docAttachmentError:'',reviewSelectedId:'',reviewRows:[],reviewVersions:[],reviewRequired:0,districtReport:[],issue:null};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=x=>x?new Date(x).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}):'—';
@@ -16,6 +16,8 @@ const short=x=>x?new Date(x).toLocaleDateString('en-PH',{dateStyle:'medium',time
 const announcementName=a=>(a?.announcement_code?a.announcement_code+' — ':'')+(a?.title||'Announcement');
 const clean=x=>String(x||'').trim();
 const yesAdmin=()=>['main_admin','backup_admin'].includes(state.profile?.role);
+const isOic=()=>state.profile?.role==='oic_psds';
+const districtOversight=()=>yesAdmin()||isOic();
 const isMain=()=>state.profile?.role==='main_admin';
 const active=()=>state.profile?.account_status==='active';
 const label=x=>String(x||'').replaceAll('_',' ');
@@ -51,6 +53,7 @@ async function sync(){
   const {data,error}=await db.from('profiles').select('id,display_name,school_id,requested_school_id,role,account_status,position_title').eq('id',state.session.user.id).single();
   if(error)throw error;
   state.profile=data;
+  if(isOic()&&!['dashboard','announcements','monitoring','reports'].includes(state.view))state.view='dashboard';
   if(active())await load();else show();
  }catch(e){state.issue=e.message;show();}
 }
@@ -58,17 +61,18 @@ async function load(){
  if(!active()){show();return;}
  try{
   const tasks=[];
-  if(['dashboard','announcements','monitoring','verification'].includes(state.view)){
+  if(['dashboard','announcements','monitoring','verification','reports'].includes(state.view)){
    tasks.push((async()=>{const {data,error}=await db.from('announcements').select('id,announcement_code,title,description,status,deadline_at,original_deadline_at,created_at').order('created_at',{ascending:false});if(error)throw error;state.announcements=data||[];if(!state.selectedId||!state.announcements.some(x=>x.id===state.selectedId))state.selectedId=state.announcements.find(x=>x.status!=='draft')?.id||'';})());
   }
-  if(['dashboard','documents'].includes(state.view)){
+  if(!isOic()&&['dashboard','documents'].includes(state.view)){
    tasks.push((async()=>{const {data,error}=await db.from('documents').select('id,tracking_number,subject,document_type,status,created_by,origin_school_id,created_at').order('created_at',{ascending:false}).limit(200);if(error)throw error;state.docs=data||[];if(state.view==='documents')await loadDocumentAttachments();})());
   }
   if(yesAdmin()&&['dashboard','approvals'].includes(state.view)){
    tasks.push((async()=>{const {data,error}=await db.from('profiles').select('id,display_name,school_id,requested_school_id,position_title,role,account_status,created_at').order('created_at',{ascending:false});if(error)throw error;state.profiles=data||[];})());
   }
   if(state.view==='dashboard'){
-   if(yesAdmin())tasks.push((async()=>{const {data,error}=await db.rpc('i_track_registration_counts');if(!error)state.counts=Array.isArray(data)?data[0]:data;})());
+   if(isOic())tasks.push((async()=>{const {data,error}=await db.rpc('i_track_district_report');if(error)throw error;state.districtReport=data||[];})());
+   else if(yesAdmin())tasks.push((async()=>{const {data,error}=await db.rpc('i_track_registration_counts');if(!error)state.counts=Array.isArray(data)?data[0]:data;})());
    else tasks.push((async()=>{
      const {data:assignments,error:aError}=await db.from('announcement_assignments')
        .select('id,announcement_id,school_id,assigned_user_id,obligation_status')
@@ -84,6 +88,7 @@ async function load(){
      state.schoolSubmissions=submissions||[];
    })());
   }
+  if(state.view==='reports'&&districtOversight())tasks.push((async()=>{const {data,error}=await db.rpc('i_track_district_report');if(error)throw error;state.districtReport=data||[];})());
   await Promise.all(tasks);
   if(state.view==='monitoring')await loadMonitor();
   if(state.view==='verification'&&yesAdmin())await loadVerification();
@@ -287,21 +292,31 @@ function authPage(){
  <main class="auth-content"><div class="auth-card"><div class="auth-top"><button class="btn alt tiny" data-a="theme">◐ Light / Dark</button></div>
  <div class="eyebrow">Welcome to SRII i-TRACK</div><h1>${registering?'Create an Account':'Sign In'}</h1><p class="sub">${registering?'Use your DepEd or personal Gmail account. District approval is required.':'Use your registered email and password.'}</p>
  <form id="${registering?'register':'login'}">
- ${registering?field('Complete name','full_name')+field('Position / Designation','position_title','text','','Administrative Officer II')+`<div class="field"><label for="school">School</label><select id="school" name="school" required><option value="">Select your school</option>${schoolOpts()}</select></div>`:''}
+ ${registering?field('Complete name','full_name')+`<div class="field"><label for="registration-type">Account type</label><select id="registration-type" name="registration_type"><option value="school_user">School Personnel</option><option value="oic_psds">OIC-PSDS · District Oversight (Read Only)</option></select></div>`+field('Position / Designation','position_title','text','','Administrative Officer II')+`<div class="field" id="register-school-field"><label for="school">School</label><select id="school" name="school" required><option value="">Select your school</option>${schoolOpts()}</select></div><p class="note" id="oic-register-note" hidden>The OIC-PSDS account is assigned to the District Office, with no school. Only the Main Administrator may approve this request. Oversight does not grant file, upload or approval access.</p>`:''}
  ${field('Email address','email','email')}${field('Password','password','password')}<button type="submit" class="btn block">${registering?'Register Account':'Sign In'}</button></form>
  <div class="switch">${registering?'Already registered?':'New personnel?'} <button class="link-button" data-a="switch">${registering?'Sign in':'Register here'}</button></div>
  <p class="note">Your password is handled by Supabase Authentication; never send it to the district administrator.</p></div></main></div>`;
 }
 function pendingPage(){
- $.innerHTML=`<div class="pending">${brand()}<h2 style="margin-top:24px">${state.profile.account_status==='pending'?'Waiting for Approval':'Account Not Active'}</h2><p class="sub">${state.profile.account_status==='pending'?'Your registration needs approval and school assignment by the District Administrator.':'Contact the District Administrator if you believe this is a mistake.'}</p>${pTag(state.profile.account_status)}<p></p><div class="toolbar"><button class="btn" data-a="refresh">Check Again</button><button class="btn alt" data-a="logout">Sign Out</button></div></div>`;
+ const oic=isOic();
+ const waiting=state.profile.account_status==='pending';
+ const detail=waiting?
+  (oic?'The Main Administrator must approve this District Office oversight account. No school assignment is required.':
+   'Your registration needs approval and school assignment by the District Administrator.'):
+  'Contact the District Administrator if you believe this is a mistake.';
+ $.innerHTML='<div class="pending">'+brand()+'<h2 style="margin-top:24px">'+
+  (waiting?'Waiting for Approval':'Account Not Active')+'</h2><p class="sub">'+
+  esc(detail)+'</p>'+(oic?'<p class="note"><strong>Requested role:</strong> OIC-PSDS · Read-only district oversight</p>':'')+
+  pTag(state.profile.account_status)+'<p></p><div class="toolbar"><button class="btn" data-a="refresh">Check Again</button>'+
+  '<button class="btn alt" data-a="logout">Sign Out</button></div></div>';
 }
-const menu=[['dashboard','⌂ Home'],['announcements','▤ Announcements'],['monitoring','▥ Submission Status'],['documents','▣ My Documents']];
+const menu=[['dashboard','⌂ Home'],['announcements','▤ Announcements'],['monitoring','▥ Submission Status']];
 function appPage(){
- const nav=[...menu,...(yesAdmin()?[['verification','✓ Submission Verification'],['approvals','♙ Account Approvals'],['archive','▤ Archive Documents']]:[])].map(([id,title])=>`<button class="${state.view===id?'active':''}" data-a="nav" data-page="${id}">${title}</button>`).join('');
- const title={dashboard:'Home',announcements:'Announcements',monitoring:'Submission Monitoring',documents:'My Documents',verification:'Submission Verification',approvals:'Account Management',archive:'Document Archiving'}[state.view]||'Overview';
+ const nav=[...menu,...(!isOic()?[['documents','▣ My Documents']]:[]),...(districtOversight()?[['reports','▥ District Reports']]:[]),...(yesAdmin()?[['verification','✓ Submission Verification'],['approvals','♙ Account Approvals'],['archive','▤ Archive Documents']]:[])].map(([id,title])=>`<button class="${state.view===id?'active':''}" data-a="nav" data-page="${id}">${title}</button>`).join('');
+ const title={dashboard:'Home',announcements:'Announcements',monitoring:'Submission Monitoring',documents:'My Documents',reports:'District Reports',verification:'Submission Verification',approvals:'Account Management',archive:'Document Archiving'}[state.view]||'Overview';
  const school=state.schools.find(x=>x.id===state.profile.school_id)?.name||'District Office';
- const name=state.profile.display_name||'District Administrator';
- const body={dashboard:dashboardPage,announcements:announcementPage,monitoring:monitorPage,documents:documentPage,verification:verificationPage,approvals:approvalPage,archive:archivePage}[state.view]?.()||dashboardPage();
+ const name=state.profile.display_name||(isOic()?'OIC-PSDS':'District Administrator');
+ const body={dashboard:dashboardPage,announcements:announcementPage,monitoring:monitorPage,documents:documentPage,reports:districtReportPage,verification:verificationPage,approvals:approvalPage,archive:archivePage}[state.view]?.()||dashboardPage();
  // Read-only presentation context for the upload panel. Not an authorization
  // mechanism: Supabase RLS and the Edge Function enforce permissions.
  window.ITRACK_CONTEXT={
@@ -319,17 +334,20 @@ function dashboardPage(){
  const name=state.profile.display_name||"District User";
  const school=state.schools.find(x=>x.id===state.profile.school_id)?.name||"District Office";
  const admin=yesAdmin();
+ const oversight=isOic();
+ const report=state.districtReport||[];
+ const reportTotals=report.reduce((sum,x)=>({required:sum.required+Number(x.required_schools||0),submitted:sum.submitted+Number(x.submitted_count||0),late:sum.late+Number(x.late_count||0),pending:sum.pending+Number(x.pending_count||0)}),{required:0,submitted:0,late:0,pending:0});
  const assigned=state.schoolAssignments||[];
  const submissions=state.schoolSubmissions||[];
  const byAnn=new Map();
- if(!admin){
+ if(!admin&&!oversight){
   for(const a of assigned){
    const ann=state.announcements.find(n=>n.id===a.announcement_id);
    if(ann&&ann.status!=="draft")byAnn.set(ann.id,{...ann,assignmentId:a.id});
   }
  }
  const mine=[...byAnn.values()];
- const latest=(admin?state.announcements.filter(a=>a.status!=="draft"):mine).slice(0,5);
+ const latest=(admin||oversight?state.announcements.filter(a=>a.status!=="draft"):mine).slice(0,5);
  function receipt(assignmentId){
   const dates=submissions.filter(s=>s.assignment_id===assignmentId).map(s=>new Date(s.first_received_at).getTime()).filter(Number.isFinite);
   return dates.length?Math.min(...dates):null;
@@ -347,6 +365,11 @@ function dashboardPage(){
   ["Open Notices",state.announcements.filter(a=>a.status==="open").length,"file-text"],
   ["Documents",state.docs.length,"folder"],
   ["Approvals",state.profiles.filter(p=>p.account_status==="pending").length,"user"]
+ ]:oversight?[
+  ["Schools",state.schools.filter(s=>s.is_active).length,"school"],
+  ["Announcements",state.announcements.filter(a=>a.status!=="draft").length,"file-text"],
+  ["Submitted",reportTotals.submitted,"check"],
+  ["Pending",reportTotals.pending,"clock"]
  ]:[
   ["Requirements",mine.length,"file-text"],
   ["Submitted",submitted,"check"],
@@ -358,8 +381,8 @@ function dashboardPage(){
   '<div class="v2-metric v2-metric-'+i+'"><span class="v2-metric-icon" aria-hidden="true">'+signs[key]+'</span><div><span class="v2-metric-label">'+esc(title)+'</span><strong>'+esc(num)+'</strong></div></div>'
  ).join("");
  const announcements=latest.map(a=>{
-  const status=admin?a.status:schoolStatus(a);
-  const detail=admin?"View status":status==="Submitted"?"View":"Open";
+  const status=admin||oversight?a.status:schoolStatus(a);
+  const detail=admin||oversight?"View status":status==="Submitted"?"View":"Open";
   return '<div class="v2-notice-item"><span class="v2-notice-symbol" aria-hidden="true">▤</span><div class="v2-notice-copy"><strong>'+esc(a.title)+'</strong><small>'+esc((a.announcement_code?a.announcement_code+' · ':'')+short(a.deadline_at))+'</small></div>'+
    '<span class="v2-notice-state">'+pTag(status)+'</span>'+
    '<button class="btn tiny alt" data-a="nav" data-page="announcements">'+detail+'</button></div>';
@@ -368,20 +391,26 @@ function dashboardPage(){
   .sort((a,b)=>new Date(a.deadline_at)-new Date(b.deadline_at)).slice(0,3);
  const reminders=upcoming.map(a=>'<div class="v2-reminder"><span class="v2-dot"></span><span>'+esc(short(a.deadline_at))+'</span><strong>'+esc(announcementName(a))+'</strong></div>').join("")||
   '<p class="note">No upcoming deadlines.</p>';
- const quick='<div class="v2-actions">'+
-  '<button data-a="nav" data-page="announcements"><span>↥</span><strong>Submit a File</strong><small>School requirements</small></button>'+
-  '<button data-a="nav" data-page="documents"><span>▣</span><strong>My Documents</strong><small>Route and track</small></button>'+
-  '<button data-a="nav" data-page="monitoring"><span>▥</span><strong>District Status</strong><small>Submission progress</small></button>'+
-  (admin?'<button data-a="nav" data-page="approvals"><span>♙</span><strong>Account Review</strong><small>Approve school users</small></button>':
-  '<button data-a="nav" data-page="announcements"><span>◷</span><strong>Due Dates</strong><small>Latest notices</small></button>')+
+ const quick=oversight?
+  '<div class="v2-actions">'+
+   '<button data-a="nav" data-page="announcements"><span>▤</span><strong>Announcements</strong><small>District notices</small></button>'+
+   '<button data-a="nav" data-page="monitoring"><span>▥</span><strong>School Status</strong><small>District-wide compliance</small></button>'+
+   '<button data-a="nav" data-page="reports"><span>▦</span><strong>District Reports</strong><small>Read-only summaries</small></button>'+
+  '</div>':
+  '<div class="v2-actions">'+
+   '<button data-a="nav" data-page="announcements"><span>↥</span><strong>Submit a File</strong><small>School requirements</small></button>'+
+   '<button data-a="nav" data-page="documents"><span>▣</span><strong>My Documents</strong><small>Route and track</small></button>'+
+   '<button data-a="nav" data-page="monitoring"><span>▥</span><strong>District Status</strong><small>Submission progress</small></button>'+
+   (admin?'<button data-a="nav" data-page="approvals"><span>♙</span><strong>Account Review</strong><small>Approve school users</small></button>':
+    '<button data-a="nav" data-page="announcements"><span>◷</span><strong>Due Dates</strong><small>Latest notices</small></button>')+
   '</div>';
- return '<section class="v2-intro"><div><div class="eyebrow">SAN REMIGIO II DISTRICT</div><h1>Welcome back, '+esc(name)+'!</h1><p class="v2-role">'+esc(admin?"District Administrator":school)+'</p></div><div class="v2-motto">One District. One Direction.<br><strong>Organized for a Stronger SRII.</strong></div></section>'+
+ return '<section class="v2-intro"><div><div class="eyebrow">SAN REMIGIO II DISTRICT</div><h1>Welcome back, '+esc(name)+'!</h1><p class="v2-role">'+esc(oversight?"OIC-PSDS · District Oversight (Read Only)":admin?"District Administrator":school)+'</p></div><div class="v2-motto">One District. One Direction.<br><strong>Organized for a Stronger SRII.</strong></div></section>'+
   '<div class="v2-metrics">'+metricHtml+'</div>'+
   '<div class="v2-home-grid"><div class="v2-home-primary">'+
   '<section class="panel v2-board"><div class="panel-head"><h3>Latest Announcements</h3><button class="btn tiny alt" data-a="nav" data-page="announcements">View All</button></div><div class="v2-notice-list">'+announcements+'</div></section>'+
   '<section class="panel v2-board"><h3>Quick Actions</h3>'+quick+'</section>'+
   '</div><div class="v2-home-secondary">'+
-  '<section class="panel v2-board"><h3>At a Glance</h3><div class="v2-summary-big">'+esc(admin?state.announcements.filter(a=>a.status==="open").length:submitted)+'<small>'+esc(admin?"Open announcements":"Submitted requirements")+'</small></div>'+
+  '<section class="panel v2-board"><h3>At a Glance</h3><div class="v2-summary-big">'+esc(admin?state.announcements.filter(a=>a.status==="open").length:oversight?reportTotals.submitted:submitted)+'<small>'+esc(admin?"Open announcements":oversight?"On-time school submissions":"Submitted requirements")+'</small></div>'+
    '<button class="btn alt block" data-a="nav" data-page="monitoring">View Submission Status</button></section>'+
   '<section class="panel v2-board"><h3>Upcoming Deadlines</h3>'+reminders+'</section>'+
   '</div></div>';
