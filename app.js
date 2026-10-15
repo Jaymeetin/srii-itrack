@@ -685,6 +685,12 @@ $.addEventListener('change',async e=>{
   const info=document.getElementById('oic-register-note');
   if(group)group.hidden=oic;
   if(select){select.required=!oic;if(oic)select.value='';}
+  const position=document.getElementById('position_title');
+  if(position){
+   position.placeholder=oic?'OIC-PSDS':'Administrative Officer II';
+   if(oic&&!position.value)position.value='OIC-PSDS';
+   else if(!oic&&position.value==='OIC-PSDS')position.value='';
+  }
   if(info)info.hidden=!oic;
  }
  if(e.target.id==='all-schools')document.querySelectorAll('.school-checkbox').forEach(c=>c.checked=e.target.checked);
