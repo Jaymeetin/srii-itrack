@@ -13,6 +13,7 @@ document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=x=>x?new Date(x).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}):'—';
 const short=x=>x?new Date(x).toLocaleDateString('en-PH',{dateStyle:'medium',timeZone:'Asia/Manila'}):'—';
+const announcementName=a=>(a?.announcement_code?a.announcement_code+' — ':'')+(a?.title||'Announcement');
 const clean=x=>String(x||'').trim();
 const yesAdmin=()=>['main_admin','backup_admin'].includes(state.profile?.role);
 const isMain=()=>state.profile?.role==='main_admin';
@@ -58,7 +59,7 @@ async function load(){
  try{
   const tasks=[];
   if(['dashboard','announcements','monitoring'].includes(state.view)){
-   tasks.push((async()=>{const {data,error}=await db.from('announcements').select('id,title,description,status,deadline_at,original_deadline_at,created_at').order('created_at',{ascending:false});if(error)throw error;state.announcements=data||[];if(!state.selectedId||!state.announcements.some(x=>x.id===state.selectedId))state.selectedId=state.announcements.find(x=>x.status!=='draft')?.id||'';})());
+   tasks.push((async()=>{const {data,error}=await db.from('announcements').select('id,announcement_code,title,description,status,deadline_at,original_deadline_at,created_at').order('created_at',{ascending:false});if(error)throw error;state.announcements=data||[];if(!state.selectedId||!state.announcements.some(x=>x.id===state.selectedId))state.selectedId=state.announcements.find(x=>x.status!=='draft')?.id||'';})());
   }
   if(['dashboard','documents'].includes(state.view)){
    tasks.push((async()=>{const {data,error}=await db.from('documents').select('id,tracking_number,subject,document_type,status,created_by,origin_school_id,created_at').order('created_at',{ascending:false}).limit(200);if(error)throw error;state.docs=data||[];if(state.view==='documents')await loadDocumentAttachments();})());
@@ -178,7 +179,7 @@ function appPage(){
    profile:{role:state.profile.role,school_id:state.profile.school_id,
             account_status:state.profile.account_status},
    schools:state.schools.map(s=>({id:s.id,name:s.name,is_active:s.is_active})),
-   announcements:state.announcements.map(a=>({id:a.id,title:a.title,status:a.status,deadline_at:a.deadline_at})),
+   announcements:state.announcements.map(a=>({id:a.id,announcement_code:a.announcement_code,title:a.title,status:a.status,deadline_at:a.deadline_at})),
    docs:state.docs.map(d=>({id:d.id,tracking_number:d.tracking_number,subject:d.subject}))
  };
  $.innerHTML=`<div class="app"><aside class="sidebar">${brand()}<nav>${nav}</nav><div class="sidebar-footer"><button data-a="theme">◐ Light / Dark Mode</button><button data-a="logout">↩ Sign Out</button><div class="user-mini">${esc(name)}<br>${esc(label(state.profile.role))} · ${esc(school)}</div></div></aside>
@@ -229,13 +230,13 @@ function dashboardPage(){
  const announcements=latest.map(a=>{
   const status=admin?a.status:schoolStatus(a);
   const detail=admin?"View status":status==="Submitted"?"View":"Open";
-  return '<div class="v2-notice-item"><span class="v2-notice-symbol" aria-hidden="true">▤</span><div class="v2-notice-copy"><strong>'+esc(a.title)+'</strong><small>'+esc(short(a.deadline_at))+'</small></div>'+
+  return '<div class="v2-notice-item"><span class="v2-notice-symbol" aria-hidden="true">▤</span><div class="v2-notice-copy"><strong>'+esc(a.title)+'</strong><small>'+esc((a.announcement_code?a.announcement_code+' · ':'')+short(a.deadline_at))+'</small></div>'+
    '<span class="v2-notice-state">'+pTag(status)+'</span>'+
    '<button class="btn tiny alt" data-a="nav" data-page="announcements">'+detail+'</button></div>';
  }).join("")||'<div class="empty">No assigned announcements yet.</div>';
  const upcoming=latest.filter(a=>a.deadline_at&&new Date(a.deadline_at)>new Date()&&a.status!=="closed")
   .sort((a,b)=>new Date(a.deadline_at)-new Date(b.deadline_at)).slice(0,3);
- const reminders=upcoming.map(a=>'<div class="v2-reminder"><span class="v2-dot"></span><span>'+esc(short(a.deadline_at))+'</span><strong>'+esc(a.title)+'</strong></div>').join("")||
+ const reminders=upcoming.map(a=>'<div class="v2-reminder"><span class="v2-dot"></span><span>'+esc(short(a.deadline_at))+'</span><strong>'+esc(announcementName(a))+'</strong></div>').join("")||
   '<p class="note">No upcoming deadlines.</p>';
  const quick='<div class="v2-actions">'+
   '<button data-a="nav" data-page="announcements"><span>↥</span><strong>Submit a File</strong><small>School requirements</small></button>'+
@@ -256,11 +257,11 @@ function dashboardPage(){
   '</div></div>';
 }
 function announcementPage(){
- const rows=state.announcements.map(a=>`<tr><td><strong>${esc(a.title)}</strong><div class="small muted">${esc(a.description||'')}</div></td><td>${pTag(a.status)}</td><td>${short(a.deadline_at)}</td><td><button class="btn tiny alt" data-a="monitor" data-id="${a.id}">Monitor</button></td></tr>`);
+ const rows=state.announcements.map(a=>`<tr><td><span class="ann-ref">${esc(a.announcement_code||'')}</span><strong>${esc(a.title)}</strong><div class="small muted">${esc(a.description||'')}</div></td><td>${pTag(a.status)}</td><td>${short(a.deadline_at)}</td><td><button class="btn tiny alt" data-a="monitor" data-id="${a.id}">Monitor</button></td></tr>`);
  return `<div class="sectionhead"><div><div class="eyebrow">District requirements</div><h1>Announcements</h1><p class="sub">Official school submission requests and deadlines.</p></div>${yesAdmin()?'<button class="btn" data-a="new-announcement">+ New Announcement</button>':''}</div><div class="panel"><h3>Announcement Board</h3>${table(['Announcement','Status','Deadline',''],rows)}</div>`;
 }
 function monitorPage(){
- const opts=state.announcements.filter(a=>a.status!=='draft').map(a=>`<option value="${a.id}" ${a.id===state.selectedId?'selected':''}>${esc(a.title)}</option>`).join('');
+ const opts=state.announcements.filter(a=>a.status!=='draft').map(a=>`<option value="${a.id}" ${a.id===state.selectedId?'selected':''}>${esc(announcementName(a))}</option>`).join('');
  const n=x=>state.monitor.filter(s=>s.submission_status===x).length;
  const rows=state.monitor.map(x=>`<tr><td>${esc(x.school_name)}</td><td>${pTag(x.submission_status)}</td></tr>`);
  return `<div class="eyebrow">District-wide visibility</div><h1>Submission Monitoring</h1><p class="sub">All users see school status only. Documents and other schools' submission dates remain private.</p>
