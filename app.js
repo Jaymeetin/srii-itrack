@@ -415,6 +415,65 @@ function dashboardPage(){
   '<section class="panel v2-board"><h3>Upcoming Deadlines</h3>'+reminders+'</section>'+
   '</div></div>';
 }
+function districtReportPage(){
+ if(!districtOversight())return '<div class="notice danger">District oversight access required.</div>';
+ const reports=state.districtReport||[];
+ const total=reports.reduce((sum,r)=>({
+  required:sum.required+Number(r.required_schools||0),
+  onTime:sum.onTime+Number(r.submitted_count||0),
+  late:sum.late+Number(r.late_count||0),
+  pending:sum.pending+Number(r.pending_count||0)
+ }),{required:0,onTime:0,late:0,pending:0});
+ const complete=total.required?Math.round(((total.onTime+total.late)/total.required)*100):0;
+ const rows=reports.map(r=>{
+  const required=Number(r.required_schools||0);
+  const onTime=Number(r.submitted_count||0);
+  const late=Number(r.late_count||0);
+  const pending=Number(r.pending_count||0);
+  const percent=required?Math.round(((onTime+late)/required)*100):0;
+  return '<tr><td><strong>'+esc(r.announcement_code)+'</strong><div class="small muted">'+esc(r.title)+'</div></td>'+
+    '<td>'+esc(short(r.deadline_at))+'</td>'+
+    '<td>'+esc(required)+'</td><td>'+esc(onTime)+'</td><td>'+esc(late)+'</td>'+
+    '<td>'+esc(pending)+'</td><td><strong>'+esc(percent)+'%</strong></td></tr>';
+ });
+ return '<div class="sectionhead"><div><div class="eyebrow">District-wide reporting</div>'+
+  '<h1>District Reports</h1><p class="sub">Read-only compliance summaries for official oversight. Submission files and individual upload times are not included.</p></div>'+
+  '<button class="btn alt" data-a="export-district-report"'+(!reports.length?' disabled':'')+'>↧ Export CSV</button></div>'+
+  '<div class="stats">'+stat('Announcements',reports.length,'Published district requests')+
+  stat('School requirements',total.required,'Across all announcements')+
+  stat('On-time submissions',total.onTime,'Received by the deadline')+
+  stat('Late submissions',total.late,'Received after the deadline')+
+  stat('Pending',total.pending,'Not yet submitted')+
+  stat('Completion',complete+'%','Submitted on time or late')+'</div>'+
+  '<section class="panel"><h3>Announcement Compliance Summary</h3>'+
+  table(['Announcement','Deadline','Required','On Time','Late','Pending','Completion'],rows)+
+  '<p class="note">Counts are based on each school’s first securely received submission and the current official deadline. No school’s file or submission timestamp is shown.</p></section>';
+}
+function exportDistrictReport(){
+ if(!districtOversight())throw new Error('District oversight access required.');
+ const rows=state.districtReport||[];
+ if(!rows.length)throw new Error('There are no district reports to export.');
+ const csvCell=value=>{
+  const content=String(value??'');
+  const protectedValue=/^[=+\-@\t\r]/.test(content.trimStart())?"'"+content:content;
+  return '"'+protectedValue.replaceAll('"','""')+'"';
+ };
+ const head=['Announcement Reference','Announcement Title','Deadline (PHT)','Required Schools','On Time','Late','Pending','Completion Percent'];
+ const lines=[head.map(csvCell).join(',')];
+ for(const row of rows){
+  const required=Number(row.required_schools||0);
+  const received=Number(row.submitted_count||0)+Number(row.late_count||0);
+  lines.push([row.announcement_code,row.title,date(row.deadline_at),required,
+   Number(row.submitted_count||0),Number(row.late_count||0),Number(row.pending_count||0),
+   required?Math.round(received/required*100):0].map(csvCell).join(','));
+ }
+ const blob=new Blob(['\ufeff'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'});
+ const url=URL.createObjectURL(blob);
+ const link=document.createElement('a');link.href=url;
+ link.download='SRII_District_Compliance_Report_'+new Date().toISOString().slice(0,10)+'.csv';
+ document.body.appendChild(link);link.click();link.remove();
+ setTimeout(()=>URL.revokeObjectURL(url),2000);
+}
 function announcementPage(){
  const rows=state.announcements.map(a=>`<tr><td><span class="ann-ref">${esc(a.announcement_code||'')}</span><strong>${esc(a.title)}</strong><div class="small muted">${esc(a.description||'')}</div></td><td>${pTag(a.status)}</td><td>${short(a.deadline_at)}</td><td><button class="btn tiny alt" data-a="monitor" data-id="${a.id}">Monitor</button></td></tr>`);
  return `<div class="sectionhead"><div><div class="eyebrow">District requirements</div><h1>Announcements</h1><p class="sub">Official school submission requests and deadlines.</p></div>${yesAdmin()?'<button class="btn" data-a="new-announcement">+ New Announcement</button>':''}</div><div class="panel"><h3>Announcement Board</h3>${table(['Announcement','Status','Deadline',''],rows)}</div>`;
@@ -442,9 +501,27 @@ function documentPage(){
 }
 function approvalPage(){
  if(!yesAdmin())return '<div class="notice danger">Administrator access required.</div>';
- const rows=state.profiles.map(p=>{const school=state.schools.find(s=>s.id===(p.school_id||p.requested_school_id))?.name||'Unassigned';
- return `<tr><td>${esc(p.display_name||'Unnamed user')}<div class="small muted">${esc(p.position_title||'')}</div></td><td>${esc(school)}</td><td>${pTag(p.account_status)}</td><td>${esc(label(p.role))}</td><td><div class="actionbuttons">${p.account_status==='pending'?`<button class="btn tiny" data-a="approve" data-id="${p.id}">Approve</button><button class="btn tiny danger" data-a="reject" data-id="${p.id}">Reject</button>`:''}${isMain()&&p.account_status==='active'&&p.role!=='main_admin'?`<button class="btn tiny alt" data-a="backup" data-id="${p.id}" data-enable="${p.role==='backup_admin'?'false':'true'}">${p.role==='backup_admin'?'Remove Backup':'Make Backup'}</button>`:''}</div></td></tr>`}).join('');
- return `<div class="eyebrow">Administrator controls</div><h1>Account Approvals</h1><p class="sub">Confirm a user's requested school before activating their account. Only Main Administrator can manage Backup Administrators.</p><div class="panel">${table(['Name','School','Status','Role','Action'],state.profiles.map(p=>{const school=state.schools.find(s=>s.id===(p.school_id||p.requested_school_id))?.name||'Unassigned';return `<tr><td>${esc(p.display_name||'Unnamed user')}</td><td>${esc(school)}</td><td>${pTag(p.account_status)}</td><td>${esc(label(p.role))}</td><td><div class="actionbuttons">${p.account_status==='pending'?`<button class="btn tiny" data-a="approve" data-id="${p.id}">Approve</button><button class="btn tiny danger" data-a="reject" data-id="${p.id}">Reject</button>`:''}${isMain()&&p.account_status==='active'&&p.role!=='main_admin'?`<button class="btn tiny alt" data-a="backup" data-id="${p.id}" data-enable="${p.role==='backup_admin'?'false':'true'}">${p.role==='backup_admin'?'Remove Backup':'Make Backup'}</button>`:''}</div></td></tr>`}))}</div>`;
+ const rows=state.profiles.map(p=>{
+  const oversight=p.role==='oic_psds';
+  const school=oversight?'District Office (no school)':state.schools.find(s=>s.id===(p.school_id||p.requested_school_id))?.name||'Unassigned';
+  const pending=p.account_status==='pending';
+  const canReview=pending&&(!oversight||isMain());
+  const actions=canReview?
+   '<button class="btn tiny" data-a="approve" data-id="'+esc(p.id)+'">Approve</button>'+
+   '<button class="btn tiny danger" data-a="reject" data-id="'+esc(p.id)+'">Reject</button>':
+   pending&&oversight?'<span class="small muted">Main Administrator only</span>':
+   isMain()&&p.account_status==='active'&&p.role!=='main_admin'&&p.role!=='oic_psds'?
+   '<button class="btn tiny alt" data-a="backup" data-id="'+esc(p.id)+'" data-enable="'+(p.role==='backup_admin'?'false':'true')+'">'+
+   (p.role==='backup_admin'?'Remove Backup':'Make Backup')+'</button>':'';
+  const roleLabel=oversight?'OIC-PSDS · Read Only':label(p.role);
+  return '<tr><td><strong>'+esc(p.display_name||'Unnamed user')+'</strong>'+
+   '<div class="small muted">'+esc(p.position_title||'')+'</div></td>'+
+   '<td>'+esc(school)+'</td><td>'+pTag(p.account_status)+'</td>'+
+   '<td>'+esc(roleLabel)+'</td><td><div class="actionbuttons">'+actions+'</div></td></tr>';
+ });
+ return '<div class="eyebrow">Administrator controls</div><h1>Account Approvals</h1>'+
+  '<p class="sub">Approve school personnel with a school assignment. The OIC-PSDS requests a separate District Office role with no school and read-only access; only the Main Administrator may approve it.</p>'+
+  '<div class="panel">'+table(['Name','School / Office','Status','Role','Action'],rows)+'</div>';
 }
 function archivePage(){return `<div class="eyebrow">Administrator controls</div><h1>Archive Documents</h1><p class="sub">Two-month archival to an SSD after verification.</p><div class="panel"><div class="notice warn"><b>Not yet enabled.</b> This will prepare downloadable archives, verify copies, and require administrator confirmation before any Drive files are deleted.</div><button class="btn" disabled>Archive Documents</button><p class="note" style="margin-top:12px">Submission metadata and audit history will remain in Supabase after archiving.</p></div>`;}
 function modalHtml(){
@@ -495,11 +572,14 @@ async function click(e){
   if(a==='theme'){state.theme=state.theme==='dark'?'light':'dark';localStorage.setItem('srii-theme',state.theme);document.documentElement.dataset.theme=state.theme;show();return;}
   if(a==='logout'){await db.auth.signOut();state.session=null;state.profile=null;state.view='dashboard';state.modal=null;show();return;}
   if(a==='refresh'){await sync();return;}
+  if(a==='export-district-report'){exportDistrictReport();pop('District compliance report prepared.');return;}
   if(a==='nav'){
    if(t.dataset.page==='verification'&&!yesAdmin())throw new Error('Administrator access required.');
+   if(t.dataset.page==='reports'&&!districtOversight())throw new Error('District oversight access required.');
+   if(isOic()&&!['dashboard','announcements','monitoring','reports'].includes(t.dataset.page))throw new Error('This OIC-PSDS account is read-only.');
    state.view=t.dataset.page;state.modal=null;
    const url=new URL(location.href);
-   if(state.view==='verification')url.searchParams.set('view','verification');
+   if(['verification','reports'].includes(state.view))url.searchParams.set('view',state.view);
    else url.searchParams.delete('view');
    history.replaceState(null,'',url);
    await load();return;
@@ -529,11 +609,12 @@ async function click(e){
   if(a==='monitor'){state.selectedId=t.dataset.id;state.view='monitoring';await load();return;}
   if(a==='close'){state.modal=null;show();return;}
   if(a==='new-announcement'){state.modal='new-announcement';show();return;}
-  if(a==='send'){await loadRecipients();state.modal='send';show();return;}
-  if(a==='detail'){await openDetail(t.dataset.id);return;}
+  if(a==='send'){if(isOic())throw new Error('OIC-PSDS accounts cannot route documents.');await loadRecipients();state.modal='send';show();return;}
+  if(a==='detail'){if(isOic())throw new Error('OIC-PSDS accounts cannot view private documents.');await openDetail(t.dataset.id);return;}
   if(a==='approve'||a==='reject'){
    const user=state.profiles.find(p=>p.id===t.dataset.id);if(!user)return;
-   if(!confirm(`${a==='approve'?'Approve':'Reject'} this user?`))return;
+   if(user.role==='oic_psds'&&!isMain())throw new Error('Only the Main Administrator can review OIC-PSDS registration.');
+   if(!confirm(`${a==='approve'?'Approve':'Reject'} ${user.role==='oic_psds'?'the read-only OIC-PSDS District Office account':'this school user'}?`))return;
    const {error}=await db.rpc('i_track_review_account',{p_user_id:user.id,p_approve:a==='approve',p_school_id:user.requested_school_id||null});if(error)throw error;
    await load();pop('Account reviewed.');return;
   }
@@ -565,10 +646,16 @@ async function submit(e){
   const fd=new FormData(form);
   if(form.id==='register'){
    const email=clean(fd.get('email')),password=String(fd.get('password')||''),name=clean(fd.get('full_name')),school=clean(fd.get('school'));
+   const type=clean(fd.get('registration_type'))||'school_user';
+   if(!['school_user','oic_psds'].includes(type))throw new Error('Select a valid account type.');
    if(password.length<8)throw new Error('Password must have at least 8 characters.');
-   if(!name||!school)throw new Error('Complete your name and school.');
-   const {error}=await db.auth.signUp({email,password,options:{emailRedirectTo:location.origin+location.pathname,data:{full_name:name,position_title:clean(fd.get('position_title')),requested_school_id:school}}});if(error)throw error;
-   state.authMode='login';show();pop('Registration received. Please verify email and wait for district approval.');return;
+   if(!name||(!school&&type==='school_user'))throw new Error('Complete your name and school.');
+   const meta={full_name:name,position_title:clean(fd.get('position_title'))|| (type==='oic_psds'?'OIC-PSDS':''),
+      registration_type:type,requested_school_id:type==='oic_psds'?null:school};
+   const {error}=await db.auth.signUp({email,password,options:{emailRedirectTo:location.origin+location.pathname,data:meta}});if(error)throw error;
+   state.authMode='login';show();pop(type==='oic_psds'?
+    'OIC-PSDS registration requested. Verify your email, then wait for the Main Administrator to approve District Office oversight.':
+    'Registration received. Please verify email and wait for district approval.');return;
   }
   if(form.id==='login'){
    const {error}=await db.auth.signInWithPassword({email:clean(fd.get('email')),password:String(fd.get('password')||'')});if(error)throw error;
@@ -591,6 +678,15 @@ async function submit(e){
 $.addEventListener('click',click);
 $.addEventListener('submit',submit);
 $.addEventListener('change',async e=>{
+ if(e.target.id==='registration-type'){
+  const oic=e.target.value==='oic_psds';
+  const group=document.getElementById('register-school-field');
+  const select=document.getElementById('school');
+  const info=document.getElementById('oic-register-note');
+  if(group)group.hidden=oic;
+  if(select){select.required=!oic;if(oic)select.value='';}
+  if(info)info.hidden=!oic;
+ }
  if(e.target.id==='all-schools')document.querySelectorAll('.school-checkbox').forEach(c=>c.checked=e.target.checked);
  if(e.target.id==='pick-ann'){state.selectedId=e.target.value;try{await loadMonitor();show();}catch(ex){err(ex);}}
  if(e.target.id==='review-ann'&&yesAdmin()){state.reviewSelectedId=e.target.value;try{await loadVerification();show();}catch(ex){err(ex);}}
