@@ -2,74 +2,23 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
 <meta name="theme-color" content="#173e88">
-<title>Submission Verification · SRII i-TRACK</title>
-<link rel="icon" href="./assets/icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="./styles.css">
-<link rel="stylesheet" href="./mobile.css">
+<title>Submission Verification has moved · SRII i-TRACK</title>
+<meta http-equiv="refresh" content="0;url=./?view=verification">
 <style>
-.review-wrap{max-width:1100px;margin:0 auto;padding:22px 16px 55px}
-.review-header{display:flex;justify-content:space-between;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:26px}
-.review-panel{background:var(--paper,#fff);border:1px solid var(--line,#d8deea);border-radius:16px;padding:22px;margin:16px 0;box-shadow:0 5px 24px #15385b0c}
-.review-note{background:#f4f7fd;border-left:4px solid #1e478f;padding:13px 16px;border-radius:8px;line-height:1.55}
-.review-warning{background:#fff6de;border-left:4px solid #a06b0d;padding:13px 16px;border-radius:8px;line-height:1.55}
-.review-table{width:100%;border-collapse:collapse;text-align:left;min-width:760px}
-.review-table th,.review-table td{padding:13px 10px;border-bottom:1px solid #dfe4ed;vertical-align:top}
-.review-table th{font-size:12px;text-transform:uppercase;letter-spacing:.045em;color:#475569}
-.review-scroll{overflow-x:auto}
-.review-actions{display:flex;gap:7px;flex-wrap:wrap}
-.review-pill{display:inline-flex;border-radius:999px;padding:5px 9px;font-size:12px;font-weight:700;background:#f9eac4;color:#6a4700}
-.review-pill.verified{background:#dcf5e5;color:#166337}
-.review-pill.rejected{background:#f9dddd;color:#872e36}
-.review-pill.pending{background:#fff0c7;color:#745000}
-.review-status{margin:16px 0;padding:12px;border-radius:8px;background:#e8edf5}
-.review-status.success{background:#def7e6;color:#17613d}
-.review-status.error{background:#ffe1e1;color:#8d2636}
-.review-small{font-size:13px;color:#64748b}
-.review-link{color:#174791;text-decoration:underline}
-.review-btn{cursor:pointer;border:0;border-radius:9px;padding:9px 13px;background:#18488c;color:white;font:inherit;font-weight:600}
-.review-btn.secondary{background:#edf1f8;color:#173e80}
-.review-btn.danger{background:#a12a40}
-.review-btn:disabled{opacity:.55;cursor:wait}
-.review-field{display:flex;flex-direction:column;gap:8px;max-width:550px;margin:18px 0}
-.review-field select{padding:11px;border:1px solid #bfc9dd;border-radius:9px;min-height:44px;background:white}
-@media(max-width:660px){.review-panel{padding:16px}.review-header{align-items:flex-start}}
+ body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f3f6fc;color:#182844;font-family:Inter,'Segoe UI',Arial,sans-serif}
+ main{max-width:410px;padding:28px;text-align:center}
+ a{display:inline-block;margin-top:12px;background:#173e88;color:#fff;padding:12px 19px;border-radius:10px;text-decoration:none;font-weight:750}
 </style>
 </head>
 <body>
-<main class="review-wrap">
-<header class="review-header">
-<div class="brand"><span class="brandmark"><img src="./assets/srii-emblem.svg" alt="" width="46" height="44"></span><span class="brand-label">SRII <span class="brand-accent">i-TRACK</span><small>ADMINISTRATOR VERIFICATION PILOT</small></span></div>
-<a class="review-btn secondary" href="./">← Back to Dashboard</a>
-</header>
-<div class="review-panel">
-<div class="eyebrow">Administrator access only</div>
-<h1>Review School Submissions</h1>
-<p class="sub">Open each file in Google Drive before verifying it. This is a controlled SYSTEM TEST only. Submission timeliness and content approval are separate.</p>
-<div id="review-status" class="review-status" aria-live="polite">Checking signed-in administrator account…</div>
-<div id="review-content" hidden>
-<div class="review-note"><b>Signed in:</b> <span id="review-account"></span></div>
-<div class="review-field">
-<label for="review-announcement"><b>Test announcement</b></label>
-<select id="review-announcement"></select>
-</div>
-<div class="review-warning">
-<b>Before verifying:</b> Click <b>Open in Drive</b>, inspect the actual test image, and return to this page. Only choose Verify if you have checked the file. Reject means a replacement submission is required, but it does not erase the original received timestamp or audit history.
-</div>
-<div class="review-actions" style="margin:18px 0"><button class="review-btn secondary" id="review-refresh">Refresh Submissions</button></div>
-<div id="review-summary" class="review-small"></div>
-<div class="review-scroll"><table class="review-table">
-<thead><tr><th>School</th><th>Submitted file</th><th>Received (PHT)</th><th>Verification</th><th>Action</th></tr></thead>
-<tbody id="review-rows"></tbody>
-</table></div>
-</div>
-</div>
-<p class="review-small">Only authorized administrators can retrieve submissions and call the verification function. Google Drive access is separately enforced by your DepEd account.</p>
+<main>
+<h1>Submission Verification has moved</h1>
+<p>It is now available inside the main SRII i-TRACK app, under the administrator menu.</p>
+<a href="./?view=verification">Open Submission Verification</a>
 </main>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" defer></script>
-<script src="./config.js" defer></script>
-<script src="./admin-review.js" defer></script>
+<script>location.replace("./?view=verification");</script>
 </body>
 </html>
