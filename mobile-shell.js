@@ -88,10 +88,11 @@ function openMore(){
  if(root.querySelector(".mobile-more-overlay")){closeMore();return;}
  const user=identity(app);
  const admin=app.querySelector('.sidebar nav button[data-page="approvals"]');
+ const verification=app.querySelector('.sidebar nav button[data-page="verification"]');
  const archive=app.querySelector('.sidebar nav button[data-page="archive"]');
  const accountActions=[
+  verification?'<button type="button" class="mobile-menu-button" data-mobile="navigate" data-page="verification">Submission Verification <small>›</small></button>':"",
   admin?'<button type="button" class="mobile-menu-button" data-mobile="navigate" data-page="approvals">Account Management <small>›</small></button>':"",
-  admin?'<button type="button" class="mobile-menu-button" data-mobile="link" data-href="./admin-review.html">Verify Test Submissions <small>›</small></button>':"",
   archive?'<button type="button" class="mobile-menu-button" data-mobile="navigate" data-page="archive">Document Archiving <small>›</small></button>':""
  ].join("");
  const section=accountActions?'<span class="mobile-sheet-label">DISTRICT ADMINISTRATION</span>'+accountActions:"";
@@ -127,7 +128,7 @@ function handle(e){
  const href=button.dataset.href;
  closeMore();
  if(action==="link"){
-  if(["./upload-test.html","./admin-review.html"].includes(href))window.location.href=href;
+  if(href==="./upload-test.html")window.location.href=href;
   return;
  }
  if(action==="navigate"){
