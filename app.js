@@ -8,7 +8,7 @@ const db=window.supabase?.createClient(C.url,C.publishableKey,{auth:{persistSess
 // Reuse one authenticated client across tracking, upload and download screens.
 // Multiple clients refreshing the same mobile session can reset upload forms.
 window.ITRACK_DB=db;
-const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],recipients:[],monitor:[],selectedId:'',view:(['verification','reports'].includes(new URLSearchParams(location.search).get('view'))?new URLSearchParams(location.search).get('view'):'dashboard'),authMode:'login',modal:null,detail:null,routes:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],docAttachmentError:'',reviewSelectedId:'',reviewRows:[],reviewVersions:[],reviewRequired:0,districtReport:[],issue:null};
+const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],recipients:[],monitor:[],monitorDetail:null,monitorFiles:[],selectedId:'',view:(['verification','reports'].includes(new URLSearchParams(location.search).get('view'))?new URLSearchParams(location.search).get('view'):'dashboard'),authMode:'login',modal:null,detail:null,routes:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],docAttachmentError:'',reviewSelectedId:'',reviewRows:[],reviewVersions:[],reviewRequired:0,districtReport:[],issue:null};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=x=>x?new Date(x).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}):'—';
@@ -479,13 +479,87 @@ function announcementPage(){
  return `<div class="sectionhead"><div><div class="eyebrow">District requirements</div><h1>Announcements</h1><p class="sub">Official school submission requests and deadlines.</p></div>${yesAdmin()?'<button class="btn" data-a="new-announcement">+ New Announcement</button>':''}</div><div class="panel"><h3>Announcement Board</h3>${table(['Announcement','Status','Deadline',''],rows)}</div>`;
 }
 function monitorPage(){
- const opts=state.announcements.filter(a=>a.status!=='draft').map(a=>`<option value="${a.id}" ${a.id===state.selectedId?'selected':''}>${esc(announcementName(a))}</option>`).join('');
+ const opts=state.announcements.filter(a=>a.status!=='draft').map(a=>
+  '<option value="'+esc(a.id)+'"'+(a.id===state.selectedId?' selected':'')+'>'+esc(announcementName(a))+'</option>').join('');
  const n=x=>state.monitor.filter(s=>s.submission_status===x).length;
- const rows=state.monitor.map(x=>`<tr><td>${esc(x.school_name)}</td><td>${pTag(x.submission_status)}</td></tr>`);
- return `<div class="eyebrow">District-wide visibility</div><h1>Submission Monitoring</h1><p class="sub">All users see school status only. Documents and other schools' submission dates remain private.</p>
- <div class="panel"><div class="field"><label>Announcement</label><select id="pick-ann"><option value="">Choose an announcement</option>${opts}</select></div></div>
- ${state.selectedId?`<div class="stats">${stat('Required Schools',state.monitor.length,'For selected announcement')}${stat('Submitted',n('Submitted'),'On time')}${stat('Late',n('Late'),'After deadline')}${stat('Pending',n('Pending'),'Not yet submitted')}</div><div class="panel"><h3>School Status</h3>${table(['School','Status'],rows)}</div>`:'<div class="panel empty">Choose an announcement to view status.</div>'}
- <div class="notice">Privacy: this view does not show other schools' files, upload dates, names of submitters, or download links.</div>`;
+ const rows=state.monitor.map(x=>{
+  const status=String(x.submission_status||'Pending');
+  const canInspect=yesAdmin()&&['Submitted','Late'].includes(status);
+  const matches=state.schools.filter(s=>s.name===x.school_name);
+  const schoolId=matches.length===1?matches[0].id:null;
+  const action=canInspect&&schoolId?
+   '<button class="monitor-status-button" type="button" data-a="monitor-submission" data-school-id="'+esc(schoolId)+'" data-school-name="'+esc(x.school_name)+'" aria-label="View '+esc(status.toLowerCase())+' submissions for '+esc(x.school_name)+'">'+pTag(status)+'<span class="monitor-status-arrow">View uploads ›</span></button>':
+   pTag(status);
+  return '<tr><td>'+esc(x.school_name)+'</td><td>'+action+'</td></tr>';
+ });
+ return '<div class="eyebrow">District-wide visibility</div><h1>Submission Monitoring</h1>'+
+  '<p class="sub">Track the submission status of each school.'+(yesAdmin()?' Tap a Submitted or Late status to see the actual uploads, timestamps and attachments.':' Only district administrators can inspect other schools’ uploaded files.')+'</p>'+
+  '<div class="panel"><div class="field"><label for="pick-ann">Announcement</label><select id="pick-ann"><option value="">Choose an announcement</option>'+opts+'</select></div></div>'+
+  (state.selectedId?'<div class="stats">'+stat('Required Schools',state.monitor.length,'For selected announcement')+
+   stat('Submitted',n('Submitted'),'On time')+stat('Late',n('Late'),'After deadline')+
+   stat('Pending',n('Pending'),'Not yet submitted')+'</div>'+
+   '<div class="panel"><h3>School Status</h3>'+table(['School','Status'],rows)+'</div>':
+   '<div class="panel empty">Choose an announcement to view status.</div>')+
+  '<div class="notice">Privacy: only active district administrators can inspect school uploads. School users and OIC-PSDS see status information only.</div>';
+}
+async function openMonitorSubmission(schoolId){
+ if(!yesAdmin()||!active()||state.view!=='monitoring')throw new Error('District administrator access required.');
+ const school=state.schools.find(s=>s.id===schoolId);
+ if(!school||!state.selectedId)throw new Error('Select an announcement and school first.');
+ const ann=state.announcements.find(a=>a.id===state.selectedId);
+ if(!ann)throw new Error('The announcement is no longer available.');
+ // Query only the selected school and requirement. Database RLS independently
+ // restricts access to active district administrators.
+ const {data:assignments,error:assignmentError}=await db.from('announcement_assignments')
+  .select('id').eq('announcement_id',ann.id).eq('school_id',school.id)
+  .eq('obligation_status','required');
+ if(assignmentError)throw assignmentError;
+ if(!assignments?.length)throw new Error('No required assignment exists for this school.');
+ const ids=assignments.map(a=>a.id),files=[];
+ for(let offset=0;;offset+=200){
+  const {data,error}=await db.from('submissions')
+   .select('id,assignment_id,original_filename,content_type,file_size_bytes,first_received_at,stored_at,version_number,verification_status,verified_at,storage_status')
+   .in('assignment_id',ids).in('storage_status',['uploaded','archived'])
+   .order('first_received_at',{ascending:false}).order('id',{ascending:false})
+   .range(offset,offset+199);
+  if(error)throw error;
+  files.push(...(data||[]));
+  if(!data||data.length<200)break;
+  if(offset>=9800)throw new Error('Submission history is too large to display in one panel.');
+ }
+ if(!files.length)throw new Error('No stored uploads were found for this school. Refresh monitoring.');
+ state.monitorFiles=files.sort((a,b)=>Number(b.version_number)-Number(a.version_number)||
+   new Date(b.first_received_at)-new Date(a.first_received_at));
+ state.monitorDetail={schoolName:school.name,announcementName:announcementName(ann),deadlineAt:ann.deadline_at};
+ state.modal='monitor-submission';show();
+}
+function monitorSubmissionModal(){
+ if(!yesAdmin()||!state.monitorDetail)return '<div class="notice danger">District administrator access required.</div>';
+ const detail=state.monitorDetail,files=state.monitorFiles||[];
+ const first=files.reduce((old,f)=>!old||new Date(f.first_received_at)<new Date(old.first_received_at)?f:old,null);
+ const status=first&&new Date(first.first_received_at)>new Date(detail.deadlineAt)?'Late':'Submitted';
+ const newest=files[0];
+ return '<div class="monitor-file-summary"><div><span class="small muted">School</span><strong>'+esc(detail.schoolName)+'</strong></div>'+
+  '<div><span class="small muted">Announcement</span><strong>'+esc(detail.announcementName)+'</strong></div>'+
+  '<div><span class="small muted">Current status</span>'+pTag(status)+'</div>'+
+  '<div><span class="small muted">Official deadline</span><strong>'+esc(date(detail.deadlineAt))+'</strong></div>'+
+  '<div><span class="small muted">First submission received</span><strong>'+esc(date(first?.first_received_at))+'</strong></div>'+
+  '<div><span class="small muted">Latest upload</span><strong>'+esc(date(newest?.first_received_at))+'</strong></div></div>'+
+  '<h3 class="monitor-file-heading">Uploaded Attachments ('+files.length+')</h3>'+
+  '<p class="note">All submission versions are shown, newest first. Received times use Philippine time. A later revision does not change the original on-time or late status.</p>'+
+  '<div class="monitor-file-list">'+files.map((f,i)=>{
+   const vstatus=['verified','pending','rejected'].includes(f.verification_status)?f.verification_status:'pending';
+   const name=String(f.original_filename||'Unnamed file');
+   return '<section class="monitor-file-entry">'+
+    '<div class="monitor-file-entry-head"><strong>Version '+esc(f.version_number)+(i===0?' · Latest':'')+'</strong>'+
+    '<span class="verify-status verify-status-'+esc(vstatus)+'">'+esc(label(vstatus))+'</span></div>'+
+    '<div class="monitor-file-name">'+esc(name)+'</div>'+
+    '<div class="monitor-file-meta"><span>Received: '+esc(date(f.first_received_at))+'</span>'+
+    '<span>Stored: '+esc(date(f.stored_at))+'</span>'+
+    '<span>Size: '+esc((Number(f.file_size_bytes||0)/1024).toFixed(1))+' KB</span>'+
+    (f.verified_at?'<span>Reviewed: '+esc(date(f.verified_at))+'</span>':'')+'</div>'+
+    reviewFileActions(f,true)+'</section>';
+  }).join('')+'</div>';
 }
 
 async function loadRoutingHistory(){
@@ -587,6 +661,10 @@ function modalHtml(){
   title='Route a Document';
   body=`<form id="form-doc">${field('Subject','subject')}${field('Document Type','type','text','General')}<div class="field"><label>Recipient</label><select name="recipient" required><option value="">Choose recipient</option>${state.recipients.filter(x=>x.user_id!==state.session.user.id).map(x=>`<option value="${x.user_id}">${esc(x.display_name)} · ${esc(x.school_name)}</option>`).join('')}</select></div><div class="field"><label>Instructions (optional)</label><textarea name="notes"></textarea></div></form><div class="notice">Routing records are active. Online file attachments are not yet enabled.</div>`;
   footer='<button class="btn alt" data-a="close">Cancel</button><button class="btn" type="submit" form="form-doc">Send Document</button>';
+ }else if(m==='monitor-submission'){
+  title='School Submission Details';
+  body=monitorSubmissionModal();
+  footer='<button type="button" class="btn alt" data-a="close">Close</button>';
  }else if(m==='detail'){
   const d=state.detail;title=d.tracking_number;
   const routes=state.routes,last=routes.at(-1),mine=last?.to_user_id===state.session.user.id;
@@ -671,7 +749,11 @@ async function click(e){
    return;
   }
   if(a==='monitor'){state.selectedId=t.dataset.id;state.view='monitoring';await load();return;}
-  if(a==='close'){state.modal=null;show();return;}
+  if(a==='monitor-submission'){
+   if(!yesAdmin()||state.view!=='monitoring')throw new Error('District administrator access required.');
+   await openMonitorSubmission(t.dataset.schoolId);return;
+  }
+  if(a==='close'){state.modal=null;state.monitorDetail=null;state.monitorFiles=[];show();return;}
   if(a==='new-announcement'){state.modal='new-announcement';show();return;}
   if(a==='send'){if(isOic())throw new Error('OIC-PSDS accounts cannot route documents.');await loadRecipients();state.modal='send';show();return;}
   if(a==='detail'){if(isOic())throw new Error('OIC-PSDS accounts cannot view private documents.');await openDetail(t.dataset.id);return;}
