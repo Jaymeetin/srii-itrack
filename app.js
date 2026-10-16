@@ -1014,7 +1014,28 @@ async function click(e){
  const a=t.dataset.a;
  try{
   if(a==='retry'){location.reload();return;}
-  if(a==='switch'){state.authMode=state.authMode==='login'?'register':'login';show();return;}
+  if(a==='switch'){
+   if(state.authMode==='login'&&state.queueTicket){await queueRead();return;}
+   state.authMode=state.authMode==='login'?'register':'login';show();return;
+  }
+  if(a==='queue-check'){await queueRead();return;}
+  if(a==='queue-rejoin'){queueClear();state.authMode='register';show();return;}
+  if(a==='queue-reminder'){queueReminder();pop('Calendar reminder prepared. Import it into your calendar and allow notifications.');return;}
+  if(a==='queue-cancel'){
+   if(!state.queueTicket)return;
+   if(!confirm('Cancel your registration queue place? You will need to join again later.'))return;
+   const {data,error}=await db.rpc('i_track_registration_queue_cancel',{p_ticket:state.queueTicket});
+   if(error)throw error;
+   if(!data)throw Error('This place is no longer cancelable. Check your queue status.');
+   queueClear();state.authMode='register';show();pop('Queue place cancelled.');return;
+  }
+  if(a==='queue-claim'){
+   if(!state.queueTicket)throw Error('Queue ticket is missing. Join the registration list again.');
+   const {data,error}=await db.rpc('i_track_registration_queue_claim',{p_ticket:state.queueTicket});
+   if(error){await queueRead();throw error;}
+   if(data!==true)throw Error('This queue slot is not available yet.');
+   await queueRead();state.authMode='queue-complete';show();return;
+  }
   if(a==='resend-help'){state.authMode='resend';show();return;}
   if(a==='forgot-help'){state.authMode='forgot';show();return;}
   if(a==='toggle-password'){
@@ -1143,7 +1164,7 @@ async function click(e){
  }catch(e){err(e);}
 }
 async function submit(e){
- const form=e.target;if(!['register','login','resend-email','forgot-password','set-password','form-ann','form-doc'].includes(form.id))return;
+ const form=e.target;if(!['queue-join','queue-complete','login','resend-email','forgot-password','set-password','form-ann','form-doc'].includes(form.id))return;
  e.preventDefault();if(state.busy)return;state.busy=true;form.querySelectorAll('button[type=submit]').forEach(x=>x.disabled=true);
  try{
   const fd=new FormData(form);
@@ -1190,27 +1211,62 @@ async function submit(e){
    state.authMode='login';show();
    pop('Confirmation requested. If the address has a pending registration and delivery is available, check its inbox and Spam folder.');return;
   }
-  if(form.id==='register'){
-   const email=clean(fd.get('email')),password=String(fd.get('password')||''),name=clean(fd.get('full_name')),school=clean(fd.get('school'));
-   const type=clean(fd.get('registration_type'))||'school_user';
-   if(!['school_user','oic_psds'].includes(type))throw new Error('Select a valid account type.');
-   if(password.length<8)throw new Error('Password must have at least 8 characters.');
-   if(!name||(!school&&type==='school_user'))throw new Error('Complete your name and school.');
-   const meta={full_name:name,position_title:clean(fd.get('position_title'))|| (type==='oic_psds'?'OIC-PSDS':''),
-      registration_type:type,requested_school_id:type==='oic_psds'?null:school};
-   const {error}=await db.auth.signUp({email,password,options:{emailRedirectTo:location.origin+location.pathname,data:meta}});
+  if(form.id==='queue-join'){
+   const email=clean(fd.get('email')),name=clean(fd.get('full_name')),
+    school=clean(fd.get('school')),role=clean(fd.get('registration_type'))||'school_user';
+   const position=clean(fd.get('position_title'));
+   if(!email||!name||(role==='school_user'&&!school))throw Error('Complete your name, email, and school.');
+   if(state.queueTicket)throw Error('You already have a queue ticket. Check your existing place first.');
+   const {data,error}=await db.rpc('i_track_registration_queue_join',{
+    p_email:email,p_full_name:name,p_position_title:position,p_registration_type:role,
+    p_school_id:role==='oic_psds'?null:school
+   });
+   if(error)throw error;
+   if(!data)throw Error('No registration ticket was created. Please try again.');
+   state.queueTicket=String(data);
+   localStorage.setItem('srii-registration-queue-ticket',state.queueTicket);
+   state.lastSignupEmail=email;
+   await queueRead();
+   pop('Your queue number is saved on this device. Check your position or add a calendar reminder.');return;
+  }
+  if(form.id==='queue-complete'){
+   const q=state.queueInfo;
+   if(!q||!state.queueTicket||q.queue_status!=='claimed')
+    throw Error('Your private registration slot is not active. Check the queue.');
+   if(new Date(q.expires_at).getTime()<=Date.now()){
+    await queueRead();throw Error('Your registration window expired. Join the queue again.');
+   }
+   const password=String(fd.get('password')||'');
+   if(password.length<8)throw Error('Your password must contain at least 8 characters.');
+   const {error}=await db.auth.signUp({
+    email:q.email,password,
+    options:{emailRedirectTo:location.origin+location.pathname,
+     data:{full_name:q.full_name,position_title:q.position_title||'',
+      registration_type:q.registration_type,requested_school_id:q.registration_type==='oic_psds'?null:q.school_id}}
+   });
    if(error){
-    if(error.code==='over_email_send_rate_limit'||(error.status===429&&/email/i.test(error.message||''))||
-       error.code==='email_address_not_authorized'){
-     state.lastSignupEmail=email;state.authMode='resend';
-     const readable=emailQuotaError(error,'Registration confirmation');
-     show();throw readable;
+    if(error.code==='over_email_send_rate_limit'||error.status===429){
+     // A failed Supabase email attempt still consumes the trial quota.
+     // Put the applicant back into a later numbered slot, without saving
+     // or resending the password.
+     const retry=await db.rpc('i_track_registration_queue_retry',{p_ticket:state.queueTicket});
+     if(retry.error)throw Error('Email sending was limited and the queue could not be rebooked: '+retry.error.message);
+     state.queueTicket=String(retry.data);
+     localStorage.setItem('srii-registration-queue-ticket',state.queueTicket);
+     await queueRead();
+     pop('Supabase email sending is still limited. A new queue place was assigned; your password was not retained.',true);
+     return;
+    }
+    if(error.code==='email_address_not_authorized'){
+     await queueRead();
+     throw Error('Supabase’s built-in sender cannot deliver to this address. The District Administrator must configure SMTP. Your password was not saved in the queue.');
     }
     throw error;
    }
-   state.authMode='login';show();pop(type==='oic_psds'?
-    'OIC-PSDS registration requested. Verify your email, then wait for the Main Administrator to approve District Office oversight.':
-    'Registration received. Please verify email and wait for district approval.');return;
+   const finished=await db.rpc('i_track_registration_queue_finish',{p_ticket:state.queueTicket});
+   if(finished.error)console.warn('Signup succeeded; queue finalization will reconcile later',finished.error);
+   queueClear();state.authMode='login';show();
+   pop('Account created. Check your email for verification, then wait for district approval.');return;
   }
   if(form.id==='login'){
    const {error}=await db.auth.signInWithPassword({email:clean(fd.get('email')),password:String(fd.get('password')||'')});if(error)throw error;
