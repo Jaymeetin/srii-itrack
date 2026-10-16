@@ -94,9 +94,11 @@ function openMore(){
  const user=identity(app);
  const admin=app.querySelector('.sidebar nav button[data-page="approvals"]');
  const reports=app.querySelector('.sidebar nav button[data-page="reports"]');
+ const schoolFiles=app.querySelector('.sidebar nav button[data-page="school-files"]');
  const verification=app.querySelector('.sidebar nav button[data-page="verification"]');
  const archive=app.querySelector('.sidebar nav button[data-page="archive"]');
  const accountActions=[
+  schoolFiles?'<button type="button" class="mobile-menu-button" data-mobile="navigate" data-page="school-files">All School Attachments <small>›</small></button>':"",
   verification?'<button type="button" class="mobile-menu-button" data-mobile="navigate" data-page="verification">Submission Verification <small>›</small></button>':"",
   reports?'<button type="button" class="mobile-menu-button" data-mobile="navigate" data-page="reports">District Reports <small>›</small></button>':"",
   admin?'<button type="button" class="mobile-menu-button" data-mobile="navigate" data-page="approvals">Account Management <small>›</small></button>':"",
