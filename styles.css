@@ -242,3 +242,28 @@
  #registration-type{font-size:13px}
  .content .stats:has(+ .panel){display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
 }
+
+
+/* v17: use one transparent emblem without a white dashboard icon tile. */
+.brandmark,
+.sidebar .brandmark,
+.auth-aside .brandmark,
+.pending .brandmark{
+ background:transparent!important;
+ border:0!important;
+ box-shadow:none!important;
+ padding:0!important;
+ overflow:visible!important;
+}
+.brandmark img,
+.sidebar .brandmark img,
+.auth-aside .brandmark img,
+.pending .brandmark img{
+ background:transparent!important;
+ border:0!important;
+ box-shadow:none!important;
+ padding:0!important;
+ filter:none!important;
+ object-fit:contain;
+}
+.brand-loader{background:transparent!important;border:0!important;box-shadow:none!important;padding:0!important;filter:none!important}
