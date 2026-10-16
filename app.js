@@ -8,7 +8,7 @@ const db=window.supabase?.createClient(C.url,C.publishableKey,{auth:{persistSess
 // Reuse one authenticated client across tracking, upload and download screens.
 // Multiple clients refreshing the same mobile session can reset upload forms.
 window.ITRACK_DB=db;
-const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],recipients:[],monitor:[],monitorDetail:null,monitorFiles:[],selectedId:'',view:(['verification','reports','school-files'].includes(new URLSearchParams(location.search).get('view'))?new URLSearchParams(location.search).get('view'):'dashboard'),authMode:'login',modal:null,detail:null,routes:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],docAttachmentError:'',reviewSelectedId:'',reviewRows:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],issue:null};
+const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],recipients:[],monitor:[],monitorDetail:null,monitorFiles:[],selectedId:'',view:(['verification','reports','school-files'].includes(new URLSearchParams(location.search).get('view'))?new URLSearchParams(location.search).get('view'):'dashboard'),authMode:'login',lastSignupEmail:'',modal:null,detail:null,routes:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],docAttachmentError:'',reviewSelectedId:'',reviewRows:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],issue:null};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=x=>x?new Date(x).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}):'—';
@@ -405,15 +405,43 @@ function show(){
 }
 function authPage(){
  const registering=state.authMode==='register';
- $.innerHTML=`<div class="auth">
- <aside class="auth-aside">${brand()}<div><h1>Connecting Schools.<br><em>Tracking Documents.</em><br>Ensuring Accountability.</h1><p>San Remigio II District — integrated announcements, document routing and compliance monitoring.</p></div><small>SAN REMIGIO II · OFFICIAL WORKSPACE TRIAL</small></aside>
- <main class="auth-content"><div class="auth-card"><div class="auth-top"><button class="btn alt tiny" data-a="theme">◐ Light / Dark</button></div>
- <div class="eyebrow">Welcome to SRII i-TRACK</div><h1>${registering?'Create an Account':'Sign In'}</h1><p class="sub">${registering?'Use your DepEd or personal Gmail account. District approval is required.':'Use your registered email and password.'}</p>
- <form id="${registering?'register':'login'}">
- ${registering?field('Complete name','full_name')+`<div class="field"><label for="registration-type">Account type</label><select id="registration-type" name="registration_type"><option value="school_user">School Personnel</option><option value="oic_psds">OIC-PSDS · District Oversight (Read Only)</option></select></div>`+field('Position / Designation','position_title','text','','Administrative Officer II')+`<div class="field" id="register-school-field"><label for="school">School</label><select id="school" name="school" required><option value="">Select your school</option>${schoolOpts()}</select></div><p class="note" id="oic-register-note" hidden>The OIC-PSDS account is assigned to the District Office, with no school. Only the Main Administrator may approve this request. Oversight does not grant file, upload or approval access.</p>`:''}
- ${field('Email address','email','email')}${field('Password','password','password')}<button type="submit" class="btn block">${registering?'Register Account':'Sign In'}</button></form>
- <div class="switch">${registering?'Already registered?':'New personnel?'} <button class="link-button" data-a="switch">${registering?'Sign in':'Register here'}</button></div>
- <p class="note">Your password is handled by Supabase Authentication; never send it to the district administrator.</p></div></main></div>`;
+ const resending=state.authMode==='resend';
+ const heading=resending?'Resend Confirmation Email':registering?'Create an Account':'Sign In';
+ const intro=resending?
+  'Already registered but did not receive a confirmation email? Use the same email address. Repeated requests cannot bypass the district email service limit.':
+  registering?'Use your DepEd or personal Gmail account. District approval is required.':
+  'Use your registered email and password.';
+ const signupFields=registering?field('Complete name','full_name')+
+  '<div class="field"><label for="registration-type">Account type</label>'+
+   '<select id="registration-type" name="registration_type">'+
+    '<option value="school_user">School Personnel</option>'+
+    '<option value="oic_psds">OIC-PSDS · District Oversight (Read Only)</option>'+
+   '</select></div>'+
+  field('Position / Designation','position_title','text','','Administrative Officer II')+
+  '<div class="field" id="register-school-field"><label for="school">School</label>'+
+   '<select id="school" name="school" required><option value="">Select your school</option>'+schoolOpts()+'</select></div>'+
+  '<p class="note" id="oic-register-note" hidden>'+
+   'The OIC-PSDS account is assigned to the District Office, with no school. Only the Main Administrator may approve this request. Oversight does not grant file, upload or approval access.</p>':'';
+ $.innerHTML='<div class="auth"><aside class="auth-aside">'+brand()+
+  '<div><h1>Connecting Schools.<br><em>Tracking Documents.</em><br>Ensuring Accountability.</h1>'+
+   '<p>San Remigio II District — integrated announcements, document routing and compliance monitoring.</p></div>'+
+  '<small>SAN REMIGIO II · OFFICIAL WORKSPACE TRIAL</small></aside>'+
+  '<main class="auth-content"><div class="auth-card">'+
+   '<div class="auth-top"><button class="btn alt tiny" data-a="theme">◐ Light / Dark</button></div>'+
+   '<div class="eyebrow">Welcome to SRII i-TRACK</div><h1>'+heading+'</h1><p class="sub">'+intro+'</p>'+
+   '<form id="'+(resending?'resend-email':registering?'register':'login')+'">'+signupFields+
+   field('Email address','email','email',resending?state.lastSignupEmail:'')+
+   (resending?'':field('Password','password','password'))+
+   '<button type="submit" class="btn block">'+
+   (resending?'Resend Confirmation Email':registering?'Register Account':'Sign In')+'</button></form>'+
+   (resending?
+     '<div class="switch">Already verified? <button class="link-button" data-a="back-to-login">Sign in</button></div>':
+     '<div class="switch">'+(registering?'Already registered?':'New personnel?')+
+      ' <button class="link-button" data-a="switch">'+(registering?'Sign in':'Register here')+'</button></div>'+
+     '<div class="switch"><button class="link-button" data-a="resend-help">Did not receive the verification email?</button></div>')+
+   (resending?'<p class="note">If email sending is temporarily limited, retry only after the District Administrator confirms the sending service is working. A confirmation email does not itself approve an account; district approval is still required.</p>':
+    '<p class="note">Your password is handled by Supabase Authentication; never send it to the district administrator.</p>')+
+  '</div></main></div>';
 }
 function pendingPage(){
  const oic=isOic();
@@ -830,6 +858,8 @@ async function click(e){
  try{
   if(a==='retry'){location.reload();return;}
   if(a==='switch'){state.authMode=state.authMode==='login'?'register':'login';show();return;}
+  if(a==='resend-help'){state.authMode='resend';show();return;}
+  if(a==='back-to-login'){state.authMode='login';show();return;}
   if(a==='theme'){state.theme=state.theme==='dark'?'light':'dark';localStorage.setItem('srii-theme',state.theme);document.documentElement.dataset.theme=state.theme;show();return;}
   if(a==='logout'){await db.auth.signOut();state.session=null;state.profile=null;state.view='dashboard';state.modal=null;state.schoolFiles=[];show();return;}
   if(a==='refresh'){await sync();return;}
@@ -909,10 +939,28 @@ async function click(e){
  }catch(e){err(e);}
 }
 async function submit(e){
- const form=e.target;if(!['register','login','form-ann','form-doc'].includes(form.id))return;
+ const form=e.target;if(!['register','login','resend-email','form-ann','form-doc'].includes(form.id))return;
  e.preventDefault();if(state.busy)return;state.busy=true;form.querySelectorAll('button[type=submit]').forEach(x=>x.disabled=true);
  try{
   const fd=new FormData(form);
+  if(form.id==='resend-email'){
+   const email=clean(fd.get('email'));
+   if(!email)throw new Error('Enter your registered email address.');
+   state.lastSignupEmail=email;
+   const {error}=await db.auth.resend({
+    type:'signup',email,options:{emailRedirectTo:location.origin+location.pathname}
+   });
+   if(error){
+    if(error.code==='over_email_send_rate_limit'||(error.status===429&&/email/i.test(error.message||''))){
+     throw new Error('Email sending is still limited for SRII i-TRACK. Repeated requests cannot resolve it. Please wait until the District Administrator finishes setting up the email service.');
+    }
+    if(error.code==='email_address_not_authorized')
+     throw new Error('The default email sender cannot deliver to this address. A dedicated district email sender must be configured first.');
+    throw error;
+   }
+   state.authMode='login';show();
+   pop('Confirmation requested. If the address has a pending registration and delivery is available, check its inbox and Spam folder.');return;
+  }
   if(form.id==='register'){
    const email=clean(fd.get('email')),password=String(fd.get('password')||''),name=clean(fd.get('full_name')),school=clean(fd.get('school'));
    const type=clean(fd.get('registration_type'))||'school_user';
@@ -921,7 +969,20 @@ async function submit(e){
    if(!name||(!school&&type==='school_user'))throw new Error('Complete your name and school.');
    const meta={full_name:name,position_title:clean(fd.get('position_title'))|| (type==='oic_psds'?'OIC-PSDS':''),
       registration_type:type,requested_school_id:type==='oic_psds'?null:school};
-   const {error}=await db.auth.signUp({email,password,options:{emailRedirectTo:location.origin+location.pathname,data:meta}});if(error)throw error;
+   const {error}=await db.auth.signUp({email,password,options:{emailRedirectTo:location.origin+location.pathname,data:meta}});
+   if(error){
+    if(error.code==='over_email_send_rate_limit'||(error.status===429&&/email/i.test(error.message||''))){
+     state.lastSignupEmail=email;
+     state.authMode='resend';show();
+     throw new Error('The district email service reached its sending limit. Your signup may have been recorded, but no confirmation email was sent. Do not keep registering. Once the District Administrator configures email delivery, use Resend Confirmation Email.');
+    }
+    if(error.code==='email_address_not_authorized'){
+     state.lastSignupEmail=email;
+     state.authMode='resend';show();
+     throw new Error('The default email service cannot deliver confirmation messages to this address. Please ask the District Administrator to configure a dedicated email sender.');
+    }
+    throw error;
+   }
    state.authMode='login';show();pop(type==='oic_psds'?
     'OIC-PSDS registration requested. Verify your email, then wait for the Main Administrator to approve District Office oversight.':
     'Registration received. Please verify email and wait for district approval.');return;
