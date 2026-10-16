@@ -93,6 +93,10 @@ async function load(){
   }
   if(yesAdmin()&&['dashboard','approvals'].includes(state.view)){
    tasks.push((async()=>{const {data,error}=await db.from('profiles').select('id,display_name,school_id,requested_school_id,position_title,role,account_status,created_at').order('created_at',{ascending:false});if(error)throw error;state.profiles=data||[];})());
+   if(state.view==='approvals')tasks.push((async()=>{
+    const {data,error}=await db.rpc('i_track_admin_account_emails');
+    if(error)throw error;state.accountEmails=data||[];
+   })());
   }
   if(state.view==='dashboard'){
    if(isOic())tasks.push((async()=>{const {data,error}=await db.rpc('i_track_district_report');if(error)throw error;state.districtReport=data||[];})());
@@ -813,27 +817,46 @@ function documentPage(){
 }
 function approvalPage(){
  if(!yesAdmin())return '<div class="notice danger">Administrator access required.</div>';
+ const emailById=new Map(state.accountEmails.map(r=>[r.user_id,r]));
  const rows=state.profiles.map(p=>{
   const oversight=p.role==='oic_psds';
   const school=oversight?'District Office (no school)':state.schools.find(s=>s.id===(p.school_id||p.requested_school_id))?.name||'Unassigned';
   const pending=p.account_status==='pending';
   const canReview=pending&&(!oversight||isMain());
-  const actions=canReview?
-   '<button class="btn tiny" data-a="approve" data-id="'+esc(p.id)+'">Approve</button>'+
-   '<button class="btn tiny danger" data-a="reject" data-id="'+esc(p.id)+'">Reject</button>':
-   pending&&oversight?'<span class="small muted">Main Administrator only</span>':
-   isMain()&&p.account_status==='active'&&p.role!=='main_admin'&&p.role!=='oic_psds'?
-   '<button class="btn tiny alt" data-a="backup" data-id="'+esc(p.id)+'" data-enable="'+(p.role==='backup_admin'?'false':'true')+'">'+
-   (p.role==='backup_admin'?'Remove Backup':'Make Backup')+'</button>':'';
+  const emailRecord=emailById.get(p.id),email=emailRecord?.email||'';
+  const canAssist=(p.role!=='main_admin'&&p.id!==state.session?.user?.id)&&
+    (p.role!=='backup_admin'||isMain())&&(!oversight||isMain());
+  const actions=[];
+  if(canReview){
+   actions.push('<button class="btn tiny" data-a="approve" data-id="'+esc(p.id)+'">Approve</button>');
+   actions.push('<button class="btn tiny danger" data-a="reject" data-id="'+esc(p.id)+'">Reject</button>');
+  }else if(pending&&oversight){
+   actions.push('<span class="small muted">Main Administrator approval only</span>');
+  }
+  if(isMain()&&p.account_status==='active'&&p.role!=='main_admin'&&p.role!=='oic_psds')
+   actions.push('<button class="btn tiny alt" data-a="backup" data-id="'+esc(p.id)+'" data-enable="'+(p.role==='backup_admin'?'false':'true')+'">'+
+   (p.role==='backup_admin'?'Remove Backup':'Make Backup')+'</button>');
+  if(canAssist&&email){
+   actions.push('<button type="button" class="btn tiny alt" data-a="admin-password-reset" data-id="'+esc(p.id)+'">Send Password Reset</button>');
+   if(emailRecord?.email_confirmed===false)
+    actions.push('<button type="button" class="btn tiny alt" data-a="admin-email-confirmation" data-id="'+esc(p.id)+'">Resend Verification</button>');
+  }
   const roleLabel=oversight?'OIC-PSDS · Read Only':label(p.role);
+  const emailStatus=emailRecord?.email_confirmed===true?'<span class="account-email-state is-confirmed">Email verified</span>':
+     emailRecord?.email_confirmed===false?'<span class="account-email-state is-unconfirmed">Awaiting verification</span>':
+     '<span class="small muted">Email status unavailable</span>';
   return '<tr><td><strong>'+esc(p.display_name||'Unnamed user')+'</strong>'+
    '<div class="small muted">'+esc(p.position_title||'')+'</div></td>'+
    '<td>'+esc(school)+'</td><td>'+pTag(p.account_status)+'</td>'+
-   '<td>'+esc(roleLabel)+'</td><td><div class="actionbuttons">'+actions+'</div></td></tr>';
+   '<td>'+esc(roleLabel)+'</td><td><div class="account-email">'+
+     (email?'<span>'+esc(email)+'</span>':'<span class="small muted">Email unavailable</span>')+
+     emailStatus+'</div></td>'+
+   '<td><div class="actionbuttons account-recovery-actions">'+actions.join('')+'</div></td></tr>';
  });
  return '<div class="eyebrow">Administrator controls</div><h1>Account Approvals</h1>'+
-  '<p class="sub">Approve school personnel with a school assignment. The OIC-PSDS requests a separate District Office role with no school and read-only access; only the Main Administrator may approve it.</p>'+
-  '<div class="panel">'+table(['Name','School / Office','Status','Role','Action'],rows)+'</div>';
+  '<p class="sub">Approve personnel, check who is awaiting email verification, or send a password-reset link. Resetting a password preserves all documents and account history. The Main Administrator approves OIC-PSDS accounts.</p>'+
+  '<div class="notice">Recovery and verification emails use Supabase Auth. Requests may be temporarily blocked until a dedicated SMTP sender is configured. Do not delete an account to fix a forgotten password.</div>'+
+  '<div class="panel">'+table(['Name','School / Office','Status','Role','Email verification','Actions'],rows)+'</div>';
 }
 function archivePage(){return `<div class="eyebrow">Administrator controls</div><h1>Archive Documents</h1><p class="sub">Two-month archival to an SSD after verification.</p><div class="panel"><div class="notice warn"><b>Not yet enabled.</b> This will prepare downloadable archives, verify copies, and require administrator confirmation before any Drive files are deleted.</div><button class="btn" disabled>Archive Documents</button><p class="note" style="margin-top:12px">Submission metadata and audit history will remain in Supabase after archiving.</p></div>`;}
 function modalHtml(){
