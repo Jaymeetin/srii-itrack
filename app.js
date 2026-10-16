@@ -612,6 +612,7 @@ function monitorPage(){
  });
  return '<div class="eyebrow">District-wide visibility</div><h1>Submission Monitoring</h1>'+
   '<p class="sub">Track the submission status of each school.'+(yesAdmin()?' Tap a Submitted or Late status to see the actual uploads, timestamps and attachments.':' Only district administrators can inspect other schools’ uploaded files.')+'</p>'+
+  (yesAdmin()?'<div class="school-files-monitor-link"><button type="button" class="btn alt" data-a="nav" data-page="school-files">▣ View All School Attachments</button></div>':'')+
   '<div class="panel"><div class="field"><label for="pick-ann">Announcement</label><select id="pick-ann"><option value="">Choose an announcement</option>'+opts+'</select></div></div>'+
   (state.selectedId?'<div class="stats">'+stat('Required Schools',state.monitor.length,'For selected announcement')+
    stat('Submitted',n('Submitted'),'On time')+stat('Late',n('Late'),'After deadline')+
