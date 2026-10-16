@@ -301,3 +301,33 @@
  .routing-step:before{left:-22px}
  .routing-current-panel{padding:12px}
 }
+
+
+/* District-admin-only drill-down from school submission status. */
+.monitor-status-button{border:0;background:none;padding:3px 0;display:inline-flex;align-items:center;gap:9px;flex-wrap:wrap;text-align:left;cursor:pointer;max-width:100%}
+.monitor-status-button .tag{pointer-events:none}
+.monitor-status-arrow{color:var(--blue);font-size:12px;font-weight:800;text-decoration:underline;text-underline-offset:2px}
+.monitor-status-button:hover .monitor-status-arrow{text-decoration-thickness:2px}
+.monitor-status-button:focus-visible{outline:2px solid var(--blue);outline-offset:3px;border-radius:6px}
+.monitor-file-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:5px 0 18px}
+.monitor-file-summary>div{display:flex;flex-direction:column;gap:3px;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px;min-width:0}
+.monitor-file-summary>div>strong{font-size:12px;overflow-wrap:anywhere;line-height:1.5}
+.monitor-file-summary>div>.small{font-size:11px}
+.monitor-file-heading{margin-top:16px}
+.monitor-file-list{display:grid;gap:10px;margin:13px 0 20px;max-height:55vh;overflow-y:auto;overscroll-behavior:contain}
+.monitor-file-entry{border:1px solid var(--line);border-radius:12px;background:var(--paper);padding:13px;min-width:0}
+.monitor-file-entry:first-child{border-color:var(--blue)}
+.monitor-file-entry-head{display:flex;align-items:center;justify-content:space-between;gap:9px;flex-wrap:wrap}
+.monitor-file-entry-head strong{font-size:13px}
+.monitor-file-name{font-weight:750;font-size:13px;overflow-wrap:anywhere;margin-top:7px}
+.monitor-file-meta{font-size:11px;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 13px;margin:6px 0 10px}
+.monitor-file-entry .verify-file-actions{display:flex;gap:7px;flex-wrap:wrap}
+.monitor-file-entry .btn{min-height:32px}
+@media(max-width:820px){
+ .monitor-file-summary{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+ .monitor-file-summary>div{padding:9px}
+ .monitor-file-summary>div>strong{font-size:11px}
+ .monitor-file-entry{padding:10px}
+ .monitor-file-list{max-height:50vh}
+ .monitor-status-button{gap:5px}
+}
