@@ -1,9 +1,9 @@
 /* SRII i-TRACK app shell cache v2: assets only, always prefer the network. */
-const CACHE_NAME="srii-itrack-transparent-brand-v17";
+const CACHE_NAME="srii-itrack-glow-app-icon-v18";
 const CORE_ASSETS=[
  "./","./index.html","./styles.css","./mobile.css",
  "./app.js","./mobile-shell.js","./upload-ui.css","./upload-ui.js","./download-ui.js","./config.js",
- "./manifest.webmanifest","./assets/srii-mark-v17.svg"
+ "./manifest.webmanifest","./assets/srii-mark-v17.svg","./assets/srii-glow-app-icon-v18.svg"
 ];
 self.addEventListener("install",event=>{
  event.waitUntil(caches.open(CACHE_NAME)
