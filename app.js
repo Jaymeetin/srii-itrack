@@ -219,6 +219,122 @@ function reviewFileActions(file,compact=false){
   (previewable?'<button type="button" class="btn tiny alt iu-file-action" data-mode="view"'+attrs+'>View</button>':'')+
   '<button type="button" class="btn tiny alt iu-file-action" data-mode="download"'+attrs+'>Download</button></span>';
 }
+
+async function loadSchoolFiles(){
+ if(!yesAdmin()||!active())throw new Error('District administrator access required.');
+ // School and assignment identifiers only. Never fetch or expose private Drive IDs.
+ // Include historical assignments so completed uploads remain visible even if an
+ // administrator later removes an announcement requirement.
+ const assignments=[];
+ for(let offset=0;;offset+=500){
+  const {data,error}=await db.from('announcement_assignments')
+   .select('id,announcement_id,school_id')
+   .order('id',{ascending:true}).range(offset,offset+499);
+  if(error)throw error;
+  assignments.push(...(data||[]));
+  if(!data||data.length<500)break;
+  if(offset>=999500)throw new Error('District assignment listing is too large to load.');
+ }
+ const byAssignment=new Map(assignments.map(a=>[a.id,a]));
+ const schoolNames=new Map(state.schools.map(s=>[s.id,s.name]));
+ const announcements=new Map(state.announcements.map(a=>[a.id,a]));
+ const files=[];
+ for(let i=0;i<assignments.length;i+=35){
+  const ids=assignments.slice(i,i+35).map(a=>a.id);
+  for(let offset=0;;offset+=250){
+   const {data,error}=await db.from('submissions')
+    .select('id,assignment_id,original_filename,content_type,file_size_bytes,first_received_at,stored_at,version_number,verification_status,verified_at,storage_status')
+    .in('assignment_id',ids).in('storage_status',['uploaded','archived'])
+    .order('first_received_at',{ascending:false}).order('id',{ascending:false})
+    .range(offset,offset+249);
+   if(error)throw error;
+   for(const file of data||[]){
+    const assignment=byAssignment.get(file.assignment_id);
+    if(!assignment)continue;
+    const announcement=announcements.get(assignment.announcement_id);
+    files.push({...file,
+      school_id:assignment.school_id,
+      school_name:schoolNames.get(assignment.school_id)||'District / Individual',
+      announcement_id:assignment.announcement_id,
+      announcement_name:announcementName(announcement),
+      deadline_at:announcement?.deadline_at||null
+    });
+   }
+   if(!data||data.length<250)break;
+   if(offset>=999750)throw new Error('District upload listing is too large to load.');
+  }
+ }
+ // Version numbers belong to each assignment; another school's V1 is not a
+ // revision of this school's V1. Never suppress older versions from the data.
+ const latestVersion=new Map();
+ for(const f of files){
+  const current=latestVersion.get(f.assignment_id);
+  if(!current||Number(f.version_number)>Number(current.version_number)||
+     Number(f.version_number)===Number(current.version_number)&&
+     new Date(f.first_received_at)>new Date(current.first_received_at))
+   latestVersion.set(f.assignment_id,f);
+ }
+ for(const f of files)f.is_latest=latestVersion.get(f.assignment_id)?.id===f.id;
+ state.schoolFiles=files.sort((a,b)=>new Date(b.first_received_at)-new Date(a.first_received_at)
+  ||String(b.id).localeCompare(String(a.id)));
+}
+function schoolAttachmentsPage(){
+ if(!yesAdmin()||!active())return '<div class="notice danger">District administrator access required.</div>';
+ const all=state.schoolFiles||[];
+ const activeSchools=new Set(all.map(f=>f.school_id).filter(Boolean));
+ const activeAnnouncements=new Set(all.map(f=>f.announcement_id).filter(Boolean));
+ const schoolOptions=state.schools.slice().sort((a,b)=>a.name.localeCompare(b.name))
+  .map(s=>'<option value="'+esc(s.id)+'"'+(state.schoolFilesSchool===s.id?' selected':'')+'>'+
+   esc(s.name)+(activeSchools.has(s.id)?' · uploaded':' · no uploads')+'</option>').join('');
+ const announcementOptions=state.announcements.slice()
+  .sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0))
+  .map(a=>'<option value="'+esc(a.id)+'"'+(state.schoolFilesAnnouncement===a.id?' selected':'')+'>'+
+   esc(announcementName(a))+(activeAnnouncements.has(a.id)?'':' · no uploads')+'</option>').join('');
+ const selected=all.filter(f=>
+  (!state.schoolFilesSchool||f.school_id===state.schoolFilesSchool)&&
+  (!state.schoolFilesAnnouncement||f.announcement_id===state.schoolFilesAnnouncement)&&
+  (state.schoolFilesVersions!=='latest'||f.is_latest));
+ const rows=selected.map(f=>{
+  const verify=['verified','pending','rejected'].includes(f.verification_status)?f.verification_status:'pending';
+  return '<tr>'+
+   '<td><strong>'+esc(f.school_name)+'</strong></td>'+
+   '<td><span class="small">'+esc(f.announcement_name)+'</span></td>'+
+   '<td class="school-files-name"><strong>'+esc(f.original_filename||'Unnamed attachment')+'</strong>'+
+    '<div class="small muted">Version '+esc(f.version_number)+(f.is_latest?' · Latest':' · Previous')+
+    ' · '+esc((Number(f.file_size_bytes||0)/1024).toFixed(1))+' KB</div></td>'+
+   '<td><div class="school-files-date">'+esc(date(f.first_received_at))+'</div>'+
+    '<div class="small muted">Saved '+esc(date(f.stored_at))+'</div></td>'+
+   '<td><span class="verify-status verify-status-'+verify+'">'+esc(label(verify))+'</span>'+
+    (f.storage_status==='archived'?'<div class="small muted">Archived</div>':'')+'</td>'+
+   '<td class="school-files-actions">'+reviewFileActions(f,true)+'</td></tr>';
+ });
+ const noFiles=state.schoolFilesSchool||state.schoolFilesAnnouncement?
+  'No attachments match these filters. Schools with no submissions remain listed in the school selector.':
+  'No schools have uploaded attachments yet.';
+ return '<div class="sectionhead"><div><div class="eyebrow">District administrator · secure records</div>'+
+  '<h1>School Attachments</h1><p class="sub">Browse all submitted files from every school and announcement, including previous versions. File access is checked and recorded.</p></div>'+
+  '<button type="button" class="btn alt" data-a="refresh-school-files">↻ Refresh</button></div>'+
+  '<div class="school-files-metrics">'+
+   '<div><strong>'+state.schools.length+'</strong><span>Schools in district</span></div>'+
+   '<div><strong>'+activeSchools.size+'</strong><span>Schools with uploads</span></div>'+
+   '<div><strong>'+all.length+'</strong><span>Attachments / versions</span></div>'+
+   '<div><strong>'+selected.length+'</strong><span>Matching filters</span></div></div>'+
+  '<section class="panel school-files-panel"><h3>Filter School Attachments</h3>'+
+   '<div class="school-files-filters">'+
+    '<div class="field"><label for="school-files-filter-school">School</label><select id="school-files-filter-school"><option value="">All schools</option>'+
+     schoolOptions+'</select></div>'+
+    '<div class="field"><label for="school-files-filter-ann">Announcement</label><select id="school-files-filter-ann"><option value="">All announcements</option>'+
+     announcementOptions+'</select></div>'+
+    '<div class="field"><label for="school-files-filter-versions">Files to show</label><select id="school-files-filter-versions">'+
+     '<option value="all"'+(state.schoolFilesVersions!=='latest'?' selected':'')+'>All uploaded versions</option>'+
+     '<option value="latest"'+(state.schoolFilesVersions==='latest'?' selected':'')+'>Latest versions only</option>'+
+    '</select></div></div>'+
+   '<p class="note">A school with no uploads has no attachment to open. View and Download require an active district administrator session. Archived SSD files have metadata only.</p>'+
+   (rows.length?table(['School','Announcement','Attachment','Received (PHT)','Verification','Secure file'],rows):
+    '<div class="empty">'+esc(noFiles)+'</div>')+
+  '</section>';
+}
+
 function verificationPage(){
  if(!yesAdmin())return '<div class="notice danger">Administrator access required.</div>';
  const notices=state.announcements.filter(a=>['open','closed'].includes(a.status));
