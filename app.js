@@ -26,7 +26,7 @@ const table=(cols,rows)=>rows.length?`<div class="tablewrap"><table class="data"
 const field=(caption,name,type='text',value='',placeholder='')=>`<div class="field"><label for="${esc(name)}">${esc(caption)}</label><input id="${esc(name)}" name="${esc(name)}" type="${esc(type)}" value="${esc(value)}" placeholder="${esc(placeholder)}" ${type==='password'?'minlength="8"':''} required></div>`;
 const schoolOpts=()=>state.schools.filter(s=>s.is_active).map(s=>`<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('');
 function pop(message,error=false){toast.textContent=message;toast.style.background=error?'#a43142':'#173d80';toast.classList.add('show');clearTimeout(pop.timer);pop.timer=setTimeout(()=>toast.classList.remove('show'),5000);}
-function brand(){return `<div class="brand"><span class="brandmark"><img src="./assets/srii-emblem.svg" alt="" width="48" height="45"></span><span class="brand-label">SRII <span class="brand-accent">i-TRACK</span><small>DOCUMENT TRACKING SYSTEM</small></span></div>`;}
+function brand(){return `<div class="brand"><span class="brandmark"><img src="./assets/srii-mark-v17.svg" alt="" width="48" height="45"></span><span class="brand-label">SRII <span class="brand-accent">i-TRACK</span><small>DOCUMENT TRACKING SYSTEM</small></span></div>`;}
 function stat(label,value,desc){return `<div class="stat"><div class="label">${esc(label)}</div><strong>${esc(value)}</strong><div class="note">${esc(desc)}</div></div>`;}
 function err(e){console.error(e);pop(e?.message||String(e),true);}
 async function initial(){
