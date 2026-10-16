@@ -920,9 +920,22 @@ async function click(e){
   if(a==='retry'){location.reload();return;}
   if(a==='switch'){state.authMode=state.authMode==='login'?'register':'login';show();return;}
   if(a==='resend-help'){state.authMode='resend';show();return;}
+  if(a==='forgot-help'){state.authMode='forgot';show();return;}
+  if(a==='toggle-password'){
+   const fieldId=t.dataset.for;
+   const input=fieldId?document.getElementById(fieldId):null;
+   if(!input||input.type!=='password'&&input.type!=='text')return;
+   const visible=input.type==='password';
+   input.type=visible?'text':'password';
+   t.setAttribute('aria-pressed',String(visible));
+   t.setAttribute('aria-label',(visible?'Hide ':'Show ')+(input.labels?.[0]?.textContent||'password').trim().toLowerCase());
+   t.setAttribute('title',visible?'Hide password':'Show password');
+   t.innerHTML=visible?eyeOffIcon:eyeIcon;
+   input.focus({preventScroll:true});return;
+  }
   if(a==='back-to-login'){state.authMode='login';show();return;}
   if(a==='theme'){state.theme=state.theme==='dark'?'light':'dark';localStorage.setItem('srii-theme',state.theme);document.documentElement.dataset.theme=state.theme;show();return;}
-  if(a==='logout'){await db.auth.signOut();state.session=null;state.profile=null;state.view='dashboard';state.modal=null;state.schoolFiles=[];show();return;}
+  if(a==='logout'){await db.auth.signOut();state.session=null;state.profile=null;state.recoveryReady=false;state.view='dashboard';state.modal=null;state.schoolFiles=[];state.accountEmails=[];show();return;}
   if(a==='refresh'){await sync();return;}
   if(a==='export-district-report'){exportDistrictReport();pop('District compliance report prepared.');return;}
   if(a==='nav'){
@@ -971,6 +984,40 @@ async function click(e){
   if(a==='new-announcement'){state.modal='new-announcement';show();return;}
   if(a==='send'){if(isOic())throw new Error('OIC-PSDS accounts cannot route documents.');await loadRecipients();state.modal='send';show();return;}
   if(a==='detail'){if(isOic())throw new Error('OIC-PSDS accounts cannot view private documents.');await openDetail(t.dataset.id);return;}
+  if(a==='admin-password-reset'||a==='admin-email-confirmation'){
+   if(!yesAdmin()||!active()||state.view!=='approvals')
+    throw new Error('Administrator access required.');
+   const target=state.profiles.find(p=>p.id===t.dataset.id);
+   const record=state.accountEmails.find(p=>p.user_id===target?.id);
+   if(!target||!record?.email)throw new Error('An account with a valid email must be selected.');
+   if(target.id===state.session.user.id||target.role==='main_admin')
+    throw new Error('Main Administrator and own-account resets must use Forgot Password.');
+   if((target.role==='backup_admin'||target.role==='oic_psds')&&!isMain())
+    throw new Error('Only the Main Administrator can assist this account.');
+   if(a==='admin-email-confirmation'&&record.email_confirmed)
+    throw new Error('This email is already confirmed.');
+   const verify=a==='admin-email-confirmation';
+   const labelText=verify?'verification':'password-reset';
+   if(!confirm('Request a '+labelText+' email for '+(target.display_name||'this user')+
+    ' at '+record.email+'? Email sending must be working. The administrator cannot view or change the password.'))return;
+   state.busy=true;t.disabled=true;
+   try{
+    const url=location.origin+location.pathname;
+    const {error}=verify?await db.auth.resend({
+      type:'signup',email:record.email,options:{emailRedirectTo:url}
+    }):await db.auth.resetPasswordForEmail(record.email,{redirectTo:url});
+    if(error)throw emailQuotaError(error,verify?'Verification':'Password reset');
+    if(!verify){
+     const audit=await db.rpc('i_track_log_password_reset_request',{p_target_user_id:target.id});
+     if(audit.error)console.warn('Password-reset request accepted; audit logging failed',audit.error);
+    }
+    pop((verify?'Verification':'Password reset')+
+       ' email request accepted for '+record.email+'. Recipient should check Inbox and Spam; delivery depends on SMTP.');
+   }finally{
+    state.busy=false;t.disabled=false;
+   }
+   return;
+  }
   if(a==='approve'||a==='reject'){
    const user=state.profiles.find(p=>p.id===t.dataset.id);if(!user)return;
    if(user.role==='oic_psds'&&!isMain())throw new Error('Only the Main Administrator can review OIC-PSDS registration.');
@@ -1000,25 +1047,50 @@ async function click(e){
  }catch(e){err(e);}
 }
 async function submit(e){
- const form=e.target;if(!['register','login','resend-email','form-ann','form-doc'].includes(form.id))return;
+ const form=e.target;if(!['register','login','resend-email','forgot-password','set-password','form-ann','form-doc'].includes(form.id))return;
  e.preventDefault();if(state.busy)return;state.busy=true;form.querySelectorAll('button[type=submit]').forEach(x=>x.disabled=true);
  try{
   const fd=new FormData(form);
+  if(form.id==='forgot-password'){
+   const email=clean(fd.get('email'));
+   if(!email)throw new Error('Enter your registered email address.');
+   state.lastSignupEmail=email;
+   const {error}=await db.auth.resetPasswordForEmail(email,{
+    redirectTo:location.origin+location.pathname
+   });
+   if(error)throw emailQuotaError(error,'Password reset');
+   state.authMode='login';show();
+   pop('If this email belongs to a registered account and sending is available, a password reset link has been requested. Check Inbox and Spam.');return;
+  }
+  if(form.id==='set-password'){
+   if(!state.recoveryReady||!state.session?.user?.id)
+    throw new Error('The recovery link is missing or expired. Please request a new password-reset email.');
+   const newPassword=String(fd.get('new_password')||''),
+         confirmPassword=String(fd.get('confirm_password')||'');
+   if(newPassword.length<8)throw new Error('The new password must be at least 8 characters.');
+   if(newPassword!==confirmPassword)throw new Error('The two passwords must match.');
+   const {error}=await db.auth.updateUser({password:newPassword});
+   if(error)throw error;
+   // Clearing the recovery session forces the owner to sign in explicitly
+   // with the new password. Administrator approval and data remain untouched.
+   state.recoveryReady=false;state.authMode='login';
+   const {error:outError}=await db.auth.signOut();
+   if(outError)console.warn('Password changed but signout was unsuccessful',outError);
+   state.session=null;state.profile=null;show();
+   pop('Your password was updated. Sign in with the new password.');return;
+  }
   if(form.id==='resend-email'){
    const email=clean(fd.get('email'));
    if(!email)throw new Error('Enter your registered email address.');
    state.lastSignupEmail=email;
+   if(Date.now()<state.emailRetryAt)
+    throw new Error('The district email service reached its quota. Please wait until approximately '+
+     date(new Date(state.emailRetryAt).toISOString())+
+     ' to request confirmation again. Waiting does not guarantee delivery without custom SMTP.');
    const {error}=await db.auth.resend({
     type:'signup',email,options:{emailRedirectTo:location.origin+location.pathname}
    });
-   if(error){
-    if(error.code==='over_email_send_rate_limit'||(error.status===429&&/email/i.test(error.message||''))){
-     throw new Error('Email sending is still limited for SRII i-TRACK. Repeated requests cannot resolve it. Please wait until the District Administrator finishes setting up the email service.');
-    }
-    if(error.code==='email_address_not_authorized')
-     throw new Error('The default email sender cannot deliver to this address. A dedicated district email sender must be configured first.');
-    throw error;
-   }
+   if(error)throw emailQuotaError(error,'Verification');
    state.authMode='login';show();
    pop('Confirmation requested. If the address has a pending registration and delivery is available, check its inbox and Spam folder.');return;
   }
@@ -1032,15 +1104,11 @@ async function submit(e){
       registration_type:type,requested_school_id:type==='oic_psds'?null:school};
    const {error}=await db.auth.signUp({email,password,options:{emailRedirectTo:location.origin+location.pathname,data:meta}});
    if(error){
-    if(error.code==='over_email_send_rate_limit'||(error.status===429&&/email/i.test(error.message||''))){
-     state.lastSignupEmail=email;
-     state.authMode='resend';show();
-     throw new Error('The district email service reached its sending limit. Your signup may have been recorded, but no confirmation email was sent. Do not keep registering. Once the District Administrator configures email delivery, use Resend Confirmation Email.');
-    }
-    if(error.code==='email_address_not_authorized'){
-     state.lastSignupEmail=email;
-     state.authMode='resend';show();
-     throw new Error('The default email service cannot deliver confirmation messages to this address. Please ask the District Administrator to configure a dedicated email sender.');
+    if(error.code==='over_email_send_rate_limit'||(error.status===429&&/email/i.test(error.message||''))||
+       error.code==='email_address_not_authorized'){
+     state.lastSignupEmail=email;state.authMode='resend';
+     const readable=emailQuotaError(error,'Registration confirmation');
+     show();throw readable;
     }
     throw error;
    }
