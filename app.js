@@ -8,7 +8,7 @@ const db=window.supabase?.createClient(C.url,C.publishableKey,{auth:{persistSess
 // Reuse one authenticated client across tracking, upload and download screens.
 // Multiple clients refreshing the same mobile session can reset upload forms.
 window.ITRACK_DB=db;
-const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],recipients:[],monitor:[],monitorDetail:null,monitorFiles:[],selectedId:'',view:(['verification','reports'].includes(new URLSearchParams(location.search).get('view'))?new URLSearchParams(location.search).get('view'):'dashboard'),authMode:'login',modal:null,detail:null,routes:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],docAttachmentError:'',reviewSelectedId:'',reviewRows:[],reviewVersions:[],reviewRequired:0,districtReport:[],issue:null};
+const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],recipients:[],monitor:[],monitorDetail:null,monitorFiles:[],selectedId:'',view:(['verification','reports','school-files'].includes(new URLSearchParams(location.search).get('view'))?new URLSearchParams(location.search).get('view'):'dashboard'),authMode:'login',modal:null,detail:null,routes:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],docAttachmentError:'',reviewSelectedId:'',reviewRows:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],issue:null};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=x=>x?new Date(x).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}):'—';
@@ -54,6 +54,7 @@ async function sync(){
   if(error)throw error;
   state.profile=data;
   if(isOic()&&!['dashboard','announcements','monitoring','reports'].includes(state.view))state.view='dashboard';
+  if(!yesAdmin()&&state.view==='school-files')state.view='dashboard';
   if(active())await load();else show();
  }catch(e){state.issue=e.message;show();}
 }
@@ -61,7 +62,7 @@ async function load(){
  if(!active()){show();return;}
  try{
   const tasks=[];
-  if(['dashboard','announcements','monitoring','verification','reports'].includes(state.view)){
+  if(['dashboard','announcements','monitoring','verification','reports','school-files'].includes(state.view)){
    tasks.push((async()=>{const {data,error}=await db.from('announcements').select('id,announcement_code,title,description,status,deadline_at,original_deadline_at,created_at').order('created_at',{ascending:false});if(error)throw error;state.announcements=data||[];if(!state.selectedId||!state.announcements.some(x=>x.id===state.selectedId))state.selectedId=state.announcements.find(x=>x.status!=='draft')?.id||'';})());
   }
   if(!isOic()&&['dashboard','documents'].includes(state.view)){
@@ -92,6 +93,7 @@ async function load(){
   await Promise.all(tasks);
   if(state.view==='monitoring')await loadMonitor();
   if(state.view==='verification'&&yesAdmin())await loadVerification();
+  if(state.view==='school-files'&&yesAdmin())await loadSchoolFiles();
   if(state.view==='documents')await loadRecipients();
   show();
  }catch(e){err(e);show();}
@@ -312,11 +314,11 @@ function pendingPage(){
 }
 const menu=[['dashboard','⌂ Home'],['announcements','▤ Announcements'],['monitoring','▥ Submission Status']];
 function appPage(){
- const nav=[...menu,...(!isOic()?[['documents','▣ My Documents']]:[]),...(districtOversight()?[['reports','▥ District Reports']]:[]),...(yesAdmin()?[['verification','✓ Submission Verification'],['approvals','♙ Account Approvals'],['archive','▤ Archive Documents']]:[])].map(([id,title])=>`<button class="${state.view===id?'active':''}" data-a="nav" data-page="${id}">${title}</button>`).join('');
- const title={dashboard:'Home',announcements:'Announcements',monitoring:'Submission Monitoring',documents:'My Documents',reports:'District Reports',verification:'Submission Verification',approvals:'Account Management',archive:'Document Archiving'}[state.view]||'Overview';
+ const nav=[...menu,...(!isOic()?[['documents','▣ My Documents']]:[]),...(districtOversight()?[['reports','▥ District Reports']]:[]),...(yesAdmin()?[['school-files','▣ School Attachments'],['verification','✓ Submission Verification'],['approvals','♙ Account Approvals'],['archive','▤ Archive Documents']]:[])].map(([id,title])=>`<button class="${state.view===id?'active':''}" data-a="nav" data-page="${id}">${title}</button>`).join('');
+ const title={dashboard:'Home',announcements:'Announcements',monitoring:'Submission Monitoring',documents:'My Documents',reports:'District Reports','school-files':'School Attachments',verification:'Submission Verification',approvals:'Account Management',archive:'Document Archiving'}[state.view]||'Overview';
  const school=state.schools.find(x=>x.id===state.profile.school_id)?.name||'District Office';
  const name=state.profile.display_name||(isOic()?'OIC-PSDS':'District Administrator');
- const body={dashboard:dashboardPage,announcements:announcementPage,monitoring:monitorPage,documents:documentPage,reports:districtReportPage,verification:verificationPage,approvals:approvalPage,archive:archivePage}[state.view]?.()||dashboardPage();
+ const body={dashboard:dashboardPage,announcements:announcementPage,monitoring:monitorPage,documents:documentPage,reports:districtReportPage,'school-files':schoolAttachmentsPage,verification:verificationPage,approvals:approvalPage,archive:archivePage}[state.view]?.()||dashboardPage();
  // Read-only presentation context for the upload panel. Not an authorization
  // mechanism: Supabase RLS and the Edge Function enforce permissions.
  window.ITRACK_CONTEXT={
@@ -712,19 +714,23 @@ async function click(e){
   if(a==='retry'){location.reload();return;}
   if(a==='switch'){state.authMode=state.authMode==='login'?'register':'login';show();return;}
   if(a==='theme'){state.theme=state.theme==='dark'?'light':'dark';localStorage.setItem('srii-theme',state.theme);document.documentElement.dataset.theme=state.theme;show();return;}
-  if(a==='logout'){await db.auth.signOut();state.session=null;state.profile=null;state.view='dashboard';state.modal=null;show();return;}
+  if(a==='logout'){await db.auth.signOut();state.session=null;state.profile=null;state.view='dashboard';state.modal=null;state.schoolFiles=[];show();return;}
   if(a==='refresh'){await sync();return;}
   if(a==='export-district-report'){exportDistrictReport();pop('District compliance report prepared.');return;}
   if(a==='nav'){
-   if(t.dataset.page==='verification'&&!yesAdmin())throw new Error('Administrator access required.');
+   if(['verification','school-files'].includes(t.dataset.page)&&!yesAdmin())throw new Error('District administrator access required.');
    if(t.dataset.page==='reports'&&!districtOversight())throw new Error('District oversight access required.');
    if(isOic()&&!['dashboard','announcements','monitoring','reports'].includes(t.dataset.page))throw new Error('This OIC-PSDS account is read-only.');
    state.view=t.dataset.page;state.modal=null;
    const url=new URL(location.href);
-   if(['verification','reports'].includes(state.view))url.searchParams.set('view',state.view);
+   if(['verification','reports','school-files'].includes(state.view))url.searchParams.set('view',state.view);
    else url.searchParams.delete('view');
    history.replaceState(null,'',url);
    await load();return;
+  }
+  if(a==='refresh-school-files'){
+   if(!yesAdmin()||!active()||state.view!=='school-files')throw new Error('District administrator access required.');
+   await loadSchoolFiles();show();pop('All school attachments refreshed.');return;
   }
   if(a==='refresh-verification'){
    if(!yesAdmin()||state.view!=='verification')throw new Error('Administrator access required.');
@@ -841,6 +847,12 @@ $.addEventListener('change',async e=>{
  }
  if(e.target.id==='all-schools')document.querySelectorAll('.school-checkbox').forEach(c=>c.checked=e.target.checked);
  if(e.target.id==='pick-ann'){state.selectedId=e.target.value;try{await loadMonitor();show();}catch(ex){err(ex);}}
+ if(['school-files-filter-school','school-files-filter-ann','school-files-filter-versions'].includes(e.target.id)&&yesAdmin()&&state.view==='school-files'){
+  if(e.target.id==='school-files-filter-school')state.schoolFilesSchool=e.target.value;
+  if(e.target.id==='school-files-filter-ann')state.schoolFilesAnnouncement=e.target.value;
+  if(e.target.id==='school-files-filter-versions')state.schoolFilesVersions=e.target.value;
+  show();return;
+ }
  if(e.target.id==='review-ann'&&yesAdmin()){state.reviewSelectedId=e.target.value;try{await loadVerification();show();}catch(ex){err(ex);}}
  if(e.target.id==='image-file'){state.file=e.target.files?.[0]||null;state.compressed=null;state.fileNote=state.file?`Selected ${state.file.name} — ${(state.file.size/1024).toFixed(0)} KB`:'';const note=document.getElementById('file-status');if(note)note.textContent=state.fileNote;}
 });
