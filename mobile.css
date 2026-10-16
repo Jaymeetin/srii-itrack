@@ -271,3 +271,8 @@
   filter:brightness(1.35) drop-shadow(0 0 1px rgba(218,239,255,.55));
  }
 }
+
+
+/* v17: mobile header should show the same borderless emblem as the dashboard. */
+.mobile-mark{background:transparent!important;border:0!important;box-shadow:none!important;border-radius:0!important;overflow:visible!important}
+.mobile-logo-image{background:transparent!important;border:0!important;box-shadow:none!important;filter:none!important;object-fit:contain}
