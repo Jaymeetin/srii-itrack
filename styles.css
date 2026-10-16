@@ -331,3 +331,38 @@
  .monitor-file-list{max-height:50vh}
  .monitor-status-button{gap:5px}
 }
+
+
+/* District-wide school attachment library (administrator only). */
+.school-files-monitor-link{margin:0 0 16px}
+.school-files-monitor-link .btn{min-height:38px}
+.school-files-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:16px 0}
+.school-files-metrics>div{display:flex;flex-direction:column;gap:3px;padding:16px;border:1px solid var(--line);background:var(--paper);border-radius:14px;box-shadow:var(--shadow)}
+.school-files-metrics strong{font-weight:850;font-size:26px;line-height:1.2;font-variant-numeric:tabular-nums;color:var(--text)}
+.school-files-metrics span{font-size:11px;font-weight:650;color:var(--muted)}
+.school-files-panel{min-width:0}
+.school-files-filters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:12px 0 8px}
+.school-files-filters .field{min-width:0}
+.school-files-filters select{width:100%;max-width:100%;min-width:0}
+.school-files-panel .tablewrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.school-files-panel .data{min-width:820px}
+.school-files-name{min-width:160px;max-width:290px}
+.school-files-name strong{overflow-wrap:anywhere;font-size:12px;line-height:1.4;display:block}
+.school-files-name .small{margin-top:5px}
+.school-files-date{font-size:12px;white-space:normal;line-height:1.45}
+.school-files-actions{min-width:115px}
+.school-files-actions .verify-file-actions{display:flex;flex-wrap:wrap;gap:5px}
+.school-files-actions .btn{min-height:30px;padding:4px 9px}
+@media(max-width:820px){
+ .school-files-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:12px 0}
+ .school-files-metrics>div{padding:12px}
+ .school-files-metrics strong{font-size:23px}
+ .school-files-filters{grid-template-columns:1fr;gap:4px}
+ .school-files-panel .data{min-width:0}
+ .school-files-panel .data tr{min-width:0}
+ .school-files-panel .data td{overflow-wrap:anywhere}
+ .school-files-panel .data td::before{min-width:85px}
+ .school-files-name{min-width:0;max-width:none}
+ .school-files-actions{min-width:0}
+ .school-files-actions .verify-file-actions{justify-content:flex-start}
+}
