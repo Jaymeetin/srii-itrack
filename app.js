@@ -26,7 +26,7 @@ const table=(cols,rows)=>rows.length?`<div class="tablewrap"><table class="data"
 const eyeIcon='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="3"/></svg>';
 const eyeOffIcon='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 3 18 18"/><path d="M10.6 5.1A11.8 11.8 0 0 1 12 5c6.4 0 10 7 10 7a15 15 0 0 1-3.3 3.6M6 6C3.5 8 2 12 2 12s3.6 7 10 7c1.7 0 3.2-.5 4.4-1.2"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>';
 const field=(caption,name,type='text',value='',placeholder='')=>{
- const input='<input id="'+esc(name)+'" name="'+esc(name)+'" type="'+esc(type)+'" value="'+esc(value)+'" placeholder="'+esc(placeholder)+'"'+(type==='password'?' minlength="8" autocomplete="new-password"':'')+' required>';
+ const input='<input id="'+esc(name)+'" name="'+esc(name)+'" type="'+esc(type)+'" value="'+esc(value)+'" placeholder="'+esc(placeholder)+'"'+(type==='password'?' minlength="8" autocomplete="'+(state.authMode==='login'?'current-password':'new-password')+'"':'')+' required>';
  return '<div class="field'+(type==='password'?' password-field':'')+'"><label for="'+esc(name)+'">'+esc(caption)+'</label>'+
   (type==='password'?'<div class="password-wrap">'+input+'<button type="button" class="password-toggle" data-a="toggle-password" data-for="'+esc(name)+'" aria-label="Show '+esc(caption.toLowerCase())+'" aria-controls="'+esc(name)+'" aria-pressed="false" title="Show password">'+eyeIcon+'</button></div>':input)+'</div>';
 };
