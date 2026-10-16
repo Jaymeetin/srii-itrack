@@ -482,7 +482,7 @@ function queueCard(){
     '<div><small>Estimated registration time (PHT)</small><strong>'+
       esc(date(q.ready_at))+'</strong></div>'+
     '<div><small>Window closes (PHT)</small><strong>'+esc(date(q.expires_at))+'</strong></div></div>'+
-   '<p class="registration-queue-countdown" data-queue-countdown>'+esc(queueTimeText(q.ready_at))+'</p>':
+   '<p class="registration-queue-countdown" data-queue-countdown role="status" aria-live="polite">'+esc(queueTimeText(q.ready_at))+'</p>':
    '')+
   '<p class="note">This ticket reserves a place in the registration waiting list, not an account or a confirmation email. Email sending still depends on Supabase availability. District approval happens after successful registration and verification.</p>'+
   '<div class="registration-queue-actions">'+
@@ -1296,7 +1296,7 @@ async function submit(e){
    const {data,error}=await db.rpc('i_track_send_document',{p_subject:clean(fd.get('subject')),p_document_type:clean(fd.get('type')),p_recipient_id:clean(fd.get('recipient')),p_notes:clean(fd.get('notes'))});if(error)throw error;
    state.modal=null;state.view='documents';await load();pop(`Document routed: ${data}`);return;
   }
- }catch(e){err(e);}finally{state.busy=false;}
+ }catch(e){err(e);}finally{state.busy=false;form.querySelectorAll('button[type=submit]').forEach(x=>{x.disabled=false;});}
 }
 $.addEventListener('click',click);
 $.addEventListener('submit',submit);
@@ -1327,5 +1327,20 @@ $.addEventListener('change',async e=>{
  if(e.target.id==='review-ann'&&yesAdmin()){state.reviewSelectedId=e.target.value;try{await loadVerification();show();}catch(ex){err(ex);}}
  if(e.target.id==='image-file'){state.file=e.target.files?.[0]||null;state.compressed=null;state.fileNote=state.file?`Selected ${state.file.name} — ${(state.file.size/1024).toFixed(0)} KB`:'';const note=document.getElementById('file-status');if(note)note.textContent=state.fileNote;}
 });
+// A gentle live countdown works while the registration page is open.
+// Returning after the reminder remains the user's choice; browser timers and
+// notifications cannot be relied on when a mobile PWA is closed.
+let queueBoundaryChecked='';
+setInterval(()=>{
+ if(state.authMode!=='queue'||!state.queueInfo||state.session)return;
+ const remaining=document.querySelector('[data-queue-countdown]');
+ if(remaining)remaining.textContent=queueTimeText(state.queueInfo.ready_at);
+ if(state.queueInfo.queue_status==='waiting' &&
+   new Date(state.queueInfo.ready_at).getTime()<=Date.now() &&
+   queueBoundaryChecked!==state.queueTicket){
+   queueBoundaryChecked=state.queueTicket;
+   queueRead().catch(e=>console.warn('Queue time reached; use Check Queue to refresh',e));
+ }
+},15000);
 initial();
 })();
