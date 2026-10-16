@@ -8,7 +8,7 @@ const db=window.supabase?.createClient(C.url,C.publishableKey,{auth:{persistSess
 // Reuse one authenticated client across tracking, upload and download screens.
 // Multiple clients refreshing the same mobile session can reset upload forms.
 window.ITRACK_DB=db;
-const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],recipients:[],monitor:[],monitorDetail:null,monitorFiles:[],selectedId:'',view:(['verification','reports','school-files'].includes(new URLSearchParams(location.search).get('view'))?new URLSearchParams(location.search).get('view'):'dashboard'),authMode:'login',lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],modal:null,detail:null,routes:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],docAttachmentError:'',reviewSelectedId:'',reviewRows:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],issue:null};
+const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],recipients:[],monitor:[],monitorDetail:null,monitorFiles:[],selectedId:'',view:(['verification','reports','school-files'].includes(new URLSearchParams(location.search).get('view'))?new URLSearchParams(location.search).get('view'):'dashboard'),authMode:'login',queueTicket:localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],modal:null,detail:null,routes:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],docAttachmentError:'',reviewSelectedId:'',reviewRows:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],issue:null};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=x=>x?new Date(x).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}):'—';
@@ -94,8 +94,14 @@ async function load(){
   if(yesAdmin()&&['dashboard','approvals'].includes(state.view)){
    tasks.push((async()=>{const {data,error}=await db.from('profiles').select('id,display_name,school_id,requested_school_id,position_title,role,account_status,created_at').order('created_at',{ascending:false});if(error)throw error;state.profiles=data||[];})());
    if(state.view==='approvals')tasks.push((async()=>{
-    const {data,error}=await db.rpc('i_track_admin_account_emails');
-    if(error)throw error;state.accountEmails=data||[];
+    const [accounts,waiting]=await Promise.all([
+     db.rpc('i_track_admin_account_emails'),
+     db.rpc('i_track_admin_registration_queue')
+    ]);
+    if(accounts.error)throw accounts.error;
+    if(waiting.error)throw waiting.error;
+    state.accountEmails=accounts.data||[];
+    state.adminRegistrationQueue=waiting.data||[];
    })());
   }
   if(state.view==='dashboard'){
@@ -431,16 +437,98 @@ function show(){
  if(!active()){window.ITRACK_CONTEXT=null;pendingPage();return;}
  appPage();
 }
+
+function queueClear(){
+ state.queueTicket='';state.queueInfo=null;
+ localStorage.removeItem('srii-registration-queue-ticket');
+}
+async function queueRead(){
+ if(!state.queueTicket){state.authMode='register';show();return;}
+ const {data,error}=await db.rpc('i_track_registration_queue_status',{p_ticket:state.queueTicket});
+ if(error)throw error;
+ const info=Array.isArray(data)?data[0]:data;
+ if(!info){queueClear();state.authMode='register';show();throw Error('This queue ticket was not found. Please join again.');}
+ state.queueInfo=info;
+ state.authMode='queue';show();
+}
+function queueTimeText(x){
+ if(!x)return '—';
+ const remaining=Math.max(0,new Date(x).getTime()-Date.now());
+ if(!remaining)return 'Now — tap Check Queue to refresh';
+ const mins=Math.ceil(remaining/60000);
+ return mins>=60?Math.floor(mins/60)+' hr '+(mins%60)+' min remaining':mins+' min remaining';
+}
+function queueCard(){
+ const q=state.queueInfo;
+ if(!q)return '<div class="notice">Loading the private queue ticket… <button type="button" class="btn tiny alt" data-a="queue-check">Check Queue</button></div>';
+ const status=q.queue_status;
+ const upcoming=status==='waiting';
+ const ready=status==='ready';
+ const claimed=status==='claimed';
+ const completed=status==='registered';
+ const expired=['expired','cancelled','failed'].includes(status);
+ return '<div class="registration-queue-panel">'+
+  '<div class="registration-queue-head"><span class="registration-queue-eyebrow">PRIVATE REGISTRATION TICKET</span>'+
+   '<span class="registration-queue-number">#'+esc(q.queue_number)+'</span></div>'+
+  '<p class="registration-queue-person"><strong>'+esc(q.full_name)+'</strong><span>'+esc(q.email)+'</span></p>'+
+  '<div class="registration-queue-status '+(ready||claimed?'is-ready':'')+'">'+
+   (ready?'It is your turn to register.':claimed?'Registration window open. Enter a password now.':
+    completed?'Account created — check your confirmation email.':
+    expired?'This queue window is no longer active. You may join again.':
+    'Waiting for your registration window.')+'</div>'+
+  (upcoming||ready||claimed?
+   '<div class="registration-queue-times"><div><small>Current position</small><strong>'+
+    (upcoming?esc(q.queue_position):'Your turn')+'</strong></div>'+
+    '<div><small>Estimated registration time (PHT)</small><strong>'+
+      esc(date(q.ready_at))+'</strong></div>'+
+    '<div><small>Window closes (PHT)</small><strong>'+esc(date(q.expires_at))+'</strong></div></div>'+
+   '<p class="registration-queue-countdown" data-queue-countdown>'+esc(queueTimeText(q.ready_at))+'</p>':
+   '')+
+  '<p class="note">This ticket reserves a place in the registration waiting list, not an account or a confirmation email. Email sending still depends on Supabase availability. District approval happens after successful registration and verification.</p>'+
+  '<div class="registration-queue-actions">'+
+   ((ready||claimed)?'<button type="button" class="btn" data-a="queue-claim">Continue Registration</button>':'')+
+   ((upcoming||ready||claimed)?'<button type="button" class="btn alt" data-a="queue-check">Check Queue</button>':'')+
+   (upcoming?'<button type="button" class="btn alt" data-a="queue-reminder">Add Phone Reminder</button>':'')+
+   (upcoming?'<button type="button" class="btn tiny alt" data-a="queue-cancel">Cancel Queue Place</button>':'')+
+   (expired?'<button type="button" class="btn" data-a="queue-rejoin">Join a New Queue</button>':'')+
+   (completed?'<button type="button" class="btn" data-a="back-to-login">Sign In</button>':'')+
+  '</div>'+
+  (upcoming?'<p class="small muted">The reminder is a calendar file with an alarm 5 minutes before the estimated time. Import it into your phone calendar and enable alerts. It cannot push notifications while this website is closed.</p>':'')+
+ '</div>';
+}
+function queueReminder(){
+ const q=state.queueInfo;
+ if(!q||q.queue_status!=='waiting'||!q.ready_at)throw Error('No future registration time to remind you about.');
+ const start=new Date(q.ready_at),finish=new Date(start.getTime()+30*60*1000);
+ const utc=d=>d.toISOString().replace(/[-:]/g,'').replace(/\.\d{3}Z$/,'Z');
+ const pad=x=>String(x).replace(/[,;\r\n]/g,' ');
+ const ics=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//SRII i-TRACK//Registration Queue//EN',
+ 'CALSCALE:GREGORIAN','METHOD:PUBLISH','BEGIN:VEVENT',
+ 'UID:queue-'+q.queue_number+'-'+utc(start)+'@srii-itrack',
+ 'DTSTAMP:'+utc(new Date()),'DTSTART:'+utc(start),'DTEND:'+utc(finish),
+ 'SUMMARY:SRII i-TRACK registration time (ticket '+pad('#'+q.queue_number)+')',
+ 'DESCRIPTION:Open https://jaymeetin.github.io/srii-itrack/ and check your registration queue ticket. Your time is an estimate; email sending may still be limited.',
+ 'BEGIN:VALARM','TRIGGER:-PT5M','ACTION:DISPLAY','DESCRIPTION:SRII i-TRACK registration queue window is approaching',
+ 'END:VALARM','END:VEVENT','END:VCALENDAR'].join('\r\n')+'\r\n';
+ const file=new Blob([ics],{type:'text/calendar;charset=utf-8'});
+ const url=URL.createObjectURL(file),a=document.createElement('a');
+ a.href=url;a.download='SRII-iTRACK-Registration-Reminder.ics';
+ document.body.appendChild(a);a.click();a.remove();
+ setTimeout(()=>URL.revokeObjectURL(url),2000);
+}
 function authPage(){
- const registering=state.authMode==='register';
- const resending=state.authMode==='resend';
- const forgot=state.authMode==='forgot';
- const recovering=state.recoveryReady;
- const heading=recovering?'Set a New Password':forgot?'Forgot Password':resending?'Resend Confirmation Email':registering?'Create an Account':'Sign In';
+ const registering=state.authMode==='register',queued=state.authMode==='queue',
+  completing=state.authMode==='queue-complete',resending=state.authMode==='resend',
+  forgot=state.authMode==='forgot',recovering=state.recoveryReady;
+ const heading=recovering?'Set a New Password':queued?'Registration Waiting List':
+  completing?'Complete Registration':forgot?'Forgot Password':
+  resending?'Resend Confirmation Email':registering?'Join the Registration Queue':'Sign In';
  const intro=recovering?'Use the secure link you received by email to choose a new password.':
-  forgot?'Enter your registered address. We will request a password reset link; your district account and documents stay unchanged.':
-  resending?'If the project email quota was reached, your registration may still be waiting for verification. Retry after the cooldown or contact the administrator for SMTP support.':
-  registering?'Use your DepEd or personal Gmail account. District approval is required.':
+  queued?'Your queue number and return time are saved on this device. No password was collected when joining.':
+  completing?'Your registration window is open. Set your password to create an account.':
+  forgot?'Enter your registered address to request a password-reset link.':
+  resending?'Already registered but not verified? Request another confirmation email when sending is available.':
+  registering?'We accept two registration attempts per hour while the default email service is limited. Join the district queue first; no password is stored.':
   'Use your registered email and password.';
  const signupFields=registering?field('Complete name','full_name')+
   '<div class="field"><label for="registration-type">Account type</label>'+
@@ -451,26 +539,34 @@ function authPage(){
   field('Position / Designation','position_title','text','','Administrative Officer II')+
   '<div class="field" id="register-school-field"><label for="school">School</label>'+
    '<select id="school" name="school" required><option value="">Select your school</option>'+schoolOpts()+'</select></div>'+
-  '<p class="note" id="oic-register-note" hidden>'+
-   'The OIC-PSDS account is assigned to the District Office, with no school. Only the Main Administrator may approve this request. Oversight does not grant file, upload or approval access.</p>':'';
- const formId=recovering?'set-password':forgot?'forgot-password':resending?'resend-email':registering?'register':'login';
- const formContents=recovering?field('New password','new_password','password')+field('Confirm new password','confirm_password','password'):
+  '<p class="note" id="oic-register-note" hidden>The OIC-PSDS account uses the District Office with no school assignment and requires Main Administrator approval.</p>':'';
+ const formId=recovering?'set-password':completing?'queue-complete':
+  registering?'queue-join':forgot?'forgot-password':resending?'resend-email':'login';
+ const formContents=recovering?field('New password','new_password','password')+
+   field('Confirm new password','confirm_password','password'):
+  completing?'<p class="queue-complete-person"><strong>'+esc(state.queueInfo?.full_name||'Queued user')+
+   '</strong><span>'+esc(state.queueInfo?.email||'')+'</span></p>'+
+   field('Choose your password','password','password')+
+   '<div class="notice">Your email must still be verified and your account approved by the District Administrator.</div>':
   signupFields+field('Email address','email','email',(resending||forgot)?state.lastSignupEmail:'')+
-  (resending||forgot?'':field('Password','password','password'));
- const actionLabel=recovering?'Update Password':forgot?'Request Reset Link':resending?'Resend Confirmation Email':
-  registering?'Register Account':'Sign In';
+   (resending||forgot||registering?'':field('Password','password','password'));
+ const actionLabel=recovering?'Update Password':completing?'Create Account':
+  registering?'Get My Queue Number':forgot?'Request Reset Link':
+  resending?'Resend Confirmation Email':'Sign In';
  const pendingText=resending&&Date.now()<state.emailRetryAt?
-  '<div class="notice warn"><strong>Pending email confirmation.</strong> The last sending attempt reached Supabase’s rate limit. You can try requesting another email after approximately '+
+  '<div class="notice warn"><strong>Email sending is currently limited.</strong> Try again after approximately '+
    esc(date(new Date(state.emailRetryAt).toISOString()))+
-   '. This is a waiting period, not a guaranteed automatic email delivery. A custom SMTP service is needed for district-wide registration.</div>':'';
- const footer=recovering?'<p class="note">For security, the password will only change after Supabase validates your recovery link.</p>':
+   '. The wait is an estimate and does not guarantee delivery.</div>':'';
+ const footer=recovering?'<p class="note">Supabase must validate your recovery link before a password can be changed.</p>':
+  queued?'<div class="switch"><button type="button" class="link-button" data-a="back-to-login">Back to Sign In</button></div>':
+  completing?'<div class="switch"><button type="button" class="link-button" data-a="queue-check">Back to My Queue</button></div>':
   forgot?'<div class="switch"><button class="link-button" data-a="back-to-login">Back to Sign In</button></div>':
-  resending?'<div class="switch">Already verified? <button class="link-button" data-a="back-to-login">Sign in</button></div>':
+  resending?'<div class="switch"><button class="link-button" data-a="back-to-login">Sign In</button></div>':
   '<div class="switch">'+(registering?'Already registered?':'New personnel?')+
    ' <button class="link-button" data-a="switch">'+(registering?'Sign in':'Register here')+'</button></div>'+
-  '<div class="switch"><button class="link-button" data-a="forgot-help">'+
-    (registering?'Forgot your password?':'Forgot password?')+'</button></div>'+
-  '<div class="switch"><button class="link-button" data-a="resend-help">Did not receive the verification email?</button></div>';
+  '<div class="switch"><button class="link-button" data-a="forgot-help">Forgot password?</button></div>'+
+  '<div class="switch"><button class="link-button" data-a="resend-help">Did not receive the verification email?</button></div>'+
+  (state.queueTicket?'<div class="switch"><button class="link-button" data-a="queue-check">Check My Registration Queue</button></div>':'');
  $.innerHTML='<div class="auth"><aside class="auth-aside">'+brand()+
   '<div><h1>Connecting Schools.<br><em>Tracking Documents.</em><br>Ensuring Accountability.</h1>'+
    '<p>San Remigio II District — integrated announcements, document routing and compliance monitoring.</p></div>'+
@@ -479,10 +575,10 @@ function authPage(){
    '<div class="auth-top"><button class="btn alt tiny" data-a="theme">◐ Light / Dark</button></div>'+
    '<div class="eyebrow">Welcome to SRII i-TRACK</div><h1>'+heading+'</h1><p class="sub">'+intro+'</p>'+
    pendingText+
-   '<form id="'+formId+'">'+formContents+
-   '<button type="submit" class="btn block">'+actionLabel+'</button></form>'+
+   (queued?queueCard():('<form id="'+formId+'">'+formContents+
+    '<button type="submit" class="btn block">'+actionLabel+'</button></form>'))+
    footer+
-   '<p class="note">The District Administrator cannot see your password. Registration confirmation and district approval remain required. Email requests are subject to the district email service quota.</p>'+
+   '<p class="note">Queue positions and alarm times are approximate. Passwords are never stored in the queue. Email confirmation and administrator approval remain separate requirements.</p>'+
   '</div></main></div>';
 }
 function pendingPage(){
