@@ -8,7 +8,7 @@ const db=window.supabase?.createClient(C.url,C.publishableKey,{auth:{persistSess
 // Reuse one authenticated client across tracking, upload and download screens.
 // Multiple clients refreshing the same mobile session can reset upload forms.
 window.ITRACK_DB=db;
-const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],recipients:[],monitor:[],monitorDetail:null,monitorFiles:[],selectedId:'',view:(['verification','reports','school-files'].includes(new URLSearchParams(location.search).get('view'))?new URLSearchParams(location.search).get('view'):'dashboard'),authMode:'login',lastSignupEmail:'',modal:null,detail:null,routes:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],docAttachmentError:'',reviewSelectedId:'',reviewRows:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],issue:null};
+const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],recipients:[],monitor:[],monitorDetail:null,monitorFiles:[],selectedId:'',view:(['verification','reports','school-files'].includes(new URLSearchParams(location.search).get('view'))?new URLSearchParams(location.search).get('view'):'dashboard'),authMode:'login',lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],modal:null,detail:null,routes:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],docAttachmentError:'',reviewSelectedId:'',reviewRows:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],issue:null};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=x=>x?new Date(x).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}):'—';
@@ -23,7 +23,24 @@ const active=()=>state.profile?.account_status==='active';
 const label=x=>String(x||'').replaceAll('_',' ');
 const pTag=x=>`<span class="tag ${['active','submitted','received','open','Submitted'].includes(x)?'good':['pending','awaiting_ack','Pending','returned'].includes(x)?'warn':['Late','disabled'].includes(x)?'bad':'info'}">${esc(label(x))}</span>`;
 const table=(cols,rows)=>rows.length?`<div class="tablewrap"><table class="data"><thead><tr>${cols.map(x=>`<th>${esc(x)}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`:'<div class="empty">No records available yet.</div>';
-const field=(caption,name,type='text',value='',placeholder='')=>`<div class="field"><label for="${esc(name)}">${esc(caption)}</label><input id="${esc(name)}" name="${esc(name)}" type="${esc(type)}" value="${esc(value)}" placeholder="${esc(placeholder)}" ${type==='password'?'minlength="8"':''} required></div>`;
+const eyeIcon='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="3"/></svg>';
+const eyeOffIcon='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 3 18 18"/><path d="M10.6 5.1A11.8 11.8 0 0 1 12 5c6.4 0 10 7 10 7a15 15 0 0 1-3.3 3.6M6 6C3.5 8 2 12 2 12s3.6 7 10 7c1.7 0 3.2-.5 4.4-1.2"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>';
+const field=(caption,name,type='text',value='',placeholder='')=>{
+ const input='<input id="'+esc(name)+'" name="'+esc(name)+'" type="'+esc(type)+'" value="'+esc(value)+'" placeholder="'+esc(placeholder)+'"'+(type==='password'?' minlength="8" autocomplete="new-password"':'')+' required>';
+ return '<div class="field'+(type==='password'?' password-field':'')+'"><label for="'+esc(name)+'">'+esc(caption)+'</label>'+
+  (type==='password'?'<div class="password-wrap">'+input+'<button type="button" class="password-toggle" data-a="toggle-password" data-for="'+esc(name)+'" aria-label="Show '+esc(caption.toLowerCase())+'" aria-controls="'+esc(name)+'" aria-pressed="false" title="Show password">'+eyeIcon+'</button></div>':input)+'</div>';
+};
+function emailQuotaError(error,context='Email'){
+ if(error?.code==='over_email_send_rate_limit'||(error?.status===429&&/email/i.test(error.message||''))){
+  state.emailRetryAt=Date.now()+60*60*1000;
+  localStorage.setItem('srii-email-retry-after',String(state.emailRetryAt));
+  return new Error(context+' could not be emailed because the district email service reached its limit. Email verification remains required. Try again after approximately '+date(new Date(state.emailRetryAt).toISOString())+'. Email delivery is not automatic until a dedicated SMTP sender and background retry service are configured.');
+ }
+ if(error?.code==='email_address_not_authorized')
+  return new Error('The current Supabase email service is not authorized to email this address. The District Administrator needs to configure a dedicated SMTP sender.');
+ return error;
+}
+
 const schoolOpts=()=>state.schools.filter(s=>s.is_active).map(s=>`<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('');
 function pop(message,error=false){toast.textContent=message;toast.style.background=error?'#a43142':'#173d80';toast.classList.add('show');clearTimeout(pop.timer);pop.timer=setTimeout(()=>toast.classList.remove('show'),5000);}
 function brand(){return `<div class="brand"><span class="brandmark"><img src="./assets/srii-mark-v17.svg" alt="" width="48" height="45"></span><span class="brand-label">SRII <span class="brand-accent">i-TRACK</span><small>DOCUMENT TRACKING SYSTEM</small></span></div>`;}
@@ -39,6 +56,11 @@ async function initial(){
   const previousId=state.session?.user?.id||null;
   const nextId=session?.user?.id||null;
   state.session=session;
+  if(event==='PASSWORD_RECOVERY'){
+   state.recoveryReady=true;state.authMode='set-password';
+   setTimeout(()=>show(),0);return;
+  }
+  if(state.recoveryReady&&session){setTimeout(()=>show(),0);return;}
   if(state.profile && previousId===nextId &&
     ['TOKEN_REFRESHED','SIGNED_IN','INITIAL_SESSION','USER_UPDATED'].includes(event)) return;
   setTimeout(sync,0);
@@ -49,6 +71,7 @@ async function initial(){
 async function sync(){
  try{
   state.issue=null;
+  if(state.recoveryReady){show();return;}
   if(!state.session){state.profile=null;show();return;}
   const {data,error}=await db.from('profiles').select('id,display_name,school_id,requested_school_id,role,account_status,position_title').eq('id',state.session.user.id).single();
   if(error)throw error;
@@ -398,6 +421,7 @@ function verificationPage(){
 }
 function show(){
  if(state.issue){$.innerHTML=`<div class="startup"><h2>Connection problem</h2><p>${esc(state.issue)}</p><button class="btn" data-a="retry">Retry</button></div>`;return;}
+ if(state.recoveryReady){window.ITRACK_CONTEXT=null;authPage();return;}
  if(!state.session){window.ITRACK_CONTEXT=null;authPage();return;}
  if(!state.profile){$.innerHTML='<div class="startup">Preparing account…</div>';return;}
  if(!active()){window.ITRACK_CONTEXT=null;pendingPage();return;}
@@ -406,9 +430,12 @@ function show(){
 function authPage(){
  const registering=state.authMode==='register';
  const resending=state.authMode==='resend';
- const heading=resending?'Resend Confirmation Email':registering?'Create an Account':'Sign In';
- const intro=resending?
-  'Already registered but did not receive a confirmation email? Use the same email address. Repeated requests cannot bypass the district email service limit.':
+ const forgot=state.authMode==='forgot';
+ const recovering=state.recoveryReady;
+ const heading=recovering?'Set a New Password':forgot?'Forgot Password':resending?'Resend Confirmation Email':registering?'Create an Account':'Sign In';
+ const intro=recovering?'Use the secure link you received by email to choose a new password.':
+  forgot?'Enter your registered address. We will request a password reset link; your district account and documents stay unchanged.':
+  resending?'If the project email quota was reached, your registration may still be waiting for verification. Retry after the cooldown or contact the administrator for SMTP support.':
   registering?'Use your DepEd or personal Gmail account. District approval is required.':
   'Use your registered email and password.';
  const signupFields=registering?field('Complete name','full_name')+
@@ -422,6 +449,24 @@ function authPage(){
    '<select id="school" name="school" required><option value="">Select your school</option>'+schoolOpts()+'</select></div>'+
   '<p class="note" id="oic-register-note" hidden>'+
    'The OIC-PSDS account is assigned to the District Office, with no school. Only the Main Administrator may approve this request. Oversight does not grant file, upload or approval access.</p>':'';
+ const formId=recovering?'set-password':forgot?'forgot-password':resending?'resend-email':registering?'register':'login';
+ const formContents=recovering?field('New password','new_password','password')+field('Confirm new password','confirm_password','password'):
+  signupFields+field('Email address','email','email',(resending||forgot)?state.lastSignupEmail:'')+
+  (resending||forgot?'':field('Password','password','password'));
+ const actionLabel=recovering?'Update Password':forgot?'Request Reset Link':resending?'Resend Confirmation Email':
+  registering?'Register Account':'Sign In';
+ const pendingText=resending&&Date.now()<state.emailRetryAt?
+  '<div class="notice warn"><strong>Pending email confirmation.</strong> The last sending attempt reached Supabase’s rate limit. You can try requesting another email after approximately '+
+   esc(date(new Date(state.emailRetryAt).toISOString()))+
+   '. This is a waiting period, not a guaranteed automatic email delivery. A custom SMTP service is needed for district-wide registration.</div>':'';
+ const footer=recovering?'<p class="note">For security, the password will only change after Supabase validates your recovery link.</p>':
+  forgot?'<div class="switch"><button class="link-button" data-a="back-to-login">Back to Sign In</button></div>':
+  resending?'<div class="switch">Already verified? <button class="link-button" data-a="back-to-login">Sign in</button></div>':
+  '<div class="switch">'+(registering?'Already registered?':'New personnel?')+
+   ' <button class="link-button" data-a="switch">'+(registering?'Sign in':'Register here')+'</button></div>'+
+  '<div class="switch"><button class="link-button" data-a="forgot-help">'+
+    (registering?'Forgot your password?':'Forgot password?')+'</button></div>'+
+  '<div class="switch"><button class="link-button" data-a="resend-help">Did not receive the verification email?</button></div>';
  $.innerHTML='<div class="auth"><aside class="auth-aside">'+brand()+
   '<div><h1>Connecting Schools.<br><em>Tracking Documents.</em><br>Ensuring Accountability.</h1>'+
    '<p>San Remigio II District — integrated announcements, document routing and compliance monitoring.</p></div>'+
@@ -429,18 +474,11 @@ function authPage(){
   '<main class="auth-content"><div class="auth-card">'+
    '<div class="auth-top"><button class="btn alt tiny" data-a="theme">◐ Light / Dark</button></div>'+
    '<div class="eyebrow">Welcome to SRII i-TRACK</div><h1>'+heading+'</h1><p class="sub">'+intro+'</p>'+
-   '<form id="'+(resending?'resend-email':registering?'register':'login')+'">'+signupFields+
-   field('Email address','email','email',resending?state.lastSignupEmail:'')+
-   (resending?'':field('Password','password','password'))+
-   '<button type="submit" class="btn block">'+
-   (resending?'Resend Confirmation Email':registering?'Register Account':'Sign In')+'</button></form>'+
-   (resending?
-     '<div class="switch">Already verified? <button class="link-button" data-a="back-to-login">Sign in</button></div>':
-     '<div class="switch">'+(registering?'Already registered?':'New personnel?')+
-      ' <button class="link-button" data-a="switch">'+(registering?'Sign in':'Register here')+'</button></div>'+
-     '<div class="switch"><button class="link-button" data-a="resend-help">Did not receive the verification email?</button></div>')+
-   (resending?'<p class="note">If email sending is temporarily limited, retry only after the District Administrator confirms the sending service is working. A confirmation email does not itself approve an account; district approval is still required.</p>':
-    '<p class="note">Your password is handled by Supabase Authentication; never send it to the district administrator.</p>')+
+   pendingText+
+   '<form id="'+formId+'">'+formContents+
+   '<button type="submit" class="btn block">'+actionLabel+'</button></form>'+
+   footer+
+   '<p class="note">The District Administrator cannot see your password. Registration confirmation and district approval remain required. Email requests are subject to the district email service quota.</p>'+
   '</div></main></div>';
 }
 function pendingPage(){
