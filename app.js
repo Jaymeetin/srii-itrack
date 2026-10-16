@@ -8,7 +8,7 @@ const db=window.supabase?.createClient(C.url,C.publishableKey,{auth:{persistSess
 // Reuse one authenticated client across tracking, upload and download screens.
 // Multiple clients refreshing the same mobile session can reset upload forms.
 window.ITRACK_DB=db;
-const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],recipients:[],monitor:[],selectedId:'',view:(['verification','reports'].includes(new URLSearchParams(location.search).get('view'))?new URLSearchParams(location.search).get('view'):'dashboard'),authMode:'login',modal:null,detail:null,routes:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],docAttachmentError:'',reviewSelectedId:'',reviewRows:[],reviewVersions:[],reviewRequired:0,districtReport:[],issue:null};
+const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],recipients:[],monitor:[],selectedId:'',view:(['verification','reports'].includes(new URLSearchParams(location.search).get('view'))?new URLSearchParams(location.search).get('view'):'dashboard'),authMode:'login',modal:null,detail:null,routes:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],docAttachmentError:'',reviewSelectedId:'',reviewRows:[],reviewVersions:[],reviewRequired:0,districtReport:[],issue:null};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=x=>x?new Date(x).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}):'—';
@@ -65,7 +65,7 @@ async function load(){
    tasks.push((async()=>{const {data,error}=await db.from('announcements').select('id,announcement_code,title,description,status,deadline_at,original_deadline_at,created_at').order('created_at',{ascending:false});if(error)throw error;state.announcements=data||[];if(!state.selectedId||!state.announcements.some(x=>x.id===state.selectedId))state.selectedId=state.announcements.find(x=>x.status!=='draft')?.id||'';})());
   }
   if(!isOic()&&['dashboard','documents'].includes(state.view)){
-   tasks.push((async()=>{const {data,error}=await db.from('documents').select('id,tracking_number,subject,document_type,status,created_by,origin_school_id,created_at').order('created_at',{ascending:false}).limit(200);if(error)throw error;state.docs=data||[];if(state.view==='documents')await loadDocumentAttachments();})());
+   tasks.push((async()=>{const {data,error}=await db.from('documents').select('id,tracking_number,subject,document_type,status,created_by,origin_school_id,created_at').order('created_at',{ascending:false}).limit(200);if(error)throw error;state.docs=data||[];if(state.view==='documents')await Promise.all([loadDocumentAttachments(),loadRoutingHistory()]);})());
   }
   if(yesAdmin()&&['dashboard','approvals'].includes(state.view)){
    tasks.push((async()=>{const {data,error}=await db.from('profiles').select('id,display_name,school_id,requested_school_id,position_title,role,account_status,created_at').order('created_at',{ascending:false});if(error)throw error;state.profiles=data||[];})());
@@ -487,17 +487,70 @@ function monitorPage(){
  ${state.selectedId?`<div class="stats">${stat('Required Schools',state.monitor.length,'For selected announcement')}${stat('Submitted',n('Submitted'),'On time')}${stat('Late',n('Late'),'After deadline')}${stat('Pending',n('Pending'),'Not yet submitted')}</div><div class="panel"><h3>School Status</h3>${table(['School','Status'],rows)}</div>`:'<div class="panel empty">Choose an announcement to view status.</div>'}
  <div class="notice">Privacy: this view does not show other schools' files, upload dates, names of submitters, or download links.</div>`;
 }
+
+async function loadRoutingHistory(){
+ const {data,error}=await db.rpc('i_track_document_route_history');
+ if(error)throw error;
+ const visible=new Set(state.docs.map(d=>d.id));
+ state.routeHistory=(data||[]).filter(r=>visible.has(r.document_id));
+}
+function documentRoutes(id){return (state.routeHistory||[]).filter(r=>r.document_id===id)
+ .sort((a,b)=>new Date(a.sent_at)-new Date(b.sent_at)||String(a.route_id).localeCompare(String(b.route_id)));}
+function routeState(r){
+ if(!r)return {label:'Not routed',kind:'muted'};
+ if(r.route_status==='awaiting_ack')return {label:'Not yet received',kind:'pending'};
+ if(r.route_status==='received')return {label:'Received',kind:'received'};
+ return {label:label(r.route_status),kind:'muted'};
+}
+function routePerson(name,office){
+ return '<strong>'+esc(name||'Unnamed personnel')+'</strong><span class="small muted">'+esc(office||'District Office')+'</span>';
+}
+function routingOverview(d){
+ const steps=documentRoutes(d.id),last=steps.at(-1);
+ if(!last)return '<span class="small muted">No routing history yet</span>';
+ const status=routeState(last);
+ return '<div class="routing-overview"><span class="routing-status routing-status-'+status.kind+'">'+esc(status.label)+'</span>'+
+  '<span class="small muted">'+esc(label(last.route_action))+' · '+esc(date(last.sent_at))+
+  (steps.length>1?' · '+(steps.length-1)+' earlier handoff(s)':'')+'</span>'+
+  '<div class="routing-people"><div><small>Sender</small>'+routePerson(last.sender_name,last.sender_office)+'</div>'+
+  '<div><small>Recipient</small>'+routePerson(last.recipient_name,last.recipient_office)+'</div></div>'+
+  (last.acknowledged_at?'<span class="small muted">Acknowledged '+esc(date(last.acknowledged_at))+'</span>':'')+'</div>';
+}
+function routingTimeline(routes){
+ if(!routes.length)return '<p class="note">No routing events recorded yet.</p>';
+ return '<ol class="routing-timeline">'+routes.map((r,i)=>{
+  const status=routeState(r),action=r.route_action==='sent'?'Originally sent':
+   r.route_action==='forwarded'?'Forwarded':r.route_action==='returned'?'Returned':label(r.route_action);
+  return '<li class="routing-step'+(i===routes.length-1?' routing-step-current':'')+'">'+
+   '<div class="routing-step-head"><strong>Step '+(i+1)+' · '+esc(action)+'</strong>'+
+   '<span class="routing-status routing-status-'+status.kind+'">'+esc(status.label)+'</span></div>'+
+   '<div class="routing-people"><div><small>Sender</small>'+routePerson(r.sender_name,r.sender_office)+'</div>'+
+   '<div><small>Recipient</small>'+routePerson(r.recipient_name,r.recipient_office)+'</div></div>'+
+   '<div class="routing-stamps"><span>Sent: '+esc(date(r.sent_at))+'</span>'+
+   (r.acknowledged_at?'<span>Received / acknowledged: '+esc(date(r.acknowledged_at))+'</span>':
+    '<span>Not yet acknowledged by recipient</span>')+
+   (r.processed_at?'<span>Processed / forwarded: '+esc(date(r.processed_at))+'</span>':'')+'</div>'+
+   (r.route_note?'<p class="routing-note">'+esc(r.route_note)+'</p>':'')+'</li>';
+ }).join('')+'</ol>';
+}
 function documentPage(){
  const rows=state.docs.map(d=>'<tr>'+
-  '<td><b>'+esc(d.tracking_number)+'</b></td>'+
-  '<td>'+esc(d.subject)+'</td>'+
+  '<td><b>'+esc(d.tracking_number)+'</b></td><td>'+esc(d.subject)+'</td>'+
   '<td>'+esc(d.document_type)+'</td>'+
-  '<td>'+pTag(d.status)+'</td>'+
+  '<td class="routing-overview-cell">'+routingOverview(d)+'</td>'+
   '<td class="doc-attachment-cell"><div data-doc-files="'+esc(d.id)+'">'+attachmentListHtml(d.id)+'</div></td>'+
-  '<td><button class="btn tiny alt" data-a="detail" data-id="'+esc(d.id)+'">Open</button></td>'+
-  '</tr>');
- return `<div class="sectionhead"><div><div class="eyebrow">Routing and acknowledgment</div><h1>My Documents</h1><p class="sub">Open a document or view its attached files directly below.</p></div><button class="btn" data-a="send">+ Route Document</button></div><div class="panel"><h3>Document Registry</h3>${table(['Tracking #','Document Name','Type','Status','Attachments',''],rows)}</div>
- <div class="panel"><h3>Compress a Screenshot</h3><div class="notice">Image compression works locally and is free. Documents can be attached using the secure upload panel above.</div><div class="filebox"><input id="image-file" type="file" accept="image/jpeg,image/png,image/webp,.pdf,.doc,.docx"><p id="file-status" class="note" style="margin:9px 0 0">${esc(state.fileNote||'Choose a screenshot, PDF, or Word document.')}</p></div><div class="toolbar" style="margin-top:13px"><button class="btn alt" data-a="compress">Compress File</button>${state.compressed?'<button class="btn alt" data-a="save-compressed">Download Compressed Image</button>':''}<button class="btn" disabled>Upload to Drive — Use secure panel above</button></div></div>`;
+  '<td><button class="btn tiny alt" data-a="detail" data-id="'+esc(d.id)+'">View Routing History</button></td></tr>');
+ return '<div class="sectionhead"><div><div class="eyebrow">Routing and acknowledgment</div><h1>My Documents</h1>'+
+  '<p class="sub">See senders, recipients, received status, forwarding, returns, and full document movement.</p></div>'+
+  '<button class="btn" data-a="send">+ Route Document</button></div>'+
+  '<div class="panel"><h3>Document Registry</h3>'+
+  table(['Tracking #','Document Name','Type','Current Route / Receipt','Attachments','History'],rows)+'</div>'+
+  '<div class="panel"><h3>Compress a Screenshot</h3><div class="notice">Image compression works locally and is free. Documents can be attached using the secure upload panel above.</div>'+
+  '<div class="filebox"><input id="image-file" type="file" accept="image/jpeg,image/png,image/webp,.pdf,.doc,.docx">'+
+  '<p id="file-status" class="note" style="margin:9px 0 0">'+esc(state.fileNote||'Choose a screenshot, PDF, or Word document.')+'</p></div>'+
+  '<div class="toolbar" style="margin-top:13px"><button class="btn alt" data-a="compress">Compress File</button>'+
+  (state.compressed?'<button class="btn alt" data-a="save-compressed">Download Compressed Image</button>':'')+
+  '<button class="btn" disabled>Upload to Drive — Use secure panel above</button></div></div>';
 }
 function approvalPage(){
  if(!yesAdmin())return '<div class="notice danger">Administrator access required.</div>';
@@ -536,17 +589,28 @@ function modalHtml(){
   footer='<button class="btn alt" data-a="close">Cancel</button><button class="btn" type="submit" form="form-doc">Send Document</button>';
  }else if(m==='detail'){
   const d=state.detail;title=d.tracking_number;
-  const routes=state.routes;const last=routes.at(-1);const mine=last?.to_user_id===state.session.user.id;
-  const canAck=mine&&last.status==='awaiting_ack';const canForward=mine&&last.status==='received'&&!last.processed_at;
-  body=`<h3>${esc(d.subject)}</h3><p class="sub">${esc(d.document_type)} · ${pTag(d.status)} · ${date(d.created_at)}</p><section class="doc-detail-attachments"><h3>Attached Files</h3><div data-doc-files="${esc(d.id)}">${attachmentListHtml(d.id)}</div></section><h3>Routing History</h3><div class="timeline">${routes.map(r=>`<div class="event"><strong>${esc(label(r.route_action))} · ${esc(label(r.status))}</strong><span class="small muted">${date(r.sent_at)}</span>${r.note?`<p>${esc(r.note)}</p>`:''}${r.acknowledged_at?`<p class="note">Acknowledged: ${date(r.acknowledged_at)}</p>`:''}</div>`).join('')}</div>`;
-  if(canForward)body+=`<div class="field"><label>Next recipient</label><select id="next-person"><option value="">Choose recipient</option>${state.recipients.filter(x=>x.user_id!==state.session.user.id).map(x=>`<option value="${x.user_id}">${esc(x.display_name)} · ${esc(x.school_name)}</option>`).join('')}</select></div><div class="field"><label>Note (optional)</label><input id="route-note"></div>`;
-  footer=`<button class="btn alt" data-a="close">Close</button>${canAck?`<button class="btn" data-a="ack" data-id="${last.id}">Acknowledge Receipt</button>`:''}${canForward?`<button class="btn alt" data-a="route" data-id="${last.id}" data-return="true">Return</button><button class="btn" data-a="route" data-id="${last.id}" data-return="false">Forward</button>`:''}`;
+  const routes=state.routes,last=routes.at(-1),mine=last?.to_user_id===state.session.user.id;
+  const canAck=mine&&last.route_status==='awaiting_ack';
+  const canForward=mine&&last.route_status==='received'&&!last.processed_at;
+  body='<h3>'+esc(d.subject)+'</h3><p class="sub">'+esc(d.document_type)+' · Created '+esc(date(d.created_at))+'</p>'+
+   '<section class="routing-current-panel"><h3>Current Route</h3>'+routingOverview(d)+'</section>'+
+   '<section class="doc-detail-attachments"><h3>Attached Files</h3><div data-doc-files="'+esc(d.id)+'">'+attachmentListHtml(d.id)+'</div></section>'+
+   '<h3>Full Routing History</h3>'+routingTimeline(routes);
+  if(canForward)body+='<div class="field"><label>Next recipient</label><select id="next-person"><option value="">Choose recipient</option>'+
+    state.recipients.filter(x=>x.user_id!==state.session.user.id).map(x=>
+     '<option value="'+esc(x.user_id)+'">'+esc(x.display_name)+' · '+esc(x.school_name)+'</option>').join('')+
+    '</select></div><div class="field"><label>Note (optional)</label><input id="route-note"></div>';
+  footer='<button class="btn alt" data-a="close">Close</button>'+
+   (canAck?'<button class="btn" data-a="ack" data-id="'+esc(last.route_id)+'">Acknowledge Receipt</button>':'')+
+   (canForward?'<button class="btn alt" data-a="route" data-id="'+esc(last.route_id)+'" data-return="true">Return</button>'+
+    '<button class="btn" data-a="route" data-id="'+esc(last.route_id)+'" data-return="false">Forward</button>':'');
+
  }
  return `<div class="dialog-backdrop"><div class="dialog" role="dialog" aria-modal="true" aria-label="${esc(title)}"><header><h2>${esc(title)}</h2><button class="btn alt tiny" data-a="close">✕</button></header>${body}<footer>${footer}</footer></div></div>`;
 }
 async function openDetail(id){
  const d=state.docs.find(x=>x.id===id);if(!d)return;
- const {data,error}=await db.from('document_routes').select('*').eq('document_id',id).order('sent_at');if(error)throw error;
+ const {data,error}=await db.rpc('i_track_document_route_history',{p_document_id:id});if(error)throw error;
  state.detail=d;state.routes=data||[];await loadRecipients();state.modal='detail';show();
 }
 async function compress(){
