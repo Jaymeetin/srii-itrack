@@ -952,7 +952,19 @@ function approvalPage(){
  return '<div class="eyebrow">Administrator controls</div><h1>Account Approvals</h1>'+
   '<p class="sub">Approve personnel, check who is awaiting email verification, or send a password-reset link. Resetting a password preserves all documents and account history. The Main Administrator approves OIC-PSDS accounts.</p>'+
   '<div class="notice">Recovery and verification emails use Supabase Auth. Requests may be temporarily blocked until a dedicated SMTP sender is configured. Do not delete an account to fix a forgotten password.</div>'+
-  '<div class="panel">'+table(['Name','School / Office','Status','Role','Email verification','Actions'],rows)+'</div>';
+  '<div class="panel">'+table(['Name','School / Office','Status','Role','Email verification','Actions'],rows)+'</div>'+
+  '<section class="panel"><h3>Registration Email Queue</h3>'+
+  '<p class="note">Waiting-list tickets are not registered accounts and cannot be approved here. These are estimated two-per-hour signup windows, not confirmed email deliveries. The provider email quota is also used for password resets and other messages.</p>'+
+  table(['Queue #','Applicant / Email','School','Status','Estimated Time (PHT)'],
+  state.adminRegistrationQueue.map(q=>{
+   const current=String(q.queue_status||'waiting');
+   const status=current==='waiting'&&new Date(q.ready_at)<=new Date()?'Ready to register':label(current);
+   return '<tr><td><strong>#'+esc(q.queue_number)+'</strong></td>'+
+    '<td><strong>'+esc(q.full_name)+'</strong><div class="small muted">'+esc(q.email)+'</div></td>'+
+    '<td>'+esc(q.school_name)+'</td>'+
+    '<td>'+esc(status)+'</td>'+
+    '<td>'+esc(date(q.ready_at))+'</td></tr>';
+  }))+'</section>';
 }
 function archivePage(){return `<div class="eyebrow">Administrator controls</div><h1>Archive Documents</h1><p class="sub">Two-month archival to an SSD after verification.</p><div class="panel"><div class="notice warn"><b>Not yet enabled.</b> This will prepare downloadable archives, verify copies, and require administrator confirmation before any Drive files are deleted.</div><button class="btn" disabled>Archive Documents</button><p class="note" style="margin-top:12px">Submission metadata and audit history will remain in Supabase after archiving.</p></div>`;}
 function modalHtml(){
