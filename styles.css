@@ -366,3 +366,23 @@
  .school-files-actions{min-width:0}
  .school-files-actions .verify-file-actions{justify-content:flex-start}
 }
+
+
+/* v23: Accessible show/hide password controls, account email recovery. */
+.password-wrap{position:relative;display:flex;align-items:center;width:100%}
+.password-field .password-wrap input{padding-right:53px;min-height:45px}
+.password-toggle{position:absolute;right:5px;top:50%;transform:translateY(-50%);display:flex;align-items:center;justify-content:center;border:0;background:transparent;color:var(--muted);width:42px;height:40px;border-radius:9px;cursor:pointer;touch-action:manipulation}
+.password-toggle svg{pointer-events:none}
+.password-toggle:hover{background:var(--light);color:var(--blue)}
+.password-toggle:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}
+.password-toggle[aria-pressed="true"]{color:var(--blue)}
+.account-email{display:flex;flex-direction:column;align-items:start;gap:5px;min-width:155px;max-width:260px}
+.account-email>span:first-child{font-size:12px;word-break:break-word;overflow-wrap:anywhere}
+.account-email-state{border-radius:20px;font-size:10px;font-weight:750;padding:4px 9px;line-height:1.4}
+.account-email-state.is-confirmed{color:#126244;background:#dff5e8}
+.account-email-state.is-unconfirmed{color:#825713;background:#fff0c6}
+[data-theme="dark"] .account-email-state.is-confirmed{background:#163c2b;color:#bbf5dc}
+[data-theme="dark"] .account-email-state.is-unconfirmed{background:#524019;color:#ffe0a3}
+.account-recovery-actions{min-width:180px}
+.account-recovery-actions button{white-space:normal;text-align:center;min-height:33px}
+@media(max-width:820px){.account-email{max-width:none;min-width:0}.account-recovery-actions{min-width:0}.password-toggle{width:44px;height:42px}}
