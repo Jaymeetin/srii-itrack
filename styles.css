@@ -415,3 +415,30 @@
  .registration-queue-actions .btn{flex-basis:100%}
  .registration-queue-times{gap:7px}
 }
+
+/* Logo v26: keep the user's uploaded emblem sharp, colorful, transparent and clickable. */
+.logo-download-link{
+  position:relative;display:inline-flex;align-items:center;justify-content:center;
+  flex-shrink:0;cursor:pointer;text-decoration:none!important;
+  background:transparent!important;outline-offset:3px;
+  transition:transform .15s ease;
+}
+.logo-download-link:hover{transform:scale(1.06)}
+.logo-download-link:focus-visible,.startup-logo-download:focus-visible{
+  outline:2px solid #e7b329;border-radius:9px;
+}
+.brand .logo-download-link:after,.mobile-mark.logo-download-link:after{
+  content:"↓";position:absolute;right:-4px;bottom:-4px;
+  display:grid;place-items:center;width:16px;height:16px;
+  border-radius:50%;font:800 11px/1 sans-serif;
+  background:#fff8e6;color:#164598;border:1px solid #e5bb40;
+  box-shadow:0 1px 4px rgba(0,20,65,.25);pointer-events:none;
+}
+.official-logo-image,.sidebar .official-logo-image,.auth-aside .official-logo-image,
+.pending .official-logo-image,.brand-loader.official-logo-image{
+  background:transparent!important;filter:none!important;
+  image-rendering:auto;object-fit:contain;
+}
+.startup-logo-download{display:block;width:72px;height:72px;margin:0 auto 16px;}
+.startup-logo-download .brand-loader{margin:0;width:100%;height:100%;}
+@media (prefers-reduced-motion:reduce){.logo-download-link{transition:none!important}}

@@ -62,7 +62,7 @@ function emailQuotaError(error,context='Email'){
 
 const schoolOpts=()=>state.schools.filter(s=>s.is_active).map(s=>`<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('');
 function pop(message,error=false){toast.textContent=message;toast.style.background=error?'#a43142':'#173d80';toast.classList.add('show');clearTimeout(pop.timer);pop.timer=setTimeout(()=>toast.classList.remove('show'),5000);}
-function brand(){return `<div class="brand"><span class="brandmark"><img src="./assets/srii-mark-v17.svg" alt="" width="48" height="45"></span><span class="brand-label">SRII <span class="brand-accent">i-TRACK</span><small>DOCUMENT TRACKING SYSTEM</small></span></div>`;}
+function brand(){return `<div class="brand"><a class="brandmark logo-download-link" href="./assets/srii-itrack-official-logo.png" download="SRII-iTRACK-Official-Logo.png" title="Click or tap to save the original SRII i-TRACK logo" aria-label="Download official SRII i-TRACK logo"><img class="official-logo-image" src="./assets/srii-itrack-logo-optimized.webp" alt="SRII i-TRACK official district emblem" width="48" height="45" decoding="async"></a><span class="brand-label">SRII <span class="brand-accent">i-TRACK</span><small>DOCUMENT TRACKING SYSTEM</small></span></div>`;}
 function stat(label,value,desc){return `<div class="stat"><div class="label">${esc(label)}</div><strong>${esc(value)}</strong><div class="note">${esc(desc)}</div></div>`;}
 function err(e){console.error(e);pop(e?.message||String(e),true);}
 async function initial(){
@@ -598,7 +598,7 @@ function authPage(){
    (queued?queueCard():('<form id="'+formId+'">'+formContents+
     '<button type="submit" class="btn block">'+actionLabel+'</button></form>'))+
    footer+
-   '<p class="note">Queue positions and alarm times are approximate. Passwords are never stored in the queue. Email confirmation and administrator approval remain separate requirements.</p>'+
+   '<p class="note">Tap the district logo to save its original high-resolution image. Queue positions and alarm times are approximate. Passwords are never stored in the queue. Email confirmation and administrator approval remain separate requirements.</p>'+
   '</div></main></div>';
 }
 function pendingPage(){

@@ -276,3 +276,11 @@
 /* v17: mobile header should show the same borderless emblem as the dashboard. */
 .mobile-mark{background:transparent!important;border:0!important;box-shadow:none!important;border-radius:0!important;overflow:visible!important}
 .mobile-logo-image{background:transparent!important;border:0!important;box-shadow:none!important;filter:none!important;object-fit:contain}
+
+/* v26: no white tiles or color-shifting effects around downloadable mobile emblem. */
+.mobile-mark.logo-download-link{display:inline-flex;align-items:center;justify-content:center;
+ background:transparent!important;border:0!important;box-shadow:none!important;overflow:visible!important;
+ padding:0!important;text-decoration:none!important;}
+.mobile-mark .official-logo-image,[data-theme=dark] .mobile-mark .official-logo-image{
+ filter:none!important;background:transparent!important;image-rendering:auto;object-fit:contain!important;
+}

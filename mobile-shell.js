@@ -47,7 +47,7 @@ function makeShell(app){
   head.insertAdjacentHTML("afterbegin",
    '<div class="mobile-header">'+
     '<div class="mobile-header-left">'+
-      '<span class="mobile-mark" aria-hidden="true"><img class="mobile-logo-image" src="./assets/srii-mark-v17.svg" alt="" width="46" height="43"></span>'+
+      '<a class="mobile-mark logo-download-link" href="./assets/srii-itrack-official-logo.png" download="SRII-iTRACK-Official-Logo.png" title="Tap to save the official district logo" aria-label="Download official SRII i-TRACK logo"><img class="mobile-logo-image official-logo-image" src="./assets/srii-itrack-logo-optimized.webp" alt="" width="46" height="43" decoding="async"></a>'+
       '<span class="mobile-wordmark"><small>SAN REMIGIO II DISTRICT</small><strong>SRII <em>i-TRACK</em></strong></span>'+
     '</div>'+
     '<div class="mobile-header-right"><span class="mobile-trial">TRIAL</span>'+
