@@ -10,8 +10,16 @@ const db=window.supabase?.createClient(C.url,C.publishableKey,{auth:{persistSess
 window.ITRACK_DB=db;
 const knownViews=new Set(['dashboard','announcements','monitoring','documents','reports','school-files','verification','approvals','archive']);
 const urlView=new URLSearchParams(location.search).get('view');
-const lastView=localStorage.getItem('srii-current-view');
-const firstView=knownViews.has(urlView)?urlView:knownViews.has(lastView)?lastView:'dashboard';
+// A reload preserves the current route; a fresh PWA launch starts at Home.
+// Switching to another app does not reload this document, so its view remains intact.
+const isPageReload=performance.getEntriesByType('navigation')[0]?.type==='reload';
+const firstView=isPageReload&&knownViews.has(urlView)?urlView:'dashboard';
+if(!isPageReload){
+ const launchUrl=new URL(location.href);
+ launchUrl.searchParams.delete('view');
+ history.replaceState(null,'',launchUrl);
+}
+localStorage.removeItem('srii-current-view');
 const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],recipients:[],monitor:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:'login',queueTicket:localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],modal:null,detail:null,routes:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],issue:null};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -27,7 +35,6 @@ const active=()=>state.profile?.account_status==='active';
 function rememberView(view){
  if(!knownViews.has(view))throw new Error('Unknown application page.');
  state.view=view;
- localStorage.setItem('srii-current-view',view);
  const url=new URL(location.href);
  if(view==='dashboard')url.searchParams.delete('view');
  else url.searchParams.set('view',view);
