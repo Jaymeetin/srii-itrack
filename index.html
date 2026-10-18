@@ -17,6 +17,22 @@
 <link rel="stylesheet" href="./upload-ui.css">
 </head>
 <body>
+<div id="intro-splash" role="status" aria-label="SRII i-TRACK opening video" style="position:fixed;inset:0;z-index:99999;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden">
+<video id="intro-video" autoplay muted playsinline preload="auto" aria-label="SRII i-TRACK introduction" style="width:100%;height:100%;object-fit:contain;background:#fff"><source src="./SRII_iTRACK_3sec_Portrait_Opening_Preview.mp4" type="video/mp4"></video>
+</div>
+<script>
+(function(){
+ const splash=document.getElementById("intro-splash"), video=document.getElementById("intro-video");
+ let finished=false;
+ function closeIntro(){if(finished)return;finished=true;splash.remove();}
+ if(window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches){closeIntro();return;}
+ video.addEventListener("ended",closeIntro,{once:true});
+ video.addEventListener("error",closeIntro,{once:true});
+ video.addEventListener("loadedmetadata",()=>{if(video.duration>5)closeIntro();},{once:true});
+ const attempt=video.play();if(attempt&&typeof attempt.catch==="function")attempt.catch(closeIntro);
+ window.setTimeout(closeIntro,4500);
+})();
+</script>
 <div id="app"><div class="startup"><a class="startup-logo-download" href="./assets/srii-itrack-official-logo.png" download="SRII-iTRACK-Official-Logo.png" title="Download the official SRII i-TRACK logo" aria-label="Download official SRII i-TRACK logo"><img class="brand-loader official-logo-image" src="./assets/srii-itrack-logo-optimized.webp" width="72" height="72" alt="SRII i-TRACK official logo"></a><h2>SRII i-TRACK</h2><p>Preparing your district workspace…</p></div></div>
 <div id="toast" role="status" aria-live="polite"></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" defer></script>
