@@ -97,7 +97,9 @@ function openMore(){
  const schoolFiles=app.querySelector('.sidebar nav button[data-page="school-files"]');
  const verification=app.querySelector('.sidebar nav button[data-page="verification"]');
  const archive=app.querySelector('.sidebar nav button[data-page="archive"]');
+ const division=app.querySelector('.sidebar nav button[data-page="division"]');
  const accountActions=[
+  division?'<button type="button" class="mobile-menu-button" data-mobile="navigate" data-page="division">▤ Division Transmittals <small>›</small></button>':"",
   schoolFiles?'<button type="button" class="mobile-menu-button" data-mobile="navigate" data-page="school-files">All School Attachments <small>›</small></button>':"",
   verification?'<button type="button" class="mobile-menu-button" data-mobile="navigate" data-page="verification">Submission Verification <small>›</small></button>':"",
   reports?'<button type="button" class="mobile-menu-button" data-mobile="navigate" data-page="reports">District Reports <small>›</small></button>':"",
