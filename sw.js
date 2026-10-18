@@ -1,9 +1,9 @@
 /* SRII i-TRACK app shell cache v2: assets only, always prefer the network. */
-const CACHE_NAME="srii-itrack-hires-logo-persist-v26";
+const CACHE_NAME="srii-itrack-intro-video-v27";
 const CORE_ASSETS=[
  "./","./index.html","./styles.css","./mobile.css",
  "./app.js","./mobile-shell.js","./upload-ui.css","./upload-ui.js","./download-ui.js","./config.js",
- "./manifest.webmanifest","./assets/srii-itrack-official-logo.png","./assets/srii-itrack-logo-optimized.webp",
+ "./manifest.webmanifest","./SRII_iTRACK_3sec_Portrait_Opening_Preview.mp4","./assets/srii-itrack-official-logo.png","./assets/srii-itrack-logo-optimized.webp",
  "./assets/srii-itrack-icon-192.png","./assets/srii-itrack-icon-512.png",
  "./assets/srii-itrack-icon-180.png","./assets/srii-itrack-icon-48.png"
 ];
