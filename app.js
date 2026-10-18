@@ -8,13 +8,13 @@ const db=window.supabase?.createClient(C.url,C.publishableKey,{auth:{persistSess
 // Reuse one authenticated client across tracking, upload and download screens.
 // Multiple clients refreshing the same mobile session can reset upload forms.
 window.ITRACK_DB=db;
-const knownViews=new Set(['dashboard','announcements','monitoring','documents','reports','school-files','verification','approvals','archive']);
+const knownViews=new Set(['dashboard','announcements','monitoring','documents','reports','school-files','verification','approvals','archive','division']);
 // The manifest launches at ./ (Home). Navigation keeps the page in the URL,
 // so a real refresh returns to that page without persistent cross-launch state.
 const urlView=new URLSearchParams(location.search).get('view');
 const firstView=knownViews.has(urlView)?urlView:'dashboard';
 localStorage.removeItem('srii-current-view');
-const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],recipients:[],monitor:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:'login',queueTicket:localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],modal:null,detail:null,routes:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],issue:null};
+const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],recipients:[],monitor:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:'login',queueTicket:localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],modal:null,detail:null,routes:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',issue:null};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=x=>x?new Date(x).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}):'—';
@@ -125,6 +125,7 @@ async function load(){
     state.adminRegistrationQueue=waiting.data||[];
    })());
   }
+  if(state.view==='division')tasks.push((async()=>{const {data,error}=await db.rpc('i_track_division_list');if(error)throw error;state.divisionData=data||{transmittals:[],items:[],eligible:[],people:[]};})());
   if(state.view==='dashboard'){
    if(isOic())tasks.push((async()=>{const {data,error}=await db.rpc('i_track_district_report');if(error)throw error;state.districtReport=data||[];})());
    else if(yesAdmin())tasks.push((async()=>{const {data,error}=await db.rpc('i_track_registration_counts');if(!error)state.counts=Array.isArray(data)?data[0]:data;})());
@@ -617,11 +618,11 @@ function pendingPage(){
 }
 const menu=[['dashboard','⌂ Home'],['announcements','▤ Announcements'],['monitoring','▥ Submission Status']];
 function appPage(){
- const nav=[...menu,...(!isOic()?[['documents','▣ My Documents']]:[]),...(districtOversight()?[['reports','▥ District Reports']]:[]),...(yesAdmin()?[['school-files','▣ School Attachments'],['verification','✓ Submission Verification'],['approvals','♙ Account Approvals'],['archive','▤ Archive Documents']]:[])].map(([id,title])=>`<button class="${state.view===id?'active':''}" data-a="nav" data-page="${id}">${title}</button>`).join('');
- const title={dashboard:'Home',announcements:'Announcements',monitoring:'Submission Monitoring',documents:'My Documents',reports:'District Reports','school-files':'School Attachments',verification:'Submission Verification',approvals:'Account Management',archive:'Document Archiving'}[state.view]||'Overview';
+ const nav=[...menu,...(!isOic()?[['documents','▣ My Documents'],['division','▤ Division Transmittals']]:[]),...(districtOversight()?[['reports','▥ District Reports']]:[]),...(yesAdmin()?[['school-files','▣ School Attachments'],['verification','✓ Submission Verification'],['approvals','♙ Account Approvals'],['archive','▤ Archive Documents']]:[])].map(([id,title])=>`<button class="${state.view===id?'active':''}" data-a="nav" data-page="${id}">${title}</button>`).join('');
+ const title={dashboard:'Home',announcements:'Announcements',monitoring:'Submission Monitoring',documents:'My Documents',division:'Division Transmittals',reports:'District Reports','school-files':'School Attachments',verification:'Submission Verification',approvals:'Account Management',archive:'Document Archiving'}[state.view]||'Overview';
  const school=state.schools.find(x=>x.id===state.profile.school_id)?.name||'District Office';
  const name=state.profile.display_name||(isOic()?'OIC-PSDS':'District Administrator');
- const body={dashboard:dashboardPage,announcements:announcementPage,monitoring:monitorPage,documents:documentPage,reports:districtReportPage,'school-files':schoolAttachmentsPage,verification:verificationPage,approvals:approvalPage,archive:archivePage}[state.view]?.()||dashboardPage();
+ const body={dashboard:dashboardPage,announcements:announcementPage,monitoring:monitorPage,documents:documentPage,division:divisionPage,reports:districtReportPage,'school-files':schoolAttachmentsPage,verification:verificationPage,approvals:approvalPage,archive:archivePage}[state.view]?.()||dashboardPage();
  // Read-only presentation context for the upload panel. Not an authorization
  // mechanism: Supabase RLS and the Edge Function enforce permissions.
  window.ITRACK_CONTEXT={
@@ -932,6 +933,38 @@ function documentPage(){
   (state.compressed?'<button class="btn alt" data-a="save-compressed">Download Compressed Image</button>':'')+
   '<button class="btn" disabled>Upload to Drive — Use secure panel above</button></div></div>';
 }
+
+function divisionPage(){
+ const data=state.divisionData||{},ts=data.transmittals||[],items=data.items||[],people=data.people||[];
+ const activeId=state.divisionSelected&&ts.some(t=>t.id===state.divisionSelected)?state.divisionSelected:ts[0]?.id;
+ const t=ts.find(x=>x.id===activeId);
+ const opts=people.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name)+' — '+esc(p.position||'')+'</option>').join('');
+ const eligible=(data.eligible||[]).map(d=>'<label style="display:block;padding:8px;border-bottom:1px solid #ddd"><input type="checkbox" class="division-pick" value="'+esc(d.id)+'"> '+esc(d.tracking_number)+' — '+esc(d.subject)+' ('+esc(d.document_type)+')</label>').join('');
+ const rows=(items.filter(i=>i.transmittal_id===activeId)).map(i=>{
+ const actions=[];
+ if(t?.assigned_submitter===state.profile.id&&t.assignment_accepted_at&&i.division_status==='in_transmittal')actions.push('<button class="btn tiny" data-a="division-act" data-act="submit" data-id="'+esc(i.id)+'">Submitted</button>');
+ if(i.division_status==='submitted_to_division')actions.push('<button class="btn tiny alt" data-a="division-act" data-act="retrieve" data-id="'+esc(i.id)+'">Retrieved from Division</button>');
+ if(i.division_status==='retrieved_from_division'&&i.retrieved_from_division_by===state.profile.id)actions.push('<button class="btn tiny alt" data-a="division-act" data-act="forward" data-id="'+esc(i.id)+'">Forward to District</button>');
+ if(i.division_status==='forwarded_to_district'&&i.district_recipient_id===state.profile.id)actions.push('<button class="btn tiny" data-a="division-act" data-act="district_ack" data-id="'+esc(i.id)+'">Acknowledge</button>');
+ const own=state.docs.some(d=>d.id===i.document_id&&d.created_by===state.profile.id);
+ if(own&&['received_at_district','forwarded_to_district','retrieved_from_division'].includes(i.division_status))actions.push('<button class="btn tiny" data-a="division-act" data-act="sender_received" data-id="'+esc(i.id)+'">Confirm Received</button>');
+ if(yesAdmin())actions.push('<button class="btn tiny alt" data-a="division-act" data-act="admin_received" data-id="'+esc(i.id)+'">Resolve Received</button><button class="btn tiny alt" data-a="division-act" data-act="lost" data-id="'+esc(i.id)+'">Lost</button><button class="btn tiny alt" data-a="division-act" data-act="not_for_return" data-id="'+esc(i.id)+'">Not for Return</button>'+(i.division_status==='lost'?'<button class="btn tiny alt" data-a="division-act" data-act="recovered" data-id="'+esc(i.id)+'">Recovered</button>':'')+(['lost','not_for_return','received_by_sender'].includes(i.division_status)?'<button class="btn tiny alt" data-a="division-act" data-act="correct" data-id="'+esc(i.id)+'">Correct</button>':''));
+ return '<tr><td>'+esc(i.tracking_number)+'</td><td>'+esc(i.document_label)+'</td><td>'+pTag(i.division_status)+'</td><td>'+actions.join(' ')+'</td></tr>';
+ });
+ return '<div class="sectionhead"><div><div class="eyebrow">Physical document custody</div><h1>Division Transmittals</h1><p class="sub">Prepare, accept, submit, retrieve and return physical documents. Every action is audited.</p></div><button class="btn alt" data-a="division-refresh">Refresh</button></div>'+
+ '<div class="panel"><h3>Create Transmittal</h3><p class="note">Only documents already forwarded to Division Office are eligible.</p><div class="field"><label>Assigned submitter</label><select id="division-submitter">'+opts+'</select></div><div style="max-height:210px;overflow:auto">'+(eligible||'<p class="note">No eligible documents are visible to your account.</p>')+'</div><button class="btn" data-a="division-create">Create Transmittal</button></div>'+
+ '<div class="panel"><h3>Transmittal</h3><div class="field"><label>Select transmittal</label><select id="division-current">'+ts.map(x=>'<option value="'+esc(x.id)+'" '+(x.id===activeId?'selected':'')+'>'+esc(x.transmittal_number)+'</option>').join('')+'</select></div>'+
+ (t?'<p><strong>'+esc(t.transmittal_number)+'</strong> · '+pTag(t.assignment_accepted_at?'accepted':'pending')+'</p>'+
+ '<div class="toolbar"><button class="btn alt" data-a="division-print">Print / Save PDF</button><button class="btn alt" data-a="division-word">Editable Word</button>'+
+ (t.assigned_submitter===state.profile.id&&!t.assignment_accepted_at?'<button class="btn" data-a="division-act" data-act="accept">Accept Assignment</button>':'')+
+ (t.prepared_by===state.profile.id?'<select id="division-reassign">'+opts+'</select><button class="btn alt" data-a="division-act" data-act="reassign">Reassign</button>':'')+'</div>'+
+ table(['Tracking #','Document','Physical Status','Action'],rows):'<p class="note">No transmittal created yet.</p>')+'</div>';
+}
+function divisionPrintHtml(t,items){
+ const rows=items.map((i,n)=>'<tr><td>'+(n+1)+'</td><td>'+esc(i.tracking_number)+'</td><td>'+esc(i.document_label)+'</td><td>'+esc(i.division_status)+'</td></tr>').join('');
+ return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc(t.transmittal_number)+'</title><style>body{font:14px Arial;padding:30px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #777;padding:9px}h1{color:#173e88}</style></head><body><h1>SRII i-TRACK — Division Transmittal</h1><h2>'+esc(t.transmittal_number)+'</h2><p>Prepared: '+esc(date(t.created_at))+'</p><p>QR / Live checklist link: '+esc(location.origin+location.pathname+'?view=division&transmittal='+encodeURIComponent(t.id))+'</p><table><tr><th>#</th><th>Tracking Number</th><th>Document</th><th>Status</th></tr>'+rows+'</table><p>Received by: _______________________ Date: ______________</p></body></html>';
+}
+
 function approvalPage(){
  if(!yesAdmin())return '<div class="notice danger">Administrator access required.</div>';
  const emailById=new Map(state.accountEmails.map(r=>[r.user_id,r]));
@@ -1046,6 +1079,26 @@ async function click(e){
  const t=e.target.closest('[data-a]');if(!t||state.busy)return;
  const a=t.dataset.a;
  try{
+  if(a==='division-refresh'){await load();return;}
+  if(a==='division-create'){
+   const docs=[...document.querySelectorAll('.division-pick:checked')].map(x=>x.value),submitter=document.getElementById('division-submitter')?.value;
+   if(!docs.length)throw Error('Select at least one eligible document.');
+   state.busy=true;try{const {data,error}=await db.rpc('i_track_division_action',{p_action:'create',p_documents:docs,p_submitter:submitter});if(error)throw error;state.divisionSelected=data.id;await load();pop('Transmittal created.');}finally{state.busy=false;}return;
+  }
+  if(a==='division-print'||a==='division-word'){
+   const t=state.divisionData.transmittals.find(x=>x.id===state.divisionSelected)||state.divisionData.transmittals[0];if(!t)throw Error('Choose a transmittal.');
+   const html=divisionPrintHtml(t,state.divisionData.items.filter(i=>i.transmittal_id===t.id));
+   if(a==='division-word'){const link=document.createElement('a'),url=URL.createObjectURL(new Blob(['\\ufeff'+html],{type:'application/msword'}));link.href=url;link.download=t.transmittal_number+'.doc';link.click();setTimeout(()=>URL.revokeObjectURL(url),2000);}else{const w=window.open('','_blank');if(!w)throw Error('Allow popups for printing.');w.document.write(html);w.document.close();w.focus();w.print();}return;
+  }
+  if(a==='division-act'){
+   const action=t.dataset.act,trans=state.divisionData.transmittals.find(x=>x.id===state.divisionSelected)||state.divisionData.transmittals[0];if(!trans)throw Error('Select a transmittal.');
+   const args={p_action:action,p_transmittal:trans.id};if(t.dataset.id)args.p_item=t.dataset.id;
+   if(action==='submit'){const day=prompt('Actual date submitted (YYYY-MM-DD)',new Date().toLocaleDateString('en-CA'));if(!day)return;args.p_actual_date=day;}
+   if(['reassign','forward'].includes(action)){const selected=action==='reassign'?document.getElementById('division-reassign')?.value:prompt('Enter registered district recipient user ID');if(!selected)return;args[action==='reassign'?'p_submitter':'p_recipient']=selected;}
+   if(['sender_received','admin_received','lost','not_for_return','recovered','correct'].includes(action)){const reason=prompt('Written reason (required)');if(!reason?.trim())return;args.p_reason=reason.trim();}
+   if(!confirm('Confirm '+action.replaceAll('_',' ')+'? This action is recorded permanently.'))return;
+   state.busy=true;try{const {error}=await db.rpc('i_track_division_action',args);if(error)throw error;await load();pop('Document status updated.');}finally{state.busy=false;}return;
+  }
   if(a==='retry'){location.reload();return;}
   if(a==='switch'){
    if(state.authMode==='login'&&state.queueTicket){await queueRead();return;}
@@ -1318,6 +1371,7 @@ async function submit(e){
 $.addEventListener('click',click);
 $.addEventListener('submit',submit);
 $.addEventListener('change',async e=>{
+ if(e.target.id==='division-current'){state.divisionSelected=e.target.value;show();return;}
  if(e.target.id==='registration-type'){
   const oic=e.target.value==='oic_psds';
   const group=document.getElementById('register-school-field');
