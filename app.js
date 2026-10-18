@@ -125,7 +125,7 @@ async function load(){
     state.adminRegistrationQueue=waiting.data||[];
    })());
   }
-  if(state.view==='division')tasks.push((async()=>{const {data,error}=await db.rpc('i_track_division_list');if(error)throw error;state.divisionData=data||{transmittals:[],items:[],eligible:[],people:[]};const notice=await db.from('division_notifications').select('id,message,created_at').order('created_at',{ascending:false}).limit(12);state.divisionNotices=notice.data||[];})());
+  if(state.view==='division')tasks.push((async()=>{const {data,error}=await db.rpc('i_track_division_list');if(error)throw error;state.divisionData=data||{transmittals:[],items:[],eligible:[],people:[]};const deepLink=new URLSearchParams(location.search).get('transmittal');if(deepLink&&state.divisionData.transmittals.some(t=>t.id===deepLink))state.divisionSelected=deepLink;const notice=await db.from('division_notifications').select('id,message,created_at').order('created_at',{ascending:false}).limit(12);state.divisionNotices=notice.data||[];})());
   if(state.view==='dashboard'){
    if(isOic())tasks.push((async()=>{const {data,error}=await db.rpc('i_track_district_report');if(error)throw error;state.districtReport=data||[];})());
    else if(yesAdmin())tasks.push((async()=>{const {data,error}=await db.rpc('i_track_registration_counts');if(!error)state.counts=Array.isArray(data)?data[0]:data;})());
@@ -961,7 +961,7 @@ function divisionPage(){
  (t.prepared_by===state.profile.id?'<select id="division-reassign">'+opts+'</select><button class="btn alt" data-a="division-act" data-act="reassign">Reassign</button>':'')+'</div>'+
  table(['Tracking #','Document','Physical Status','Action'],rows):'<p class="note">No transmittal created yet.</p>')+'</div>';
 }
-function divisionPrintHtml(t,items){
+function divisionPrintHtml(t,items,qrImage=''){
  const rows=items.map((i,n)=>'<tr><td>'+(n+1)+'</td><td>'+esc(i.tracking_number)+'</td><td>'+esc(i.document_label)+'</td><td>'+esc(i.division_status)+'</td></tr>').join('');
  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc(t.transmittal_number)+'</title><style>body{font:14px Arial;padding:30px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #777;padding:9px}h1{color:#173e88}</style></head><body><h1>SRII i-TRACK — Division Transmittal</h1><h2>'+esc(t.transmittal_number)+'</h2><p>Prepared: '+esc(date(t.created_at))+'</p><p>QR / Live checklist link: '+esc(location.origin+location.pathname+'?view=division&transmittal='+encodeURIComponent(t.id))+'</p><table><tr><th>#</th><th>Tracking Number</th><th>Document</th><th>Status</th></tr>'+rows+'</table><p>Received by: _______________________ Date: ______________</p></body></html>';
 }
@@ -1089,7 +1089,7 @@ async function click(e){
   }
   if(a==='division-print'||a==='division-word'){
    const t=state.divisionData.transmittals.find(x=>x.id===state.divisionSelected)||state.divisionData.transmittals[0];if(!t)throw Error('Choose a transmittal.');
-   const html=divisionPrintHtml(t,state.divisionData.items.filter(i=>i.transmittal_id===t.id));
+   let qrImage='';if(window.QRCode){const div=document.createElement('div');div.style.cssText='position:absolute;left:-9999px';document.body.append(div);try{new QRCode(div,{text:location.origin+location.pathname+'?view=division&transmittal='+encodeURIComponent(t.id),width:160,height:160,correctLevel:QRCode.CorrectLevel.M});qrImage=div.querySelector('canvas')?.toDataURL('image/png')||'';}finally{div.remove();}}const html=divisionPrintHtml(t,state.divisionData.items.filter(i=>i.transmittal_id===t.id),qrImage);
    if(a==='division-word'){const link=document.createElement('a'),url=URL.createObjectURL(new Blob(['\\ufeff'+html],{type:'application/msword'}));link.href=url;link.download=t.transmittal_number+'.doc';link.click();setTimeout(()=>URL.revokeObjectURL(url),2000);}else{const w=window.open('','_blank');if(!w)throw Error('Allow popups for printing.');w.document.write(html);w.document.close();w.focus();w.print();}return;
   }
   if(a==='division-act'){
