@@ -1097,7 +1097,7 @@ async function click(e){
    const action=t.dataset.act,trans=state.divisionData.transmittals.find(x=>x.id===state.divisionSelected)||state.divisionData.transmittals[0];if(!trans&&!t.dataset.trans)throw Error('Select a transmittal.');
    const args={p_action:action,p_transmittal:t.dataset.trans||trans.id};if(t.dataset.id)args.p_item=t.dataset.id;
    if(action==='submit'){const day=prompt('Actual date submitted (YYYY-MM-DD)',new Date().toLocaleDateString('en-CA'));if(!day)return;args.p_actual_date=day;}
-   if(['reassign','forward'].includes(action)){const selected=action==='reassign'?document.getElementById('division-reassign')?.value:prompt('District recipient ID (choose from registered users in the transmittal creation list)');if(!selected)return;args[action==='reassign'?'p_submitter':'p_recipient']=selected;}
+   if(['reassign','forward'].includes(action)){const people=state.divisionData.people||[];const pick=action==='forward'?prompt('District recipient number:\n'+people.map((p,i)=>(i+1)+'. '+p.name+' — '+(p.position||'')).join('\n')):null;const selected=action==='reassign'?document.getElementById('division-reassign')?.value:people[Number(pick)-1]?.id;if(!selected)return;args[action==='reassign'?'p_submitter':'p_recipient']=selected;}
    if(['sender_received','admin_received','lost','not_for_return','recovered','correct'].includes(action)){const reason=prompt('Written reason (required)');if(!reason?.trim())return;args.p_reason=reason.trim();}
    if(!confirm('Confirm '+action.replaceAll('_',' ')+'? This action is recorded permanently.'))return;
    state.busy=true;try{const {error}=await db.rpc('i_track_division_action',args);if(error)throw error;await load();pop('Document status updated.');}finally{state.busy=false;}return;
