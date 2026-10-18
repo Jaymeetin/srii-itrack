@@ -19,10 +19,10 @@
 <body>
 <style>
 @keyframes sriiIntroDismiss{0%,92%{opacity:1;visibility:visible}100%{opacity:0;visibility:hidden;pointer-events:none}}
-#intro-splash{position:fixed;inset:0;z-index:99999;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;animation:sriiIntroDismiss 3.4s linear forwards}
+#intro-splash{position:fixed;inset:0;z-index:99999;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;}
 #intro-video{width:100%;height:100%;object-fit:contain;background:#fff}
 #intro-skip{position:absolute;right:16px;top:max(16px,env(safe-area-inset-top));border:0;border-radius:20px;padding:10px 16px;background:#173e88;color:#fff;font:600 14px system-ui;cursor:pointer}
-@media(prefers-reduced-motion:reduce){#intro-splash{display:none}}
+
 </style>
 <div id="intro-splash" aria-label="SRII i-TRACK opening video">
 <video id="intro-video" autoplay muted playsinline preload="metadata"><source src="./SRII_iTRACK_3sec_Portrait_Opening_Preview.mp4" type="video/mp4"></video>
@@ -31,11 +31,23 @@
 <script>
 (function(){
 var splash=document.getElementById("intro-splash"),video=document.getElementById("intro-video");
-function dismiss(){if(splash&&splash.isConnected)splash.remove();}
+var finished=false;
+function dismiss(){if(finished)return;finished=true;if(splash&&splash.isConnected)splash.remove();}
 video.addEventListener("ended",dismiss,{once:true});
 video.addEventListener("error",dismiss,{once:true});
-var p=video.play();if(p&&p.catch)p.catch(dismiss);
-setTimeout(dismiss,3600);
+// Play from frame zero on every actual page load, including a refresh.
+// Merely switching apps leaves the page alive and does not restart the intro.
+video.currentTime=0;
+function start(){
+ var p=video.play();
+ // Mobile autoplay may fail temporarily; leave the splash visible and retry
+ // after the first interaction rather than instantly removing it.
+ if(p&&p.catch)p.catch(function(){
+  document.addEventListener("pointerdown",function(){video.play().catch(dismiss);},{once:true});
+ });
+}
+start();
+setTimeout(dismiss,4200);
 })();
 </script>
 <div id="app"><div class="startup"><a class="startup-logo-download" href="./assets/srii-itrack-official-logo.png" download="SRII-iTRACK-Official-Logo.png" title="Download the official SRII i-TRACK logo" aria-label="Download official SRII i-TRACK logo"><img class="brand-loader official-logo-image" src="./assets/srii-itrack-logo-optimized.webp" width="72" height="72" alt="SRII i-TRACK official logo"></a><h2>SRII i-TRACK</h2><p>Preparing your district workspace…</p></div></div>
