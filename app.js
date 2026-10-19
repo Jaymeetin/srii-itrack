@@ -1032,7 +1032,7 @@ function modalHtml(){
   footer='<button class="btn alt" data-a="close">Cancel</button><button class="btn" type="submit" form="form-ann">Publish</button>';
  }else if(m==='send'){
   title='Route a Document';
-  body=`<form id="form-doc">${field('Subject','subject')}${field('Document Type','type','text','General')}<div class="field"><label>Recipient</label><select name="recipient" required><option value="">Choose recipient</option>${state.recipients.filter(x=>x.user_id!==state.session.user.id).map(x=>`<option value="${x.user_id}">${esc(x.display_name)} · ${esc(x.school_name)}</option>`).join('')}</select></div><div class="field"><label>Instructions (optional)</label><textarea name="notes"></textarea></div></form><div class="notice">Routing records are active. Online file attachments are not yet enabled.</div>`;
+  body=`<form id="form-doc">${field('Subject','subject')}${field('Document Type','type','text','General')}<div class="field"><label>Routing destination</label><select name="destination" id="doc-destination"><option value="person">Send to registered recipient</option><option value="division">Submit to Division — I will prepare the transmittal</option></select></div><div class="field" id="doc-recipient-field"><label>Recipient</label><select name="recipient" id="doc-recipient"><option value="">Choose recipient</option>${state.recipients.filter(x=>x.user_id!==state.session.user.id).map(x=>`<option value="${x.user_id}">${esc(x.display_name)} · ${esc(x.school_name)}</option>`).join('')}</select></div><div class="field"><label>Instructions (optional)</label><textarea name="notes"></textarea></div></form><div class="notice">Routing records are active. Online file attachments are not yet enabled.</div>`;
   footer='<button class="btn alt" data-a="close">Cancel</button><button class="btn" type="submit" form="form-doc">Send Document</button>';
  }else if(m==='monitor-submission'){
   title='School Submission Details';
@@ -1369,14 +1369,16 @@ async function submit(e){
    state.modal=null;rememberView('announcements');await load();pop('Announcement created.');return;
   }
   if(form.id==='form-doc'){
-   const {data,error}=await db.rpc('i_track_send_document',{p_subject:clean(fd.get('subject')),p_document_type:clean(fd.get('type')),p_recipient_id:clean(fd.get('recipient')),p_notes:clean(fd.get('notes'))});if(error)throw error;
-   state.modal=null;rememberView('documents');await load();pop(`Document routed: ${data}`);return;
+   const direct=fd.get('destination')==='division';const params={p_subject:clean(fd.get('subject')),p_document_type:clean(fd.get('type')),p_notes:clean(fd.get('notes'))};if(!direct)params.p_recipient_id=clean(fd.get('recipient'));
+   const {data,error}=await db.rpc(direct?'i_track_send_to_division':'i_track_send_document',params);if(error)throw error;
+   state.modal=null;rememberView(direct?'division':'documents');await load();pop(direct?'Added to Division transmittal queue: '+data+' — select the document and assign yourself as submitter.':'Document routed: '+data);return;
   }
  }catch(e){err(e);}finally{state.busy=false;form.querySelectorAll('button[type=submit]').forEach(x=>{x.disabled=false;});}
 }
 $.addEventListener('click',click);
 $.addEventListener('submit',submit);
 $.addEventListener('change',async e=>{
+ if(e.target.id==='doc-destination'){const direct=e.target.value==='division',field=document.getElementById('doc-recipient-field'),recipient=document.getElementById('doc-recipient');if(field)field.hidden=direct;if(recipient)recipient.required=!direct;return;}
  if(e.target.id==='division-current'){state.divisionSelected=e.target.value;show();return;}
  if(e.target.id==='registration-type'){
   const oic=e.target.value==='oic_psds';
