@@ -501,3 +501,13 @@ tr[hidden]{display:none!important}
 #monitor-school-upload-host .itrack-upload{margin:0;padding:15px}
 #monitor-school-upload-host .iu-heading{margin-bottom:9px}
 @media(max-width:730px){.status-school-row{gap:8px;padding:16px 13px;font-size:13px}.status-school-chevron{font-size:20px}#monitor-school-upload-host .itrack-upload{padding:13px!important}}
+
+/* Permanently attributed school submissions inside the compact document view */
+.school-doc-versions{display:grid;gap:11px;margin-top:15px}
+.school-doc-version{padding:14px 15px;border:1px solid var(--line,#dce2ea);border-radius:12px;background:var(--paper,#fff);min-width:0}
+.school-doc-version-head{display:flex;align-items:center;justify-content:space-between;gap:9px;flex-wrap:wrap}
+.school-doc-filename{font-weight:750;margin:12px 0 5px;overflow-wrap:anywhere}
+.school-doc-credit{margin:5px 0;color:var(--ink,#172d4e);overflow-wrap:anywhere}
+.school-doc-version .doc-att-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.school-doc-version .doc-att-actions button{min-height:38px}
+@media(max-width:730px){.school-doc-version{padding:12px}.school-doc-version .doc-att-actions button{flex:1;min-width:92px}}
