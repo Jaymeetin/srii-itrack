@@ -1052,18 +1052,20 @@ function modalHtml(){
   const canAck=mine&&last.route_status==='awaiting_ack';
   const canForward=mine&&last.route_status==='received'&&!last.processed_at;
   const awaitingDecision=mine&&last.route_status==='received'&&!last.processed_at;
+  const canApprove=awaitingDecision;
   body='<h3>'+esc(d.subject)+'</h3><p class="sub">'+esc(d.document_type)+' · Created '+esc(date(d.created_at))+'</p>'+
    '<section class="routing-current-panel"><h3>Current Route</h3>'+routingOverview(d)+'</section>'+
    '<section class="doc-detail-attachments"><h3>Attached Files</h3><div data-doc-files="'+esc(d.id)+'">'+attachmentListHtml(d.id)+'</div></section>'+
    '<details class="routing-history-collapse"><summary><strong>Routing History</strong><span class="small muted"> '+routes.length+' routing step(s) · Tap to view complete journey</span></summary>'+routingTimeline(routes)+'</details>';
   if(canAck)body+='<p class="notice">Acknowledging confirms that you received this document. It does not mean the document has been approved. Review the attachment and sender details before acknowledging.</p>';
-  if(awaitingDecision)body+='<p class="notice">Receipt acknowledged. Forward or return the document below. Final approval is not yet available and must not be inferred from acknowledgment.</p>';
+  if(awaitingDecision)body+='<p class="notice">Receipt acknowledged. You may approve, forward, or return this document. Approval is recorded separately.</p>';
   if(canForward)body+='<div class="field"><label>Recipient for forwarding or return</label><p class="small muted">For Return for Correction, select the person who must correct the document (normally its original sender). For Forward, select the next handler.</p><select id="next-person"><option value="">Choose recipient</option>'+
     state.recipients.filter(x=>x.user_id!==state.session.user.id).map(x=>
      '<option value="'+esc(x.user_id)+'">'+esc(x.display_name)+' · '+esc(x.school_name)+'</option>').join('')+
     '</select></div><div class="field"><label>Remarks (required for Return for Correction)</label><input id="route-note" placeholder="Explain the correction needed, or add forwarding instructions"></div>';
   footer='<button class="btn alt" data-a="close">Close</button>'+
    (canAck?'<button class="btn" data-a="ack" data-id="'+esc(last.route_id)+'">Acknowledge Receipt</button>':'')+
+   (canApprove?'<button class="btn" data-a="approve" data-id="'+esc(last.route_id)+'">Approve Document</button>':'')+
    (canForward?'<button class="btn alt" data-a="route" data-id="'+esc(last.route_id)+'" data-return="true">Return for Correction</button>'+
     '<button class="btn" data-a="route" data-id="'+esc(last.route_id)+'" data-return="false">Forward</button>':'');
 
@@ -1252,6 +1254,12 @@ async function click(e){
   if(a==='clear-document-filters'){
    for(const id of ['document-search','document-status-filter','document-date-filter']){const field=document.getElementById(id);if(field)field.value='';}
    filterDocumentRegistry();return;
+  }
+  if(a==='approve'){
+   if(!confirm('Approve this document? This records your final approval and closes the current route.'))return;
+   const {error}=await db.rpc('i_track_approve_route',{p_route_id:t.dataset.id});
+   if(error)throw error;
+   state.modal=null;await load();pop('Document approved.');return;
   }
   if(a==='ack'){
    const {error}=await db.rpc('i_track_acknowledge_route',{p_route_id:t.dataset.id});if(error)throw error;state.modal=null;await load();pop('Receipt acknowledged.');return;
