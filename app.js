@@ -1075,6 +1075,40 @@ function routingTimeline(routes,approvals=[],divisionEvents=[]){
  ).join('')+'</ol>';
 }
 
+function schoolSubmissionDetailModal(){
+ const files=(state.schoolSubmissionDocs||[]).filter(f=>f.assignment_id===state.selectedSchoolSubmission)
+  .sort((a,b)=>new Date(b.submitted_at)-new Date(a.submitted_at)||b.version_number-a.version_number);
+ if(!files.length)return '<p class="notice">This submission is not available to your account. Reopen My Documents to refresh.</p>';
+ const first=files[0];
+ const relation=first.is_my_school?'This is a submission belonging to your school.':
+  first.is_my_upload?'You uploaded this on behalf of another school.':'District submission record.';
+ return '<div class="monitor-file-summary">'+
+  '<div><span class="small muted">School Represented</span><strong>'+esc(first.school_name)+'</strong></div>'+
+  '<div><span class="small muted">Announcement</span><strong>'+esc(first.announcement_title)+'</strong></div>'+
+  '<div><span class="small muted">Reference</span><strong>'+esc(first.announcement_code||'School submission')+'</strong></div>'+
+  '<div><span class="small muted">Versions Visible</span><strong>'+files.length+'</strong></div></div>'+
+  '<p class="notice">'+esc(relation)+' The uploader is identified on every version. Only district administrators approve or reject submissions.</p>'+
+  '<div class="school-doc-versions">'+files.map(f=>{
+   const preview=['application/pdf','image/jpeg','image/png','image/webp'].includes(f.content_type);
+   const available=f.storage_status==='uploaded';
+   const name=f.original_filename||'Unnamed submitted file';
+   const data=' data-kind="announcement" data-id="'+esc(f.submission_id)+'" data-name="'+esc(name)+'"';
+   const actions=available?'<div class="doc-att-actions">'+
+     (preview?'<button type="button" class="btn tiny alt iu-file-action" data-mode="view"'+data+'>View</button>':'')+
+     '<button type="button" class="btn tiny alt iu-file-action" data-mode="download"'+data+'>Download</button></div>':
+     '<span class="small muted">Archived offline · Ask the District Administrator</span>';
+   const verification=f.verification_status==='verified'?'Verified by district administrator':
+      f.verification_status==='rejected'?'Returned / Rejected by district administrator':
+      'Pending district administrator verification';
+   return '<section class="school-doc-version"><div class="school-doc-version-head"><strong>Version '+esc(f.version_number)+'</strong>'+
+     pTag(f.verification_status||'pending')+'</div>'+
+    '<p class="school-doc-filename">'+esc(name)+'</p>'+
+    '<p class="school-doc-credit"><strong>Uploaded by '+esc(f.uploader_name)+'</strong>'+
+     ' · '+esc(f.uploader_school_name||'District Office')+'</p>'+
+    '<p class="small muted">Uploaded: '+esc(date(f.submitted_at))+' · '+esc(verification)+'</p>'+actions+
+    '</section>';
+  }).join('')+'</div>';
+}
 function documentPage(){
  const routed=[...state.docs].map(d=>{
   const last=documentRoutes(d.id).at(-1);
@@ -1218,6 +1252,11 @@ function modalHtml(){
   title='Route a Document';
   body=`<form id="form-doc">${field('Subject','subject')}<div class='field'><label for='doc-type'>Document Type (approved)</label><select name='type' id='doc-type' required><option value=''>Choose approved document type</option>${state.docTypes.map(t=>'<option value="'+esc(t.name)+'">'+esc(t.name)+'</option>').join('')}</select></div><div class="field"><label>Routing destination</label><select name="destination" id="doc-destination"><option value="person">Send to registered recipient</option><option value="division">Submit to Division — I will prepare the transmittal</option></select></div><div class="field" id="doc-recipient-field"><label>Recipient</label><select name="recipient" id="doc-recipient"><option value="">Choose recipient</option>${state.recipients.filter(x=>x.user_id!==state.session.user.id).map(x=>`<option value="${x.user_id}">${esc(x.display_name)} · ${esc(x.school_name)}</option>`).join('')}</select></div><div class="field"><label>Instructions (optional)</label><textarea name="notes"></textarea></div></form><div class='notice'>Choose an administrator-approved document type. Attach files separately through the secure upload panel after the document is created.</div><div class='field'><label for='suggested-doc-type'>Suggest a missing document type</label><input id='suggested-doc-type' type='text' maxlength='140' placeholder='Enter new document type'></div><div class='toolbar'><button type='button' class='btn alt tiny' data-a='suggest-doc-type'>Submit Type Suggestion</button></div><p id='type-suggestion-feedback' class='small muted' aria-live='polite'>New types require District Administrator approval before use.</p><p class='note'>Recent suggestions: ${state.docTypeRequests.slice(0,3).map(r=>esc(r.requested_name)+' ('+esc(label(r.status))+')').join('; ')||'None yet'}</p>`;
   footer='<button class="btn alt" data-a="close">Cancel</button><button class="btn" type="submit" form="form-doc">Send Document</button>';
+ }else if(m==='school-submission-detail'){
+  const selected=(state.schoolSubmissionDocs||[]).find(f=>f.assignment_id===state.selectedSchoolSubmission);
+  title=selected?(selected.announcement_code||'School Submission')+' · '+selected.school_name:'School Submission';
+  body=schoolSubmissionDetailModal();
+  footer='<button type="button" class="btn alt" data-a="close">Close</button>';
  }else if(m==='monitor-school'){
   title='School Submission Status';
   body=monitorSchoolModal();
@@ -1424,6 +1463,12 @@ async function click(e){
    rememberView('documents');await load();
    if(!state.docs.some(d=>d.id===t.dataset.id))throw new Error('This document is not available to your account.');
    await openDetail(t.dataset.id);return;
+  }
+  if(a==='school-submission-detail'){
+   if(isOic()||state.view!=='documents')throw new Error('This account cannot open private school submission files.');
+   if(!(state.schoolSubmissionDocs||[]).some(f=>f.assignment_id===t.dataset.id))
+    throw new Error('This submission is not available to your account.');
+   state.selectedSchoolSubmission=t.dataset.id;state.modal='school-submission-detail';show();return;
   }
   if(a==='detail'){if(isOic())throw new Error('OIC-PSDS accounts cannot view private documents.');await openDetail(t.dataset.id);return;}
   if(a==='admin-password-reset'||a==='admin-email-confirmation'){
