@@ -886,7 +886,7 @@ function documentRoutes(id){return (state.routeHistory||[]).filter(r=>r.document
 function routeState(r){
  if(!r)return {label:'Not routed',kind:'muted'};
  if(r.route_status==='awaiting_ack')return {label:'Not yet received',kind:'pending'};
- if(r.route_status==='received')return {label:'Received',kind:'received'};
+ if(r.route_status==='received')return {label:'Receipt acknowledged · Awaiting action',kind:'received'};
  return {label:label(r.route_status),kind:'muted'};
 }
 function routePerson(name,office){
@@ -1051,10 +1051,13 @@ function modalHtml(){
   const routes=state.routes,last=routes.at(-1),mine=last?.to_user_id===state.session.user.id;
   const canAck=mine&&last.route_status==='awaiting_ack';
   const canForward=mine&&last.route_status==='received'&&!last.processed_at;
+  const awaitingDecision=mine&&last.route_status==='received'&&!last.processed_at;
   body='<h3>'+esc(d.subject)+'</h3><p class="sub">'+esc(d.document_type)+' · Created '+esc(date(d.created_at))+'</p>'+
    '<section class="routing-current-panel"><h3>Current Route</h3>'+routingOverview(d)+'</section>'+
    '<section class="doc-detail-attachments"><h3>Attached Files</h3><div data-doc-files="'+esc(d.id)+'">'+attachmentListHtml(d.id)+'</div></section>'+
    '<details class="routing-history-collapse"><summary><strong>Routing History</strong><span class="small muted"> '+routes.length+' routing step(s) · Tap to view complete journey</span></summary>'+routingTimeline(routes)+'</details>';
+  if(canAck)body+='<p class="notice">Acknowledging confirms that you received this document. It does not mean the document has been approved.</p>';
+  if(awaitingDecision)body+='<p class="notice">Receipt acknowledged. Forward or return the document below. Final approval is not yet available and must not be inferred from acknowledgment.</p>';
   if(canForward)body+='<div class="field"><label>Next recipient</label><select id="next-person"><option value="">Choose recipient</option>'+
     state.recipients.filter(x=>x.user_id!==state.session.user.id).map(x=>
      '<option value="'+esc(x.user_id)+'">'+esc(x.display_name)+' · '+esc(x.school_name)+'</option>').join('')+
