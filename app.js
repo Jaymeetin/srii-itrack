@@ -130,11 +130,15 @@ async function load(){
   }
   if(state.view==='division')tasks.push((async()=>{const {data,error}=await db.rpc('i_track_division_list');if(error)throw error;state.divisionData=data||{transmittals:[],items:[],eligible:[],people:[]};const deepLink=new URLSearchParams(location.search).get('transmittal');if(deepLink&&state.divisionData.transmittals.some(t=>t.id===deepLink))state.divisionSelected=deepLink;const notice=await db.from('division_notifications').select('id,message,created_at').order('created_at',{ascending:false}).limit(12);state.divisionNotices=notice.data||[];const retrieval=await db.rpc('i_track_division_retrievable');if(retrieval.error)throw retrieval.error;state.divisionRetrievable=retrieval.data||[];})());
   if(!yesAdmin()&&!isOic()&&['dashboard','documents'].includes(state.view))tasks.push((async()=>{
-   const {data,error}=await db.from('document_notifications')
-    .select('id,document_id,event_key,message,created_at,read_at')
-    .order('created_at',{ascending:false}).limit(12);
-   if(error){console.error('Document notifications unavailable',error);state.documentNotices=[];return;}
-   state.documentNotices=data||[];
+   const [routing,division]=await Promise.all([
+    db.from('document_notifications').select('id,document_id,message,created_at,read_at').order('created_at',{ascending:false}).limit(12),
+    db.from('document_division_notifications').select('id,document_id,message,created_at,read_at').order('created_at',{ascending:false}).limit(12)
+   ]);
+   if(routing.error||division.error)console.error('Some document notifications unavailable',routing.error||division.error);
+   state.documentNotices=[
+    ...(routing.data||[]).map(n=>({...n,source:'routing'})),
+    ...(division.data||[]).map(n=>({...n,source:'division'}))
+   ].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,12);
   })());
   if(state.view==='dashboard'){
    if(isOic())tasks.push((async()=>{const {data,error}=await db.rpc('i_track_district_report');if(error)throw error;state.districtReport=data||[];})());
@@ -655,7 +659,7 @@ function documentNotificationPanel(){
  (notices.length?'<div class="v2-notice-list">'+notices.map(n=>
   '<div class="v2-notice-item"><div class="v2-notice-copy"><strong>'+esc(n.message)+'</strong><small>'+esc(date(n.created_at))+(n.read_at?' · Read':' · Unread')+'</small></div>'+
   (state.docs.some(d=>d.id===n.document_id)?'<button class="btn tiny alt" data-a="doc-notice-open" data-id="'+esc(n.document_id)+'">Review</button>':'')+
-  (!n.read_at?'<button class="btn tiny alt" data-a="doc-notice-read" data-id="'+esc(n.id)+'">Mark Read</button>':'')+'</div>'
+  (!n.read_at?'<button class="btn tiny alt" data-a="doc-notice-read" data-id="'+esc(n.id)+'" data-source="'+esc(n.source)+'">Mark Read</button>':'')+'</div>'
  ).join('')+'</div>':'<p class="note">No document notifications yet.</p>')+'</section>';
 }
 function dashboardPage(){
@@ -1235,11 +1239,15 @@ async function click(e){
   if(a==='new-announcement'){state.modal='new-announcement';show();return;}
   if(a==='send'){if(isOic())throw new Error('OIC-PSDS accounts cannot route documents.');await loadRecipients();state.modal='send';show();return;}
   if(a==='doc-notice-read'){
-   const notice=(state.documentNotices||[]).find(n=>String(n.id)===t.dataset.id);
+   const source=t.dataset.source;
+   if(!['routing','division'].includes(source))throw new Error('Unknown notification type.');
+   const notice=(state.documentNotices||[]).find(n=>String(n.id)===t.dataset.id&&n.source===source);
    if(!notice)return;
-   const {error}=await db.from('document_notifications').update({read_at:new Date().toISOString()}).eq('id',notice.id);
+   const tableName=source==='division'?'document_division_notifications':'document_notifications';
+   const readAt=new Date().toISOString();
+   const {error}=await db.from(tableName).update({read_at:readAt}).eq('id',notice.id);
    if(error)throw error;
-   notice.read_at=new Date().toISOString();show();return;
+   notice.read_at=readAt;show();return;
   }
   if(a==='doc-notice-open'){
    if(isOic())throw new Error('You cannot open private documents.');
