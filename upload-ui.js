@@ -111,7 +111,7 @@ function markPanel(){
    '<div class="iu-selection">No document selected</div>'+
    '<img class="iu-image" alt="Preview of selected screenshot" hidden>'+
    '<div class="iu-actions"><button type="button" class="btn alt iu-compress" disabled>Compress File</button>'+
-    '<button type="button" class="btn iu-upload" disabled>Upload to Google Drive</button></div>'+
+    '<button type="button" class="btn iu-upload" disabled>Upload to Google Drive</button></div><div class="iu-progress" hidden role="status" aria-live="polite"><span class="iu-progress-label">Preparing upload…</span><progress class="iu-progress-bar" max="100"></progress></div>'+
    '<p class="iu-limits">Maximum 4 MB per file. Compression is optional and applies to images only. For PDF and Word files, the original is preserved. Avoid uploading confidential documents while this pilot is being tested.</p>'+
    '<div class="iu-history" aria-live="polite"><h4>Submission history</h4><div class="iu-history-list">Select a requirement to view its records.</div></div>'+
   '</div>'+
@@ -322,11 +322,19 @@ async function compress(node){
   updateFile(node);
  }catch(e){notify(node,"Compression failed: "+(e?.message||String(e)),"error");}
 }
-async function toBase64(file){
+function updateUploadPhase(node,message,pct=null){
+ const area=node.querySelector(".iu-progress");if(!area)return;
+ area.hidden=false;
+ const label=area.querySelector(".iu-progress-label"),bar=area.querySelector(".iu-progress-bar");
+ if(label)label.textContent=message;
+ if(bar){if(pct===null)bar.removeAttribute("value");else bar.value=Math.max(0,Math.min(100,pct));}
+}
+async function toBase64(file,onProgress){
  return await new Promise((resolve,reject)=>{
   const reader=new FileReader();
   reader.onload=()=>resolve(String(reader.result).split(",")[1]);
   reader.onerror=()=>reject(Error("Unable to read the selected file"));
+  reader.onprogress=e=>{if(e.lengthComputable)onProgress?.(Math.round((e.loaded/e.total)*100));};
   reader.readAsDataURL(file);
  });
 }
@@ -340,12 +348,15 @@ async function upload(node,kind){
  if(!mime){notify(node,"File extension is not supported.","error");return;}
  if(!confirm("Upload "+f.name+" ("+size(f.size)+") for "+target.label+" to the private district Google Drive?"))return;
  setProcessing(node,true);
- notify(node,"Checking your account and securely uploading. Keep this page open.");
+ updateUploadPhase(node,"Checking your account…");
+ notify(node,"Preparing to upload. Keep this page open.");
  let timer=null;
  try{
   const {data:{session}}=await db.auth.getSession();
   if(!session?.access_token)throw Error("Your session expired. Please sign in again.");
-  const base64=await toBase64(f);
+  updateUploadPhase(node,"Reading the selected file on your device…",0);
+  const base64=await toBase64(f,pct=>updateUploadPhase(node,"Reading file: "+pct+"% (local preparation)",pct));
+  updateUploadPhase(node,"Transferring file to the secure server… (transfer percentage unavailable)");
   const controller=new AbortController();
   timer=setTimeout(()=>controller.abort(),70000);
   const reply=await fetch(settings.url+"/functions/v1/itrack-upload",{
@@ -361,8 +372,10 @@ async function upload(node,kind){
    }),
    signal:controller.signal
   });
+  updateUploadPhase(node,"Checking the secure server and Google Drive confirmation…");
   const body=await reply.json().catch(()=>({}));
   if(!reply.ok||!body.ok)throw Error(body.error||"Upload was not accepted. Status "+reply.status);
+  updateUploadPhase(node,"File upload confirmed and recorded.",100);
   node._iuFile=null;node._iuOriginal=null;node.querySelector(".iu-input").value="";
   updateFile(node);
   await refreshHistory(node,kind);
@@ -370,9 +383,11 @@ async function upload(node,kind){
   if(kind==="document")window.dispatchEvent(new CustomEvent("itrack:document-uploaded",{detail:{documentId:id}}));
   notify(node,"File uploaded and recorded successfully! Received: "+displayTime(body.received_at)+". "+(body.stored_file_name?"Saved in Drive as: "+body.stored_file_name+". ":"")+"Your school's submission status will update in Submission Monitoring. Administrator verification is a separate step.","success");
  }catch(e){
+  updateUploadPhase(node,"Upload not confirmed. Check the submission history before attempting another upload.");
+  await refreshHistory(node,kind).catch(()=>{});
   notify(node,e?.name==="AbortError"?
    "The upload confirmation timed out. DO NOT retry yet; ask the administrator to check Drive and the upload log for duplicates.":
-   "Upload not confirmed: "+(e?.message||String(e)),"error");
+   "Upload not confirmed: "+(e?.message||String(e))+". Check submission history before retrying to avoid duplicate uploads.","error");
  }finally{if(timer)clearTimeout(timer);if(node.isConnected)setProcessing(node,false);}
 }
 const observer=new MutationObserver(markPanel);
