@@ -923,16 +923,16 @@ function routingTimeline(routes){
 }
 
 function documentPage(){
- const rows=[...state.docs].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).map(d=>'<tr>'+
+ const rows=[...state.docs].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).map(d=>{const last=documentRoutes(d.id).at(-1);const filterStatus=last?.route_status||'none';return '<tr data-route-status="'+esc(filterStatus)+'" data-created="'+esc((d.created_at||'').slice(0,10))+'">'+
   '<td><b>'+esc(d.tracking_number)+'</b></td><td>'+esc(d.subject)+'</td>'+
   '<td>'+esc(d.document_type)+'</td>'+
   '<td class="routing-overview-cell">'+routingOverview(d)+'</td>'+
   '<td class="doc-attachment-cell"><div data-doc-files="'+esc(d.id)+'">'+attachmentListHtml(d.id)+'</div></td>'+
-  '<td><button class="btn tiny alt" data-a="detail" data-id="'+esc(d.id)+'">View Routing History</button> <button class="btn tiny alt" data-a="division-forward" data-id="'+esc(d.id)+'">Forward to Division</button></td></tr>');
+  '<td><button class="btn tiny alt" data-a="detail" data-id="'+esc(d.id)+'">View Routing History</button> <button class="btn tiny alt" data-a="division-forward" data-id="'+esc(d.id)+'">Forward to Division</button></td></tr>';});
  return '<div class="sectionhead"><div><div class="eyebrow">Routing and acknowledgment</div><h1>My Documents</h1>'+
   '<p class="sub">See senders, recipients, received status, forwarding, returns, and full document movement.</p></div>'+
   '<button class="btn" data-a="send">+ Route Document</button></div>'+
-  '<div class="panel"><h3>Document Registry</h3><div class="field"><label for="document-search">Search documents</label><input id="document-search" type="search" placeholder="Tracking number, title, document type or current handler" autocomplete="off"></div>'+
+  '<div class="panel"><h3>Document Registry</h3><div class="field"><label for="document-search">Search documents</label><input id="document-search" type="search" placeholder="Tracking number, title, document type or current handler" autocomplete="off"></div><div class="document-filter-row"><div class="field"><label for="document-status-filter">Routing status</label><select id="document-status-filter"><option value="">All statuses</option><option value="awaiting_ack">Awaiting acknowledgment</option><option value="received">Acknowledged / Received</option><option value="none">No route</option></select></div><div class="field"><label for="document-date-filter">Created on or after</label><input id="document-date-filter" type="date"></div></div>'+
   '<div id="document-search-count" class="small muted" aria-live="polite"></div>'+table(['Tracking #','Document Name','Type','Current Route / Receipt','Attachments','History'],rows)+'</div>'+
   '<div class="panel"><h3>Compress a Screenshot</h3><div class="notice">Image compression works locally and is free. Documents can be attached using the secure upload panel above.</div>'+
   '<div class="filebox"><input id="image-file" type="file" accept="image/jpeg,image/png,image/webp,.pdf,.doc,.docx">'+
@@ -1394,20 +1394,24 @@ async function submit(e){
 }
 $.addEventListener('click',click);
 $.addEventListener('submit',submit);
-$.addEventListener('input',e=>{
- if(e.target.id!=='document-search')return;
- const q=e.target.value.trim().toLocaleLowerCase();
+function filterDocumentRegistry(){
+ const input=document.getElementById('document-search');
+ if(!input)return;
+ const query=input.value.trim().toLocaleLowerCase();
+ const status=document.getElementById('document-status-filter')?.value||'';
+ const dateMin=document.getElementById('document-date-filter')?.value||'';
  let visible=0;
- const tableElement=e.target.closest('.panel')?.querySelector('table');
- tableElement?.querySelectorAll('tbody tr').forEach(row=>{
-  const match=row.textContent.toLocaleLowerCase().includes(q);
+ input.closest('.panel')?.querySelectorAll('table tbody tr').forEach(row=>{
+  const match=(!query||row.textContent.toLocaleLowerCase().includes(query))&&(!status||row.dataset.routeStatus===status)&&(!dateMin||row.dataset.created>=dateMin);
   row.hidden=!match;
   if(match)visible++;
  });
  const count=document.getElementById('document-search-count');
  if(count)count.textContent=visible+' matching document(s)';
-});
+}
+$.addEventListener('input',e=>{if(['document-search','document-date-filter'].includes(e.target.id))filterDocumentRegistry();});
 $.addEventListener('change',async e=>{
+ if(['document-status-filter','document-date-filter'].includes(e.target.id)){filterDocumentRegistry();return;}
  if(e.target.id==='doc-destination'){const direct=e.target.value==='division',field=document.getElementById('doc-recipient-field'),recipient=document.getElementById('doc-recipient');if(field)field.hidden=direct;if(recipient)recipient.required=!direct;return;}
  if(e.target.id==='division-current'){state.divisionSelected=e.target.value;show();return;}
  if(e.target.id==='registration-type'){
