@@ -14,7 +14,7 @@ const knownViews=new Set(['dashboard','announcements','monitoring','documents','
 const urlView=new URLSearchParams(location.search).get('view');
 const firstView=knownViews.has(urlView)?urlView:'dashboard';
 localStorage.removeItem('srii-current-view');
-const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:'login',queueTicket:localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',privateDetails:null,profileRequests:[],issue:null,maintenance:{enabled:false,message:''}};
+const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:'login',queueTicket:localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',privateDetails:null,profileRequests:[],userFeedback:[],issue:null,maintenance:{enabled:false,message:''}};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=x=>x?new Date(x).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}):'—';
@@ -141,12 +141,15 @@ async function load(){
    ].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,12);
   })());
   if(state.view==='settings'&&!yesAdmin())tasks.push((async()=>{
-   const [privateResult,requestsResult]=await Promise.all([
+   const [privateResult,requestsResult,feedbackResult]=await Promise.all([
     db.from('user_private_details').select('employee_id,birthdate,plantilla_item,messenger_url,prc_id,bachelors_degree').eq('user_id',state.session.user.id).maybeSingle(),
-    db.from('profile_change_requests').select('id,requested_name,requested_position,requested_school_id,status,submitted_at,reviewer_note').order('submitted_at',{ascending:false}).limit(5)
+    db.from('profile_change_requests').select('id,requested_name,requested_position,requested_school_id,status,submitted_at,reviewer_note').order('submitted_at',{ascending:false}).limit(5),
+    db.from('user_feedback').select('id,category,subject,status,submitted_at,admin_response').eq('submitted_by',state.session.user.id).order('submitted_at',{ascending:false}).limit(5)
    ]);
    if(privateResult.error)throw privateResult.error;
    if(requestsResult.error)throw requestsResult.error;
+   if(feedbackResult.error)throw feedbackResult.error;
+   state.userFeedback=feedbackResult.data||[];
    state.privateDetails=privateResult.data||{};
    state.profileRequests=requestsResult.data||[];
   })());
@@ -685,6 +688,7 @@ function settingsPage(){
  const schools=state.schools.filter(x=>x.is_active||x.id===p.school_id).map(x=>'<option value="'+esc(x.id)+'"'+(x.id===p.school_id?' selected':'')+'>'+esc(x.name)+'</option>').join('');
  const input=(caption,name,value,type='text',extra='')=>'<div class="field"><label for="settings-'+esc(name)+'">'+esc(caption)+'</label><input id="settings-'+esc(name)+'" name="'+esc(name)+'" type="'+type+'" value="'+esc(value||'')+'" '+extra+'></div>';
  return '<div class="sectionhead"><div><div class="eyebrow">Your account</div><h1>Personal Settings</h1><p class="sub">Manage your security, personal details, and requests to correct official records.</p></div></div>'+
+ (!isOic()?'<div class="toolbar"><button type="button" class="btn alt" data-a="nav" data-page="documents">My Documents</button><button type="button" class="btn alt" data-a="nav" data-page="division">Division Transmittals</button></div>':'')+
  '<div class="settings-grid"><section class="panel"><h3>Account Security</h3>'+
  '<p><strong>'+esc(email)+'</strong> · '+(verified?'Email verified':'Email verification pending')+'</p>'+
  '<form id="settings-email-form"><h4>Change email address</h4>'+input('New email','email','', 'email','autocomplete="email" required')+
@@ -707,7 +711,9 @@ function settingsPage(){
  input('PRC ID','prc_id',d.prc_id,'text','maxlength="80"')+
  input('Bachelor\'s degree','bachelors_degree',d.bachelors_degree,'text','maxlength="200"')+
  '</div><button type="submit" class="btn">Save Private Details</button></form></section>'+
- '</div><div class="toolbar"><button type="button" class="btn alt" data-a="theme">Toggle Light / Dark Mode</button>'+
+ '</div><section class="panel settings-private"><h3>Report a Problem or Suggestion</h3><p class="note">Submit an issue or improvement request to the District Administrator. Do not include passwords, private documents, or personal identification numbers.</p><form id="settings-feedback-form"><div class="field"><label>Type</label><select name="category"><option value="problem">Problem / Bug</option><option value="suggestion">Improvement Suggestion</option></select></div><div class="field"><label>Subject</label><input name="subject" type="text" maxlength="180" required></div><div class="field"><label>Details</label><textarea name="message" required minlength="10" maxlength="4000" rows="4"></textarea></div><button class="btn" type="submit">Send Report</button></form><h4>Recent Reports</h4>'+
+ (state.userFeedback||[]).map(f=>'<p class="note"><strong>'+esc(f.subject)+'</strong> · '+esc(label(f.status))+' · '+esc(date(f.submitted_at))+(f.admin_response?' · Response: '+esc(f.admin_response):'')+'</p>').join('')+
+ '</section></div><div class="toolbar"><button type="button" class="btn alt" data-a="theme">Toggle Light / Dark Mode</button>'+
  '<button type="button" class="btn alt" data-a="logout">Sign Out</button></div>';
 }
 
@@ -1405,10 +1411,19 @@ async function click(e){
  }catch(e){err(e);}
 }
 async function submit(e){
- const form=e.target;if(!['queue-join','queue-complete','login','resend-email','forgot-password','set-password','form-ann','form-doc','settings-email-form','settings-password-form','settings-profile-form','settings-private-form'].includes(form.id))return;
+ const form=e.target;if(!['queue-join','queue-complete','login','resend-email','forgot-password','set-password','form-ann','form-doc','settings-email-form','settings-password-form','settings-profile-form','settings-private-form','settings-feedback-form'].includes(form.id))return;
  e.preventDefault();if(state.maintenance.enabled&&!yesAdmin()&&state.session){await readMaintenance();show();return;}if(state.busy)return;state.busy=true;form.querySelectorAll('button[type=submit]').forEach(x=>x.disabled=true);
  try{
   const fd=new FormData(form);
+  if(form.id==='settings-feedback-form'){
+   if(yesAdmin()||!state.session?.user?.id)throw new Error('Feedback form is available to active non-admin users.');
+   const category=clean(fd.get('category')),subject=clean(fd.get('subject')),message=clean(fd.get('message'));
+   if(!['problem','suggestion'].includes(category))throw new Error('Choose a report category.');
+   if(subject.length<3||subject.length>180||message.length<10||message.length>4000)throw new Error('Complete the report subject and details.');
+   const {error}=await db.from('user_feedback').insert({submitted_by:state.session.user.id,category,subject,message});
+   if(error)throw error;
+   await load();pop('Report submitted to the District Administrator.');return;
+  }
   if(form.id==='settings-private-form'){
    if(yesAdmin()||!state.session?.user?.id)throw new Error('Personal settings are available to active non-admin users.');
    const columns=['employee_id','birthdate','plantilla_item','messenger_url','prc_id','bachelors_degree'];
