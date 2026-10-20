@@ -446,3 +446,15 @@
 /* Keep desktop account exit visible even with a long navigation menu. */
 @media(min-width:769px){.sidebar{overflow-y:auto;min-height:0}.sidebar-footer{flex-shrink:0}.topbar-actions{display:flex;align-items:center;gap:12px}.desktop-signout{border:1px solid #c8d6ed;background:#fff;color:#173d80;border-radius:9px;padding:10px 15px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}.desktop-signout:hover{background:#edf3ff}}
 @media(max-width:768px){.desktop-signout{display:none}.topbar-actions{display:flex;align-items:center;gap:8px}}
+
+/* Normal user document details: keep full routing history tucked away until requested. */
+.routing-history-collapse{border:1px solid var(--line);border-radius:12px;margin:15px 0;padding:0 14px;background:var(--paper)}
+.routing-history-collapse summary{cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 0;list-style:none}
+.routing-history-collapse summary::-webkit-details-marker{display:none}
+.routing-history-collapse summary::after{content:"⌄";font-size:19px;color:var(--muted)}
+.routing-history-collapse[open] summary::after{content:"⌃"}
+.routing-history-collapse summary:focus-visible{outline:2px solid var(--blue);outline-offset:3px}
+.routing-history-collapse .routing-timeline{margin-top:7px}
+#document-search{width:100%;max-width:520px}
+tr[hidden]{display:none!important}
+@media(max-width:600px){.routing-history-collapse summary{align-items:flex-start;flex-direction:column;gap:2px}.routing-history-collapse summary::after{position:absolute;right:25px}.routing-history-collapse{position:relative}}
