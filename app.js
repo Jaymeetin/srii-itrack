@@ -14,7 +14,7 @@ const knownViews=new Set(['dashboard','announcements','monitoring','documents','
 const urlView=new URLSearchParams(location.search).get('view');
 const firstView=knownViews.has(urlView)?urlView:'dashboard';
 localStorage.removeItem('srii-current-view');
-const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:'login',queueTicket:localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',privateDetails:null,profileRequests:[],userFeedback:[],issue:null,maintenance:{enabled:false,message:''}};
+const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:'login',queueTicket:localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',privateDetails:null,profileRequests:[],userFeedback:[],issue:null,maintenance:{enabled:false,message:''}};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=x=>x?new Date(x).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}):'—';
@@ -114,7 +114,7 @@ async function load(){
    tasks.push((async()=>{const {data,error}=await db.from('announcements').select('id,announcement_code,title,description,status,deadline_at,original_deadline_at,created_at').order('created_at',{ascending:false});if(error)throw error;state.announcements=data||[];if(!state.selectedId||!state.announcements.some(x=>x.id===state.selectedId))state.selectedId=state.announcements.find(x=>x.status!=='draft')?.id||'';})());
   }
   if(!isOic()&&['dashboard','documents','division'].includes(state.view)){
-   tasks.push((async()=>{const {data,error}=await db.from('documents').select('id,tracking_number,subject,document_type,status,created_by,origin_school_id,created_at').order('created_at',{ascending:false}).limit(200);if(error)throw error;state.docs=data||[];if(state.view==='documents')await Promise.all([loadDocumentAttachments(),loadRoutingHistory(),loadDocumentTypes()]);
+   tasks.push((async()=>{const {data,error}=await db.from('documents').select('id,tracking_number,subject,document_type,status,created_by,origin_school_id,created_at').order('created_at',{ascending:false}).limit(200);if(error)throw error;state.docs=data||[];if(state.view==='documents')await Promise.all([loadDocumentAttachments(),loadRoutingHistory(),loadDocumentTypes(),loadSchoolSubmissionDocuments()]);
     else if(state.view==='dashboard')await loadRoutingHistory();})());
   }
   if(yesAdmin()&&['dashboard','approvals'].includes(state.view)){
@@ -182,6 +182,11 @@ async function load(){
   show();
  }catch(e){err(e);show();}
 }
+async function loadSchoolSubmissionDocuments(){
+ const {data,error}=await db.rpc('i_track_my_school_submission_documents');
+ if(error)throw error;
+ state.schoolSubmissionDocs=data||[];
+}
 async function loadDocumentAttachments(){
  // The user's Supabase JWT and attachment RLS limit results to authorized documents.
  // Never request or expose Drive file IDs in the browser.
@@ -232,6 +237,15 @@ window.addEventListener('itrack:school-submitted',async event=>{
    state.monitorSchool.status=status;
    const badge=document.getElementById('monitor-school-current-status');
    if(badge)badge.innerHTML=pTag(status);
+  }
+  if(state.monitorSchool?.schoolId===event.detail.schoolId&&!isOic()&&!yesAdmin()){
+   const {data,error}=await db.rpc('i_track_my_school_submission_documents');
+   if(!error){
+    state.monitorSchoolFiles=(data||[]).filter(f=>
+      f.school_id===event.detail.schoolId&&f.announcement_id===event.detail.announcementId);
+    const host=document.getElementById('monitor-visible-school-uploads');
+    if(host)host.innerHTML=monitorSchoolVisibleFilesHtml();
+   }
   }
   const row=document.querySelector('.status-school-row[data-school-id="'+event.detail.schoolId+'"]');
   const tag=row?.querySelector('.tag');
@@ -922,6 +936,16 @@ function monitorPage(){
    '<div class="panel empty">Choose an announcement to view status.</div>')+
   '<div class="notice">Privacy: Everyone can see submission completion, but school files remain private. The uploading AO II is recorded; only district administrators can verify submissions.</div>';
 }
+function monitorSchoolVisibleFilesHtml(){
+ const files=state.monitorSchoolFiles||[];
+ if(!files.length)return '<p class="note">No uploaded files are visible to this account for the selected school and announcement.</p>';
+ return files.map(f=>
+  '<div class="monitor-visible-file"><div><strong>'+esc(f.original_filename)+'</strong>'+
+  '<div class="small muted">Uploaded by '+esc(f.uploader_name)+' · '+esc(f.uploader_school_name)+
+  ' · '+esc(date(f.submitted_at))+' · '+esc(label(f.verification_status))+'</div></div>'+
+  '<button class="btn tiny alt" type="button" data-a="monitor-open-school-file" data-id="'+esc(f.assignment_id)+'">View</button></div>'
+ ).join('');
+}
 function monitorSchoolModal(){
  const item=state.monitorSchool;
  if(!item)return '<p class="notice">School status is not available.</p>';
@@ -938,7 +962,9 @@ function monitorSchoolModal(){
   '<p class="note">'+(isOic()?'Oversight account: view status only.':
     item.announcementOpen?'Only approved AO II accounts and district administrators can submit for another school.':
     'This announcement is closed; new submissions are unavailable.')+'</p>';
- return info+adminButton+action;
+ const existing=!isOic()&&!yesAdmin()?'<section class="monitor-visible-files"><h4>Files You Can Access</h4>'+ 
+  '<div id="monitor-visible-school-uploads">'+monitorSchoolVisibleFilesHtml()+'</div></section>':'';
+ return info+adminButton+existing+action;
 }
 async function openMonitorSchool(schoolId){
  if(!active()||state.view!=='monitoring')throw new Error('Open Submission Monitoring first.');
@@ -952,6 +978,12 @@ async function openMonitorSchool(schoolId){
   const {data,error}=await db.rpc('i_track_status_school_upload_target',{p_announcement_id:ann.id,p_school_id:school.id});
   if(error)throw error;
   assignmentId=data?.[0]?.assignment_id||null;
+ }
+ state.monitorSchoolFiles=[];
+ if(!isOic()&&!yesAdmin()){
+  const {data,error}=await db.rpc('i_track_my_school_submission_documents');
+  if(error)throw error;
+  state.monitorSchoolFiles=(data||[]).filter(f=>f.school_id===school.id&&f.announcement_id===ann.id);
  }
  state.monitorSchool={schoolId:school.id,schoolName:school.name,announcementId:ann.id,
   announcementName:announcementName(ann),deadlineAt:ann.deadline_at,
@@ -1070,30 +1102,81 @@ function routingTimeline(routes,approvals=[],divisionEvents=[]){
  ).join('')+'</ol>';
 }
 
+function schoolSubmissionDetailModal(){
+ const files=(state.schoolSubmissionDocs||[]).filter(f=>f.assignment_id===state.selectedSchoolSubmission)
+  .sort((a,b)=>new Date(b.submitted_at)-new Date(a.submitted_at)||b.version_number-a.version_number);
+ if(!files.length)return '<p class="notice">This submission is not available to your account. Reopen My Documents to refresh.</p>';
+ const first=files[0];
+ const relation=first.is_my_school?'This is a submission belonging to your school.':
+  first.is_my_upload?'You uploaded this on behalf of another school.':'District submission record.';
+ return '<div class="monitor-file-summary">'+
+  '<div><span class="small muted">School Represented</span><strong>'+esc(first.school_name)+'</strong></div>'+
+  '<div><span class="small muted">Announcement</span><strong>'+esc(first.announcement_title)+'</strong></div>'+
+  '<div><span class="small muted">Reference</span><strong>'+esc(first.announcement_code||'School submission')+'</strong></div>'+
+  '<div><span class="small muted">Versions Visible</span><strong>'+files.length+'</strong></div></div>'+
+  '<p class="notice">'+esc(relation)+' The uploader is identified on every version. Only district administrators approve or reject submissions.</p>'+
+  '<div class="school-doc-versions">'+files.map(f=>{
+   const preview=['application/pdf','image/jpeg','image/png','image/webp'].includes(f.content_type);
+   const available=f.storage_status==='uploaded';
+   const name=f.original_filename||'Unnamed submitted file';
+   const data=' data-kind="announcement" data-id="'+esc(f.submission_id)+'" data-name="'+esc(name)+'"';
+   const actions=available?'<div class="doc-att-actions">'+
+     (preview?'<button type="button" class="btn tiny alt iu-file-action" data-mode="view"'+data+'>View</button>':'')+
+     '<button type="button" class="btn tiny alt iu-file-action" data-mode="download"'+data+'>Download</button></div>':
+     '<span class="small muted">Archived offline · Ask the District Administrator</span>';
+   const verification=f.verification_status==='verified'?'Verified by district administrator':
+      f.verification_status==='rejected'?'Returned / Rejected by district administrator':
+      'Pending district administrator verification';
+   return '<section class="school-doc-version"><div class="school-doc-version-head"><strong>Version '+esc(f.version_number)+'</strong>'+
+     pTag(f.verification_status||'pending')+'</div>'+
+    '<p class="school-doc-filename">'+esc(name)+'</p>'+
+    '<p class="school-doc-credit"><strong>Uploaded by '+esc(f.uploader_name)+'</strong>'+
+     ' · '+esc(f.uploader_school_name||'District Office')+'</p>'+
+    '<p class="small muted">Uploaded: '+esc(date(f.submitted_at))+' · '+esc(verification)+'</p>'+actions+
+    '</section>';
+  }).join('')+'</div>';
+}
 function documentPage(){
- const rows=[...state.docs].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).map(d=>{
+ const routed=[...state.docs].map(d=>{
   const last=documentRoutes(d.id).at(-1);
   const filterStatus=last?.processed_at?'processed':last?.route_status||'none';
-  const files=state.docAttachments.filter(f=>f.document_id===d.id).length;
-  return '<button type="button" class="compact-doc-row" data-document-row data-a="detail" data-id="'+esc(d.id)+'" '+
+  return {when:d.created_at,markup:'<button type="button" class="compact-doc-row" data-document-row data-a="detail" data-id="'+esc(d.id)+'" '+
    'data-route-status="'+esc(filterStatus)+'" data-created="'+esc((d.created_at||'').slice(0,10))+'" '+
    'aria-label="Open files and routing history for '+esc(d.tracking_number)+' · '+esc(d.subject)+'">'+
    '<span class="compact-doc-id">'+esc(d.tracking_number)+'</span>'+
    '<span class="compact-doc-name" title="'+esc(d.subject)+'">'+esc(d.subject)+'</span>'+
-   '<span class="compact-doc-arrow" aria-hidden="true">›</span></button>';
+   '<span class="compact-doc-arrow" aria-hidden="true">›</span></button>'};
  });
- return '<div class="sectionhead"><div><div class="eyebrow">Routing, files and document movement</div><h1>My Documents</h1>'+
-  '<p class="sub">One document per line. Tap the tracking number or name to see attachments, current whereabouts and full routing history.</p></div>'+
+ const newestSchoolFiles=new Map();
+ for(const f of (state.schoolSubmissionDocs||[])){
+  if(!newestSchoolFiles.has(f.assignment_id))newestSchoolFiles.set(f.assignment_id,f);
+ }
+ const schoolRows=[...newestSchoolFiles.values()].map(f=>{
+  const id=f.announcement_code||'School Submission';
+  const name=f.school_name+' · '+f.announcement_title;
+  return {when:f.submitted_at,markup:'<button type="button" class="compact-doc-row" data-document-row '+
+   'data-a="school-submission-detail" data-id="'+esc(f.assignment_id)+'" '+
+   'data-route-status="submission" data-created="'+esc((f.submitted_at||'').slice(0,10))+'" '+
+   'aria-label="Open submitted files for '+esc(name)+'">'+
+   '<span class="compact-doc-id">'+esc(id)+'</span>'+
+   '<span class="compact-doc-name" title="'+esc(name)+'">'+esc(name)+'</span>'+
+   '<span class="compact-doc-arrow" aria-hidden="true">›</span></button>'};
+ });
+ const rows=[...routed,...schoolRows].sort((a,b)=>new Date(b.when)-new Date(a.when)).map(r=>r.markup);
+ return '<div class="sectionhead"><div><div class="eyebrow">Routing, files and school submissions</div><h1>My Documents</h1>'+
+  '<p class="sub">One document per line. Tap a tracking number or school submission to see its files, uploader, and history.</p></div>'+
   '<button class="btn" data-a="send">+ Route Document</button></div>'+
-  '<div class="panel compact-doc-panel"><h3>Documents</h3>'+
-  '<div class="field"><label for="document-search">Search documents</label><input id="document-search" type="search" placeholder="Tracking number or document name" autocomplete="off"></div>'+
-  '<div class="document-filter-row"><div class="field"><label for="document-status-filter">Routing status</label>'+
-  '<select id="document-status-filter"><option value="">All statuses</option><option value="awaiting_ack">Awaiting acknowledgment</option>'+
-  '<option value="received">Acknowledged · Awaiting action</option><option value="processed">Processed</option><option value="none">No route</option></select></div>'+
+  '<div class="panel compact-doc-panel"><h3>Documents and School Submissions</h3>'+
+  '<div class="field"><label for="document-search">Search documents</label><input id="document-search" type="search" placeholder="Tracking number, document name or school" autocomplete="off"></div>'+
+  '<div class="document-filter-row"><div class="field"><label for="document-status-filter">Document status</label>'+
+  '<select id="document-status-filter"><option value="">All statuses</option><option value="submission">School submissions</option>'+
+  '<option value="awaiting_ack">Awaiting acknowledgment</option>'+
+  '<option value="received">Acknowledged · Awaiting action</option><option value="processed">Processed</option>'+
+  '<option value="none">No route</option></select></div>'+
   '<div class="field"><label for="document-date-filter">Created on or after</label><input id="document-date-filter" type="date"></div>'+
   '<button type="button" class="btn alt tiny" data-a="clear-document-filters">Clear Filters</button></div>'+
   '<div id="document-search-count" class="small muted" aria-live="polite"></div>'+
-  '<div class="compact-doc-list">'+(rows.join('')||'<p class="empty">No documents found.</p>')+'</div></div>';
+  '<div class="compact-doc-list">'+(rows.join('')||'<p class="empty">No documents or school submissions found.</p>')+'</div></div>';
 }
 
 function divisionPage(){
@@ -1196,6 +1279,11 @@ function modalHtml(){
   title='Route a Document';
   body=`<form id="form-doc">${field('Subject','subject')}<div class='field'><label for='doc-type'>Document Type (approved)</label><select name='type' id='doc-type' required><option value=''>Choose approved document type</option>${state.docTypes.map(t=>'<option value="'+esc(t.name)+'">'+esc(t.name)+'</option>').join('')}</select></div><div class="field"><label>Routing destination</label><select name="destination" id="doc-destination"><option value="person">Send to registered recipient</option><option value="division">Submit to Division — I will prepare the transmittal</option></select></div><div class="field" id="doc-recipient-field"><label>Recipient</label><select name="recipient" id="doc-recipient"><option value="">Choose recipient</option>${state.recipients.filter(x=>x.user_id!==state.session.user.id).map(x=>`<option value="${x.user_id}">${esc(x.display_name)} · ${esc(x.school_name)}</option>`).join('')}</select></div><div class="field"><label>Instructions (optional)</label><textarea name="notes"></textarea></div></form><div class='notice'>Choose an administrator-approved document type. Attach files separately through the secure upload panel after the document is created.</div><div class='field'><label for='suggested-doc-type'>Suggest a missing document type</label><input id='suggested-doc-type' type='text' maxlength='140' placeholder='Enter new document type'></div><div class='toolbar'><button type='button' class='btn alt tiny' data-a='suggest-doc-type'>Submit Type Suggestion</button></div><p id='type-suggestion-feedback' class='small muted' aria-live='polite'>New types require District Administrator approval before use.</p><p class='note'>Recent suggestions: ${state.docTypeRequests.slice(0,3).map(r=>esc(r.requested_name)+' ('+esc(label(r.status))+')').join('; ')||'None yet'}</p>`;
   footer='<button class="btn alt" data-a="close">Cancel</button><button class="btn" type="submit" form="form-doc">Send Document</button>';
+ }else if(m==='school-submission-detail'){
+  const selected=(state.schoolSubmissionDocs||[]).find(f=>f.assignment_id===state.selectedSchoolSubmission);
+  title=selected?(selected.announcement_code||'School Submission')+' · '+selected.school_name:'School Submission';
+  body=schoolSubmissionDetailModal();
+  footer='<button type="button" class="btn alt" data-a="close">Close</button>';
  }else if(m==='monitor-school'){
   title='School Submission Status';
   body=monitorSchoolModal();
@@ -1369,7 +1457,7 @@ async function click(e){
    if(!yesAdmin()||state.view!=='monitoring')throw new Error('District administrator access required.');
    await openMonitorSubmission(t.dataset.schoolId);return;
   }
-  if(a==='close'){const refreshStatus=state.modal==='monitor-school';state.modal=null;state.monitorSchool=null;state.monitorDetail=null;state.monitorFiles=[];if(refreshStatus&&state.view==='monitoring')await loadMonitor();show();return;}
+  if(a==='close'){const refreshStatus=state.modal==='monitor-school';state.modal=null;state.monitorSchool=null;state.monitorSchoolFiles=[];state.monitorDetail=null;state.monitorFiles=[];if(refreshStatus&&state.view==='monitoring')await loadMonitor();show();return;}
   if(a==='new-announcement'){state.modal='new-announcement';show();return;}
   if(a==='suggest-doc-type'){
    if(!active()||isOic())throw new Error('Only active routing users may suggest document types.');
@@ -1402,6 +1490,22 @@ async function click(e){
    rememberView('documents');await load();
    if(!state.docs.some(d=>d.id===t.dataset.id))throw new Error('This document is not available to your account.');
    await openDetail(t.dataset.id);return;
+  }
+  if(a==='monitor-open-school-file'){
+   const id=t.dataset.id;
+   if(!(state.monitorSchoolFiles||[]).some(f=>f.assignment_id===id))
+    throw new Error('This school submission is not available to your account.');
+   state.modal=null;state.monitorSchool=null;state.monitorSchoolFiles=[];
+   rememberView('documents');await load();
+   if(!(state.schoolSubmissionDocs||[]).some(f=>f.assignment_id===id))
+    throw new Error('You do not have permission to open those files.');
+   state.selectedSchoolSubmission=id;state.modal='school-submission-detail';show();return;
+  }
+  if(a==='school-submission-detail'){
+   if(isOic()||state.view!=='documents')throw new Error('This account cannot open private school submission files.');
+   if(!(state.schoolSubmissionDocs||[]).some(f=>f.assignment_id===t.dataset.id))
+    throw new Error('This submission is not available to your account.');
+   state.selectedSchoolSubmission=t.dataset.id;state.modal='school-submission-detail';show();return;
   }
   if(a==='detail'){if(isOic())throw new Error('OIC-PSDS accounts cannot view private documents.');await openDetail(t.dataset.id);return;}
   if(a==='admin-password-reset'||a==='admin-email-confirmation'){
