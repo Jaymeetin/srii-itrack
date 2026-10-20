@@ -478,3 +478,14 @@ tr[hidden]{display:none!important}
 .settings-request-row>span{margin-left:10px;opacity:.75;font-size:.88rem}
 .settings-request-row p{margin:5px 0}
 @media(max-width:760px){.settings-grid{grid-template-columns:minmax(0,1fr)}.settings-fields{grid-template-columns:minmax(0,1fr)}}
+
+/* One-line document registry: tracking number + title, details open only on tap */
+.compact-doc-panel{min-width:0}
+.compact-doc-list{display:grid;gap:6px;margin-top:12px}
+.compact-doc-row{width:100%;min-width:0;display:grid;grid-template-columns:minmax(112px,180px) minmax(0,1fr) 20px;gap:14px;align-items:center;text-align:left;padding:13px 14px;background:var(--bg,#fff);color:var(--ink,#172c4a);border:1px solid var(--line,#dbe1ea);border-radius:12px;cursor:pointer;font:inherit}
+.compact-doc-row:hover,.compact-doc-row:focus-visible{border-color:var(--blue,#173e88);background:var(--light,#f1f5fb);outline-offset:2px}
+.compact-doc-row[hidden]{display:none!important}
+.compact-doc-id{font-weight:780;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+.compact-doc-name{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14px}
+.compact-doc-arrow{font-size:24px;line-height:1;text-align:right;color:var(--blue,#173e88)}
+@media(max-width:740px){.compact-doc-list{gap:5px}.compact-doc-row{grid-template-columns:minmax(105px,140px) minmax(0,1fr) 12px;gap:8px;padding:13px 10px}.compact-doc-id{font-size:11px}.compact-doc-name{font-size:12px}.compact-doc-arrow{font-size:19px}}
