@@ -657,7 +657,7 @@ function dashboardPage(){
   }
  }
  const mine=[...byAnn.values()];
- const latest=(admin||oversight?state.announcements.filter(a=>a.status!=="draft"):mine).slice(0,5);
+ const latest=(admin||oversight?state.announcements.filter(a=>a.status!=="draft"):mine).slice(0,admin||oversight?5:3);
  function receipt(assignmentId){
   const dates=submissions.filter(s=>s.assignment_id===assignmentId).map(s=>new Date(s.first_received_at).getTime()).filter(Number.isFinite);
   return dates.length?Math.min(...dates):null;
@@ -697,6 +697,8 @@ function dashboardPage(){
    '<span class="v2-notice-state">'+pTag(status)+'</span>'+
    '<button class="btn tiny alt" data-a="nav" data-page="announcements">'+detail+'</button></div>';
  }).join("")||'<div class="empty">No assigned announcements yet.</div>';
+ const actionNeeded=!admin&&!oversight?state.docs.filter(d=>{const routes=documentRoutes(d.id),last=routes.at(-1);return last?.to_user_id===state.session.user.id&&(last.route_status==='awaiting_ack'||(last.route_status==='received'&&!last.processed_at));}).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,3):[];
+ const actionNeededHtml=actionNeeded.map(d=>'<div class="v2-notice-item"><div class="v2-notice-copy"><strong>'+esc(d.subject)+'</strong><small>'+esc(d.tracking_number)+'</small></div><button class="btn tiny alt" data-a="detail" data-id="'+esc(d.id)+'">Review</button></div>').join('')||'<p class="note">No documents currently need your action.</p>';
  const upcoming=latest.filter(a=>a.deadline_at&&new Date(a.deadline_at)>new Date()&&a.status!=="closed")
   .sort((a,b)=>new Date(a.deadline_at)-new Date(b.deadline_at)).slice(0,3);
  const reminders=upcoming.map(a=>'<div class="v2-reminder"><span class="v2-dot"></span><span>'+esc(short(a.deadline_at))+'</span><strong>'+esc(announcementName(a))+'</strong></div>').join("")||
@@ -718,7 +720,7 @@ function dashboardPage(){
   '<div class="v2-metrics">'+metricHtml+'</div>'+
   '<div class="v2-home-grid"><div class="v2-home-primary">'+
   '<section class="panel v2-board"><div class="panel-head"><h3>Latest Announcements</h3><button class="btn tiny alt" data-a="nav" data-page="announcements">View All</button></div><div class="v2-notice-list">'+announcements+'</div></section>'+
-  '<section class="panel v2-board"><h3>Quick Actions</h3>'+quick+'</section>'+
+  '<section class="panel v2-board">'+(!admin&&!oversight?'<div class="panel-head"><h3>Documents Requiring Action</h3><button class="btn tiny alt" data-a="nav" data-page="documents">View All</button></div><div class="v2-notice-list">'+actionNeededHtml+'</div>':'')+'<h3>Quick Actions</h3>'+quick+'</section>'+
   '</div><div class="v2-home-secondary">'+
   '<section class="panel v2-board"><h3>At a Glance</h3><div class="v2-summary-big">'+esc(admin?state.announcements.filter(a=>a.status==="open").length:oversight?reportTotals.submitted:submitted)+'<small>'+esc(admin?"Open announcements":oversight?"On-time school submissions":"Submitted requirements")+'</small></div>'+
    '<button class="btn alt block" data-a="nav" data-page="monitoring">View Submission Status</button></section>'+
