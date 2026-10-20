@@ -221,6 +221,23 @@ function attachmentListHtml(documentId){
    '</span></div>';
  }).join('')+'</div>';
 }
+window.addEventListener('itrack:school-submitted',async event=>{
+ if(!active()||state.view!=='monitoring'||state.selectedId!==event.detail?.announcementId)return;
+ try{
+  await loadMonitor();
+  const school=state.schools.find(x=>x.id===event.detail?.schoolId);
+  const status=state.monitor.find(x=>x.school_name===school?.name)?.submission_status;
+  if(!status)return;
+  if(state.monitorSchool?.schoolId===event.detail.schoolId){
+   state.monitorSchool.status=status;
+   const badge=document.getElementById('monitor-school-current-status');
+   if(badge)badge.innerHTML=pTag(status);
+  }
+  const row=document.querySelector('.status-school-row[data-school-id="'+event.detail.schoolId+'"]');
+  const tag=row?.querySelector('.tag');
+  if(tag)tag.outerHTML=pTag(status);
+ }catch(error){console.warn('School status refresh pending',error);}
+});
 window.addEventListener('itrack:document-uploaded',async event=>{
  const id=event.detail?.documentId;
  if(!active()||state.view!=='documents'||!state.docs.some(x=>x.id===id))return;
@@ -910,7 +927,7 @@ function monitorSchoolModal(){
  if(!item)return '<p class="notice">School status is not available.</p>';
  const info='<div class="monitor-file-summary">'+
   '<div><span class="small muted">School</span><strong>'+esc(item.schoolName)+'</strong></div>'+
-  '<div><span class="small muted">Submission Status</span>'+pTag(item.status)+'</div>'+
+  '<div><span class="small muted">Submission Status</span><span id="monitor-school-current-status">'+pTag(item.status)+'</span></div>'+
   '<div><span class="small muted">Announcement</span><strong>'+esc(item.announcementName)+'</strong></div>'+
   '<div><span class="small muted">Deadline</span><strong>'+esc(date(item.deadlineAt))+'</strong></div></div>';
  const adminButton=yesAdmin()&&['Submitted','Late'].includes(item.status)?
