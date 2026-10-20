@@ -634,7 +634,7 @@ function appPage(){
    docs:state.docs.map(d=>({id:d.id,tracking_number:d.tracking_number,subject:d.subject}))
  };
  $.innerHTML=`<div class="app"><aside class="sidebar">${brand()}<nav>${nav}</nav><div class="sidebar-footer"><button data-a="theme">◐ Light / Dark Mode</button><button data-a="logout">↩ Sign Out</button><div class="user-mini">${esc(name)}<br>${esc(label(state.profile.role))} · ${esc(school)}</div></div></aside>
- <div class="main"><header class="topbar"><div><h2>${esc(title)}</h2><div class="note">One District. One Direction.</div></div>${pTag('active')}</header><div class="content">${body}</div></div></div>${state.modal?modalHtml():''}`;
+ <div class="main"><header class="topbar"><div><h2>${esc(title)}</h2><div class="note">One District. One Direction.</div></div><div class="topbar-actions">${pTag('active')}<button class="desktop-signout" type="button" data-a="logout" title="Sign out of SRII i-TRACK">↩ Sign Out</button></div></header><div class="content">${body}</div></div></div>${state.modal?modalHtml():''}`;
 }
 function dashboardPage(){
  const name=state.profile.display_name||"District User";
