@@ -100,7 +100,7 @@ function markPanel(){
   '<h3>'+ (host?"Submit for This School":kind==="announcement"?"Submit a Requirement":"Attach a Document") +'</h3></div>'+
   '<span class="iu-pilot">TRIAL</span></div>'+
   '<p class="iu-description">'+(kind==="announcement"?
-   'Choose a district requirement assigned to your school, then upload your PDF, Word document, or screenshot. Revised submissions keep their version history.':
+   (host?'Upload for this school using your own AO II account. Your identity and the represented school are recorded; only district administrators verify the submission.':'Choose an assigned requirement and upload a PDF, Word file, or image. Revised submissions keep their version history.'):
    'Choose a document you are authorized to access. Upload supporting files without changing its permanent tracking number.'
   )+'</p>'+
   '<div class="iu-loading iu-message">Checking your approved account and available '+(kind==="announcement"?"requirements":"documents")+'…</div>'+
@@ -275,7 +275,7 @@ async function updateTarget(node,kind){
  const extra=node.querySelector(".iu-date");
  extra.textContent=opt?.deadline?"Deadline: "+displayTime(opt.deadline)+" (Philippine time)":"";
  await refreshHistory(node,kind);
- if(node._iuOwner&&node._iuKind){
+ if(node._iuOwner&&node._iuKind&&!node._iuDelegated){
    const previous=liveDrafts.get(node._iuKind)||{};
    liveDrafts.set(node._iuKind,{
      owner:node._iuOwner,
@@ -298,7 +298,7 @@ async function refreshHistory(node,kind){
   const {data,error}=await withDeadline(query,"Submission history loading",15000);
   if(error)throw error;
   if(!node.isConnected||node.querySelector(".iu-select")?.value!==id)return;
-  if(!data?.length){history.textContent="No files submitted for this requirement yet.";return;}
+  if(!data?.length){history.textContent=node._iuDelegated?"No uploads are visible to your account for this school. Other schools\u0027 files remain private.":"No files submitted for this requirement yet.";return;}
   history.innerHTML=data.map(x=>{
    const state=kind==="announcement"?x.verification_status:"stored";
    const when=displayTime(kind==="announcement"?x.first_received_at:x.uploaded_at);
