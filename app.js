@@ -1015,23 +1015,29 @@ function routingTimeline(routes,approvals=[],divisionEvents=[]){
 }
 
 function documentPage(){
- const rows=[...state.docs].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).map(d=>{const last=documentRoutes(d.id).at(-1);const filterStatus=last?.processed_at?'processed':last?.route_status||'none';return '<tr data-route-status="'+esc(filterStatus)+'" data-created="'+esc((d.created_at||'').slice(0,10))+'">'+
-  '<td><b>'+esc(d.tracking_number)+'</b></td><td>'+esc(d.subject)+'</td>'+
-  '<td>'+esc(d.document_type)+'</td>'+
-  '<td class="routing-overview-cell">'+routingOverview(d)+'</td>'+
-  '<td class="doc-attachment-cell"><div data-doc-files="'+esc(d.id)+'">'+attachmentListHtml(d.id)+'</div></td>'+
-  '<td><button class="btn tiny alt" data-a="detail" data-id="'+esc(d.id)+'">View Routing History</button> <button class="btn tiny alt" data-a="division-forward" data-id="'+esc(d.id)+'">Forward to Division</button></td></tr>';});
- return '<div class="sectionhead"><div><div class="eyebrow">Routing and acknowledgment</div><h1>My Documents</h1>'+
-  '<p class="sub">See senders, recipients, received status, forwarding, returns, and full document movement.</p></div>'+
+ const rows=[...state.docs].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).map(d=>{
+  const last=documentRoutes(d.id).at(-1);
+  const filterStatus=last?.processed_at?'processed':last?.route_status||'none';
+  const files=state.docAttachments.filter(f=>f.document_id===d.id).length;
+  return '<button type="button" class="compact-doc-row" data-document-row data-a="detail" data-id="'+esc(d.id)+'" '+
+   'data-route-status="'+esc(filterStatus)+'" data-created="'+esc((d.created_at||'').slice(0,10))+'" '+
+   'aria-label="Open files and routing history for '+esc(d.tracking_number)+' · '+esc(d.subject)+'">'+
+   '<span class="compact-doc-id">'+esc(d.tracking_number)+'</span>'+
+   '<span class="compact-doc-name" title="'+esc(d.subject)+'">'+esc(d.subject)+'</span>'+
+   '<span class="compact-doc-arrow" aria-hidden="true">›</span></button>';
+ });
+ return '<div class="sectionhead"><div><div class="eyebrow">Routing, files and document movement</div><h1>My Documents</h1>'+
+  '<p class="sub">One document per line. Tap the tracking number or name to see attachments, current whereabouts and full routing history.</p></div>'+
   '<button class="btn" data-a="send">+ Route Document</button></div>'+
-  '<div class="panel"><h3>Document Registry</h3><div class="field"><label for="document-search">Search documents</label><input id="document-search" type="search" placeholder="Tracking number, title, document type or current handler" autocomplete="off"></div><div class="document-filter-row"><div class="field"><label for="document-status-filter">Routing status</label><select id="document-status-filter"><option value="">All statuses</option><option value="awaiting_ack">Awaiting acknowledgment</option><option value="received">Receipt acknowledged · Awaiting action</option><option value="processed">Processed route</option><option value="none">No route</option></select></div><div class="field"><label for="document-date-filter">Created on or after</label><input id="document-date-filter" type="date"></div><button class="btn alt tiny" type="button" data-a="clear-document-filters">Clear Filters</button></div>'+
-  '<div id="document-search-count" class="small muted" aria-live="polite"></div>'+table(['Tracking #','Document Name','Type','Current Route / Receipt','Attachments','History'],rows)+'</div>'+
-  '<div class="panel"><h3>Compress a Screenshot</h3><div class="notice">Image compression works locally and is free. Documents can be attached using the secure upload panel above.</div>'+
-  '<div class="filebox"><input id="image-file" type="file" accept="image/jpeg,image/png,image/webp,.pdf,.doc,.docx">'+
-  '<p id="file-status" class="note" style="margin:9px 0 0">'+esc(state.fileNote||'Choose a screenshot, PDF, or Word document.')+'</p></div>'+
-  '<div class="toolbar" style="margin-top:13px"><button class="btn alt" data-a="compress">Compress File</button>'+
-  (state.compressed?'<button class="btn alt" data-a="save-compressed">Download Compressed Image</button>':'')+
-  '<button class="btn" disabled>Upload to Drive — Use secure panel above</button></div></div>';
+  '<div class="panel compact-doc-panel"><h3>Documents</h3>'+
+  '<div class="field"><label for="document-search">Search documents</label><input id="document-search" type="search" placeholder="Tracking number or document name" autocomplete="off"></div>'+
+  '<div class="document-filter-row"><div class="field"><label for="document-status-filter">Routing status</label>'+
+  '<select id="document-status-filter"><option value="">All statuses</option><option value="awaiting_ack">Awaiting acknowledgment</option>'+
+  '<option value="received">Acknowledged · Awaiting action</option><option value="processed">Processed</option><option value="none">No route</option></select></div>'+
+  '<div class="field"><label for="document-date-filter">Created on or after</label><input id="document-date-filter" type="date"></div>'+
+  '<button type="button" class="btn alt tiny" data-a="clear-document-filters">Clear Filters</button></div>'+
+  '<div id="document-search-count" class="small muted" aria-live="polite"></div>'+
+  '<div class="compact-doc-list">'+(rows.join('')||'<p class="empty">No documents found.</p>')+'</div></div>';
 }
 
 function divisionPage(){
@@ -1146,9 +1152,9 @@ function modalHtml(){
   const awaitingDecision=mine&&last.route_status==='received'&&!last.processed_at;
   const canApprove=awaitingDecision;
   body='<h3>'+esc(d.subject)+'</h3><p class="sub">'+esc(d.document_type)+' · Created '+esc(date(d.created_at))+'</p>'+
-   '<section class="routing-current-panel"><h3>Current Route</h3>'+routingOverview(d)+'</section>'+
+   '<section class="routing-current-panel"><h3>Current Whereabouts / Responsible Handler</h3>'+routingOverview(d)+'</section>'+
    '<section class="doc-detail-attachments"><h3>Attached Files</h3><div data-doc-files="'+esc(d.id)+'">'+attachmentListHtml(d.id)+'</div></section>'+
-   '<details class="routing-history-collapse"><summary><strong>Routing History</strong><span class="small muted"> Routing, approval and Division events · Tap to view complete journey</span></summary>'+routingTimeline(routes,state.approvals,state.divisionHistory)+'</details>';
+   '<details class="routing-history-collapse" open><summary><strong>Routing History</strong><span class="small muted"> Routing, approval and Division events · Tap to view complete journey</span></summary>'+routingTimeline(routes,state.approvals,state.divisionHistory)+'</details>';
   if(canAck)body+='<p class="notice">Acknowledging confirms that you received this document. It does not mean the document has been approved. Review the attachment and sender details before acknowledging.</p>';
   if(awaitingDecision)body+='<p class="notice">Receipt acknowledged. You may approve, forward, or return this document. Approval is recorded separately.</p>';
   if(canForward)body+='<div class="field"><label>Recipient for forwarding or return</label><p class="small muted">For Return for Correction, select the person who must correct the document (normally its original sender). For Forward, select the next handler.</p><select id="next-person"><option value="">Choose recipient</option>'+
@@ -1608,7 +1614,7 @@ function filterDocumentRegistry(){
  const status=document.getElementById('document-status-filter')?.value||'';
  const dateMin=document.getElementById('document-date-filter')?.value||'';
  let visible=0;
- input.closest('.panel')?.querySelectorAll('table tbody tr').forEach(row=>{
+ input.closest('.panel')?.querySelectorAll('[data-document-row]').forEach(row=>{
   const match=(!query||row.textContent.toLocaleLowerCase().includes(query))&&(!status||row.dataset.routeStatus===status)&&(!dateMin||row.dataset.created>=dateMin);
   row.hidden=!match;
   if(match)visible++;
