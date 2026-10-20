@@ -1058,10 +1058,10 @@ function modalHtml(){
   if(canForward)body+='<div class="field"><label>Next recipient</label><select id="next-person"><option value="">Choose recipient</option>'+
     state.recipients.filter(x=>x.user_id!==state.session.user.id).map(x=>
      '<option value="'+esc(x.user_id)+'">'+esc(x.display_name)+' · '+esc(x.school_name)+'</option>').join('')+
-    '</select></div><div class="field"><label>Note (optional)</label><input id="route-note"></div>';
+    '</select></div><div class="field"><label>Remarks (required for Return for Correction)</label><input id="route-note" placeholder="Explain the correction needed, or add forwarding instructions"></div>';
   footer='<button class="btn alt" data-a="close">Close</button>'+
    (canAck?'<button class="btn" data-a="ack" data-id="'+esc(last.route_id)+'">Acknowledge Receipt</button>':'')+
-   (canForward?'<button class="btn alt" data-a="route" data-id="'+esc(last.route_id)+'" data-return="true">Return</button>'+
+   (canForward?'<button class="btn alt" data-a="route" data-id="'+esc(last.route_id)+'" data-return="true">Return for Correction</button>'+
     '<button class="btn" data-a="route" data-id="'+esc(last.route_id)+'" data-return="false">Forward</button>':'');
 
  }
