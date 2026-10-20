@@ -1058,7 +1058,7 @@ function modalHtml(){
    '<details class="routing-history-collapse"><summary><strong>Routing History</strong><span class="small muted"> '+routes.length+' routing step(s) · Tap to view complete journey</span></summary>'+routingTimeline(routes)+'</details>';
   if(canAck)body+='<p class="notice">Acknowledging confirms that you received this document. It does not mean the document has been approved. Review the attachment and sender details before acknowledging.</p>';
   if(awaitingDecision)body+='<p class="notice">Receipt acknowledged. Forward or return the document below. Final approval is not yet available and must not be inferred from acknowledgment.</p>';
-  if(canForward)body+='<div class="field"><label>Next recipient</label><select id="next-person"><option value="">Choose recipient</option>'+
+  if(canForward)body+='<div class="field"><label>Recipient for forwarding or return</label><p class="small muted">For Return for Correction, select the person who must correct the document (normally its original sender). For Forward, select the next handler.</p><select id="next-person"><option value="">Choose recipient</option>'+
     state.recipients.filter(x=>x.user_id!==state.session.user.id).map(x=>
      '<option value="'+esc(x.user_id)+'">'+esc(x.display_name)+' · '+esc(x.school_name)+'</option>').join('')+
     '</select></div><div class="field"><label>Remarks (required for Return for Correction)</label><input id="route-note" placeholder="Explain the correction needed, or add forwarding instructions"></div>';
@@ -1259,10 +1259,11 @@ async function click(e){
   if(a==='route'){
    const next=document.getElementById('next-person')?.value,note=document.getElementById('route-note')?.value||'';
    if(t.dataset.return==='true'&&!note.trim())throw new Error('Enter the reason for returning this document for correction.');
-   if(!next)throw new Error('Choose a recipient.');
+   if(!next)throw new Error('Select the recipient who will receive this document.');
+   if(next===state.session.user.id)throw new Error('Select a different recipient.');
    if(!confirm(t.dataset.return==='true'?'Return this document for correction?':'Forward this document to the selected recipient?'))return;
    const {error}=await db.rpc('i_track_route_document',{p_route_id:t.dataset.id,p_next_user_id:next,p_return:t.dataset.return==='true',p_note:note});if(error)throw error;
-   state.modal=null;await load();pop('Document routed.');return;
+   state.modal=null;await load();pop(t.dataset.return==='true'?'Document returned for correction.':'Document forwarded.');return;
   }
   if(a==='compress'){await compress();return;}
   if(a==='save-compressed'){
