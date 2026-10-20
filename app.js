@@ -14,7 +14,7 @@ const knownViews=new Set(['dashboard','announcements','monitoring','documents','
 const urlView=new URLSearchParams(location.search).get('view');
 const firstView=knownViews.has(urlView)?urlView:'dashboard';
 localStorage.removeItem('srii-current-view');
-const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],recipients:[],monitor:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:'login',queueTicket:localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],modal:null,detail:null,routes:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',issue:null,maintenance:{enabled:false,message:''}};
+const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],recipients:[],monitor:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:'login',queueTicket:localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],modal:null,detail:null,routes:[],approvals:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',issue:null,maintenance:{enabled:false,message:''}};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=x=>x?new Date(x).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}):'—';
@@ -885,6 +885,7 @@ function documentRoutes(id){return (state.routeHistory||[]).filter(r=>r.document
  .sort((a,b)=>new Date(a.sent_at)-new Date(b.sent_at)||String(a.route_id).localeCompare(String(b.route_id)));}
 function routeState(r){
  if(!r)return {label:'Not routed',kind:'muted'};
+ if(r.processed_at)return {label:'Processed · See History',kind:'received'};
  if(r.route_status==='awaiting_ack')return {label:'Not yet received',kind:'pending'};
  if(r.route_status==='received')return {label:'Receipt acknowledged · Awaiting action',kind:'received'};
  return {label:label(r.route_status),kind:'muted'};
@@ -903,16 +904,17 @@ function routingOverview(d){
   '<div><small>Recipient</small>'+routePerson(last.recipient_name,last.recipient_office)+'</div></div>'+
   (last.acknowledged_at?'<span class="small muted">Acknowledged '+esc(date(last.acknowledged_at))+'</span>':'')+'</div>';
 }
-function routingTimeline(routes){
- if(!routes.length)return '<p class="note">No routing events recorded yet.</p>';
+function routingTimeline(routes,approvals=[]){
+ if(!routes.length&&!approvals.length)return '<p class="note">No routing events recorded yet.</p>';
  const events=[];
  routes.forEach((r,i)=>{
   const sender=r.sender_name||'Unknown sender',recipient=r.recipient_name||'Unknown recipient';
   const action=r.route_action==='sent'?'Document sent':r.route_action==='forwarded'?'Document forwarded':r.route_action==='returned'?'Returned for correction':label(r.route_action);
   if(r.sent_at)events.push({when:r.sent_at,title:action,who:sender,detail:'To: '+recipient+(r.recipient_office?' · '+r.recipient_office:''),note:r.route_note||''});
   if(r.acknowledged_at)events.push({when:r.acknowledged_at,title:'Receipt acknowledged',who:recipient,detail:'Received from: '+sender,note:''});
-  if(r.processed_at)events.push({when:r.processed_at,title:i<routes.length-1?'Routing processed':'Document processing recorded',who:recipient,detail:'Route status: '+routeState(r).label,note:''});
+  if(r.processed_at&&!approvals.some(a=>a.route_id===r.route_id))events.push({when:r.processed_at,title:i<routes.length-1?'Routing processed':'Document processing recorded',who:recipient,detail:'Route status: '+routeState(r).label,note:''});
  });
+ approvals.forEach(a=>{const route=routes.find(r=>r.route_id===a.route_id);events.push({when:a.approved_at,title:'Document approved',who:route?.recipient_name||'Assigned recipient',detail:'Approval recorded and current route closed',note:a.remarks||''});});
  events.sort((a,b)=>new Date(a.when).getTime()-new Date(b.when).getTime());
  return '<ol class="routing-timeline">'+events.map((e,i)=>
   '<li class="routing-step'+(i===events.length-1?' routing-step-current':'')+'">'+
@@ -1056,7 +1058,7 @@ function modalHtml(){
   body='<h3>'+esc(d.subject)+'</h3><p class="sub">'+esc(d.document_type)+' · Created '+esc(date(d.created_at))+'</p>'+
    '<section class="routing-current-panel"><h3>Current Route</h3>'+routingOverview(d)+'</section>'+
    '<section class="doc-detail-attachments"><h3>Attached Files</h3><div data-doc-files="'+esc(d.id)+'">'+attachmentListHtml(d.id)+'</div></section>'+
-   '<details class="routing-history-collapse"><summary><strong>Routing History</strong><span class="small muted"> '+routes.length+' routing step(s) · Tap to view complete journey</span></summary>'+routingTimeline(routes)+'</details>';
+   '<details class="routing-history-collapse"><summary><strong>Routing History</strong><span class="small muted"> '+routes.length+' routing step(s) · Tap to view complete journey</span></summary>'+routingTimeline(routes,state.approvals)+'</details>';
   if(canAck)body+='<p class="notice">Acknowledging confirms that you received this document. It does not mean the document has been approved. Review the attachment and sender details before acknowledging.</p>';
   if(awaitingDecision)body+='<p class="notice">Receipt acknowledged. You may approve, forward, or return this document. Approval is recorded separately.</p>';
   if(canForward)body+='<div class="field"><label>Recipient for forwarding or return</label><p class="small muted">For Return for Correction, select the person who must correct the document (normally its original sender). For Forward, select the next handler.</p><select id="next-person"><option value="">Choose recipient</option>'+
@@ -1075,7 +1077,8 @@ function modalHtml(){
 async function openDetail(id){
  const d=state.docs.find(x=>x.id===id);if(!d)return;
  const {data,error}=await db.rpc('i_track_document_route_history',{p_document_id:id});if(error)throw error;
- state.detail=d;state.routes=data||[];await loadRecipients();state.modal='detail';show();
+ const {data:approvals,error:approvalError}=await db.rpc('i_track_document_approvals',{p_document_id:id});if(approvalError)throw approvalError;
+ state.detail=d;state.routes=data||[];state.approvals=approvals||[];await loadRecipients();state.modal='detail';show();
 }
 async function compress(){
  const f=state.file||document.getElementById('image-file')?.files?.[0];
