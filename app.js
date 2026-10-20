@@ -1251,7 +1251,9 @@ async function click(e){
   }
   if(a==='route'){
    const next=document.getElementById('next-person')?.value,note=document.getElementById('route-note')?.value||'';
+   if(t.dataset.return==='true'&&!note.trim())throw new Error('Enter the reason for returning this document for correction.');
    if(!next)throw new Error('Choose a recipient.');
+   if(!confirm(t.dataset.return==='true'?'Return this document for correction?':'Forward this document to the selected recipient?'))return;
    const {error}=await db.rpc('i_track_route_document',{p_route_id:t.dataset.id,p_next_user_id:next,p_return:t.dataset.return==='true',p_note:note});if(error)throw error;
    state.modal=null;await load();pop('Document routed.');return;
   }
