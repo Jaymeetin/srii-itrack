@@ -14,7 +14,7 @@ const knownViews=new Set(['dashboard','announcements','monitoring','documents','
 const urlView=new URLSearchParams(location.search).get('view');
 const firstView=knownViews.has(urlView)?urlView:'dashboard';
 localStorage.removeItem('srii-current-view');
-const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:'login',queueTicket:localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',privateDetails:null,profileRequests:[],userFeedback:[],issue:null,maintenance:{enabled:false,message:''}};
+const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:'login',queueTicket:localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',privateDetails:null,profileRequests:[],userFeedback:[],issue:null,maintenance:{enabled:false,message:''}};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=x=>x?new Date(x).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}):'—';
@@ -114,7 +114,7 @@ async function load(){
    tasks.push((async()=>{const {data,error}=await db.from('announcements').select('id,announcement_code,title,description,status,deadline_at,original_deadline_at,created_at').order('created_at',{ascending:false});if(error)throw error;state.announcements=data||[];if(!state.selectedId||!state.announcements.some(x=>x.id===state.selectedId))state.selectedId=state.announcements.find(x=>x.status!=='draft')?.id||'';})());
   }
   if(!isOic()&&['dashboard','documents','division'].includes(state.view)){
-   tasks.push((async()=>{const {data,error}=await db.from('documents').select('id,tracking_number,subject,document_type,status,created_by,origin_school_id,created_at').order('created_at',{ascending:false}).limit(200);if(error)throw error;state.docs=data||[];if(state.view==='documents')await Promise.all([loadDocumentAttachments(),loadRoutingHistory(),loadDocumentTypes()]);
+   tasks.push((async()=>{const {data,error}=await db.from('documents').select('id,tracking_number,subject,document_type,status,created_by,origin_school_id,created_at').order('created_at',{ascending:false}).limit(200);if(error)throw error;state.docs=data||[];if(state.view==='documents')await Promise.all([loadDocumentAttachments(),loadRoutingHistory(),loadDocumentTypes(),loadSchoolSubmissionDocuments()]);
     else if(state.view==='dashboard')await loadRoutingHistory();})());
   }
   if(yesAdmin()&&['dashboard','approvals'].includes(state.view)){
@@ -181,6 +181,11 @@ async function load(){
   if(state.view==='documents')await loadRecipients();
   show();
  }catch(e){err(e);show();}
+}
+async function loadSchoolSubmissionDocuments(){
+ const {data,error}=await db.rpc('i_track_my_school_submission_documents');
+ if(error)throw error;
+ state.schoolSubmissionDocs=data||[];
 }
 async function loadDocumentAttachments(){
  // The user's Supabase JWT and attachment RLS limit results to authorized documents.
@@ -1071,29 +1076,46 @@ function routingTimeline(routes,approvals=[],divisionEvents=[]){
 }
 
 function documentPage(){
- const rows=[...state.docs].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).map(d=>{
+ const routed=[...state.docs].map(d=>{
   const last=documentRoutes(d.id).at(-1);
   const filterStatus=last?.processed_at?'processed':last?.route_status||'none';
-  const files=state.docAttachments.filter(f=>f.document_id===d.id).length;
-  return '<button type="button" class="compact-doc-row" data-document-row data-a="detail" data-id="'+esc(d.id)+'" '+
+  return {when:d.created_at,markup:'<button type="button" class="compact-doc-row" data-document-row data-a="detail" data-id="'+esc(d.id)+'" '+
    'data-route-status="'+esc(filterStatus)+'" data-created="'+esc((d.created_at||'').slice(0,10))+'" '+
    'aria-label="Open files and routing history for '+esc(d.tracking_number)+' · '+esc(d.subject)+'">'+
    '<span class="compact-doc-id">'+esc(d.tracking_number)+'</span>'+
    '<span class="compact-doc-name" title="'+esc(d.subject)+'">'+esc(d.subject)+'</span>'+
-   '<span class="compact-doc-arrow" aria-hidden="true">›</span></button>';
+   '<span class="compact-doc-arrow" aria-hidden="true">›</span></button>'};
  });
- return '<div class="sectionhead"><div><div class="eyebrow">Routing, files and document movement</div><h1>My Documents</h1>'+
-  '<p class="sub">One document per line. Tap the tracking number or name to see attachments, current whereabouts and full routing history.</p></div>'+
+ const newestSchoolFiles=new Map();
+ for(const f of (state.schoolSubmissionDocs||[])){
+  if(!newestSchoolFiles.has(f.assignment_id))newestSchoolFiles.set(f.assignment_id,f);
+ }
+ const schoolRows=[...newestSchoolFiles.values()].map(f=>{
+  const id=f.announcement_code||'School Submission';
+  const name=f.school_name+' · '+f.announcement_title;
+  return {when:f.submitted_at,markup:'<button type="button" class="compact-doc-row" data-document-row '+
+   'data-a="school-submission-detail" data-id="'+esc(f.assignment_id)+'" '+
+   'data-route-status="submission" data-created="'+esc((f.submitted_at||'').slice(0,10))+'" '+
+   'aria-label="Open submitted files for '+esc(name)+'">'+
+   '<span class="compact-doc-id">'+esc(id)+'</span>'+
+   '<span class="compact-doc-name" title="'+esc(name)+'">'+esc(name)+'</span>'+
+   '<span class="compact-doc-arrow" aria-hidden="true">›</span></button>'};
+ });
+ const rows=[...routed,...schoolRows].sort((a,b)=>new Date(b.when)-new Date(a.when)).map(r=>r.markup);
+ return '<div class="sectionhead"><div><div class="eyebrow">Routing, files and school submissions</div><h1>My Documents</h1>'+
+  '<p class="sub">One document per line. Tap a tracking number or school submission to see its files, uploader, and history.</p></div>'+
   '<button class="btn" data-a="send">+ Route Document</button></div>'+
-  '<div class="panel compact-doc-panel"><h3>Documents</h3>'+
-  '<div class="field"><label for="document-search">Search documents</label><input id="document-search" type="search" placeholder="Tracking number or document name" autocomplete="off"></div>'+
-  '<div class="document-filter-row"><div class="field"><label for="document-status-filter">Routing status</label>'+
-  '<select id="document-status-filter"><option value="">All statuses</option><option value="awaiting_ack">Awaiting acknowledgment</option>'+
-  '<option value="received">Acknowledged · Awaiting action</option><option value="processed">Processed</option><option value="none">No route</option></select></div>'+
+  '<div class="panel compact-doc-panel"><h3>Documents and School Submissions</h3>'+
+  '<div class="field"><label for="document-search">Search documents</label><input id="document-search" type="search" placeholder="Tracking number, document name or school" autocomplete="off"></div>'+
+  '<div class="document-filter-row"><div class="field"><label for="document-status-filter">Document status</label>'+
+  '<select id="document-status-filter"><option value="">All statuses</option><option value="submission">School submissions</option>'+
+  '<option value="awaiting_ack">Awaiting acknowledgment</option>'+
+  '<option value="received">Acknowledged · Awaiting action</option><option value="processed">Processed</option>'+
+  '<option value="none">No route</option></select></div>'+
   '<div class="field"><label for="document-date-filter">Created on or after</label><input id="document-date-filter" type="date"></div>'+
   '<button type="button" class="btn alt tiny" data-a="clear-document-filters">Clear Filters</button></div>'+
   '<div id="document-search-count" class="small muted" aria-live="polite"></div>'+
-  '<div class="compact-doc-list">'+(rows.join('')||'<p class="empty">No documents found.</p>')+'</div></div>';
+  '<div class="compact-doc-list">'+(rows.join('')||'<p class="empty">No documents or school submissions found.</p>')+'</div></div>';
 }
 
 function divisionPage(){
