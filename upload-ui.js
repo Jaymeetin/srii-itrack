@@ -88,16 +88,17 @@ function markPanel(){
      paragraphs[2].textContent="Authenticated uploads are being tested with district administrators, SINUNDOLAN ES and BUGO CS before wider rollout.";
    }
  }
+ const host=root.querySelector("#monitor-school-upload-host");
  const title=content.querySelector("h1")?.textContent?.trim();
- const kind=title==="Announcements"?"announcement":title==="My Documents"?"document":null;
+ const kind=host?"announcement":title==="Announcements"?"announcement":title==="My Documents"?"document":null;
  if(!kind)return;
- if(content.querySelector(".itrack-upload"))return;
+ if((host||content).querySelector(".itrack-upload"))return;
  const newPanel=document.createElement("section");
  newPanel.className="panel itrack-upload";
  newPanel.innerHTML=
   '<div class="iu-heading"><div><span class="iu-kicker">DEPED GOOGLE DRIVE</span>'+
-  '<h3>'+ (kind==="announcement"?"Submit a Requirement":"Attach a Document") +'</h3></div>'+
-  '<span class="iu-pilot">LIMITED ROLLOUT</span></div>'+
+  '<h3>'+ (host?"Submit for This School":kind==="announcement"?"Submit a Requirement":"Attach a Document") +'</h3></div>'+
+  '<span class="iu-pilot">TRIAL</span></div>'+
   '<p class="iu-description">'+(kind==="announcement"?
    'Choose a district requirement assigned to your school, then upload your PDF, Word document, or screenshot. Revised submissions keep their version history.':
    'Choose a document you are authorized to access. Upload supporting files without changing its permanent tracking number.'
@@ -116,8 +117,14 @@ function markPanel(){
    '<div class="iu-history" aria-live="polite"><h4>Submission history</h4><div class="iu-history-list">Select a requirement to view its records.</div></div>'+
   '</div>'+
   '<div class="iu-message" hidden aria-live="polite"></div>';
- const section=content.querySelector(".sectionhead");
- if(section)section.after(newPanel);else content.prepend(newPanel);
+ if(host){
+  newPanel._iuDelegated={announcementId:host.dataset.announcementId,
+    schoolId:host.dataset.schoolId,assignmentId:host.dataset.assignmentId};
+  host.append(newPanel);
+ }else{
+  const section=content.querySelector(".sectionhead");
+  if(section)section.after(newPanel);else content.prepend(newPanel);
+ }
  if(kind==="document"){
   const old=[...content.querySelectorAll(".panel")].find(x=>x!==newPanel&&x.querySelector("h3")?.textContent?.trim()==="Compress a Screenshot");
   if(old)old.hidden=true;
@@ -170,7 +177,7 @@ async function initialize(node,kind){
   if(userError||!user)throw Error("Please sign in again to submit documents.");
   loadingMessage(node,"Checking your approved account…");
   const p=await withDeadline(db.from("profiles")
-   .select("id,school_id,role,account_status").eq("id",user.id).single(),"Account approval check");
+   .select("id,school_id,role,position_title,account_status").eq("id",user.id).single(),"Account approval check");
   if(p.error)throw p.error;
   if(p.data?.account_status!=="active")throw Error("Your account must be approved before uploading.");
   const profile=p.data;
@@ -178,16 +185,27 @@ async function initialize(node,kind){
   node._iuOwner=user.id;
   node._iuKind=kind;
   const admin=["main_admin","backup_admin"].includes(profile.role);
+  const aoII=profile.role==="school_user"&&/^(?:(?:administrative|administration)\s+officer\s+(?:ii|2)|ao\s*(?:ii|2))$/i.test((profile.position_title||"").trim());
   if(!admin){
    const school=await withDeadline(db.from("schools")
     .select("name,is_active").eq("id",profile.school_id).single(),"School approval check");
    if(school.error||!school.data?.is_active)throw Error("Your approved school is not active.");
-   if(profile.role!=="school_user"||!PILOT_SCHOOL_IDS.has(profile.school_id))
-    throw Error("Secure file uploads are currently available to district administrators and approved SINUNDOLAN ES or BUGO CS pilot accounts only.");
+   if(profile.role!=="school_user" || (kind==="document"&&!PILOT_SCHOOL_IDS.has(profile.school_id)) ||
+       (kind==="announcement"&&!aoII&&!PILOT_SCHOOL_IDS.has(profile.school_id)))
+    throw Error("You do not have permission to upload files for this destination.");
   }
   let options=[];
   loadingMessage(node,"Loading assigned "+(kind==="announcement"?"requirements":"documents")+"…");
-  if(kind==="announcement"){
+  if(kind==="announcement"&&node._iuDelegated){
+   const delegated=node._iuDelegated;
+   if(!admin&&!aoII)throw Error("Only district administrators and approved AO II staff may submit for another school.");
+   const {data,error}=await withDeadline(db.rpc("i_track_status_school_upload_target",{
+    p_announcement_id:delegated.announcementId,p_school_id:delegated.schoolId
+   }),"Selected school permission check");
+   if(error)throw error;
+   options=(data||[]).filter(x=>x.assignment_id===delegated.assignmentId)
+    .map(x=>({id:x.assignment_id,label:x.school_name+" — "+x.announcement_name,deadline:x.deadline_at}));
+  }else if(kind==="announcement"){
    const a=await withDeadline(db.from("announcement_assignments")
     .select("id,announcement_id,school_id,assigned_user_id").eq("obligation_status","required"),
     "Requirements loading");
@@ -221,7 +239,7 @@ async function initialize(node,kind){
   const select=node.querySelector(".iu-select");
   select.innerHTML=options.map(x=>'<option value="'+esc(x.id)+'">'+esc(x.label)+'</option>').join("");
   node.querySelector(".iu-controls").hidden=false;
-  const saved=liveDrafts.get(kind);
+  const saved=node._iuDelegated?null:liveDrafts.get(kind);
   if(saved?.owner===user.id){
     if(saved.targetId&&options.some(x=>x.id===saved.targetId))select.value=saved.targetId;
     node._iuOriginal=saved.original||null;
@@ -381,7 +399,15 @@ async function upload(node,kind){
   await refreshHistory(node,kind);
   // Update the inline attachment beside Open without rebuilding the upload form.
   if(kind==="document")window.dispatchEvent(new CustomEvent("itrack:document-uploaded",{detail:{documentId:id}}));
-  notify(node,"File uploaded and recorded successfully! Received: "+displayTime(body.received_at)+". "+(body.stored_file_name?"Saved in Drive as: "+body.stored_file_name+". ":"")+"Your school's submission status will update in Submission Monitoring. Administrator verification is a separate step.","success");
+  if(kind==="announcement"&&node._iuDelegated){
+   window.dispatchEvent(new CustomEvent("itrack:school-submitted",{detail:{
+    schoolId:node._iuDelegated.schoolId,announcementId:node._iuDelegated.announcementId
+   }}));
+  }
+  notify(node,"File uploaded and recorded successfully! Received: "+displayTime(body.received_at)+". "+
+   (body.stored_file_name?"Saved in Drive as: "+body.stored_file_name+". ":"")+
+   "Recorded as a submission for "+(node._iuDelegated?"the selected school":"your school")+
+   ". Only the District Administrator verifies submissions; no school approval is required.","success");
  }catch(e){
   updateUploadPhase(node,"Upload not confirmed. Check the submission history before attempting another upload.");
   await refreshHistory(node,kind).catch(()=>{});
