@@ -905,21 +905,23 @@ function routingOverview(d){
 }
 function routingTimeline(routes){
  if(!routes.length)return '<p class="note">No routing events recorded yet.</p>';
- return '<ol class="routing-timeline">'+routes.map((r,i)=>{
-  const status=routeState(r),action=r.route_action==='sent'?'Originally sent':
-   r.route_action==='forwarded'?'Forwarded':r.route_action==='returned'?'Returned':label(r.route_action);
-  return '<li class="routing-step'+(i===routes.length-1?' routing-step-current':'')+'">'+
-   '<div class="routing-step-head"><strong>Step '+(i+1)+' · '+esc(action)+'</strong>'+
-   '<span class="routing-status routing-status-'+status.kind+'">'+esc(status.label)+'</span></div>'+
-   '<div class="routing-people"><div><small>Sender</small>'+routePerson(r.sender_name,r.sender_office)+'</div>'+
-   '<div><small>Recipient</small>'+routePerson(r.recipient_name,r.recipient_office)+'</div></div>'+
-   '<div class="routing-stamps"><span>Sent: '+esc(date(r.sent_at))+'</span>'+
-   (r.acknowledged_at?'<span>Received / acknowledged: '+esc(date(r.acknowledged_at))+'</span>':
-    '<span>Not yet acknowledged by recipient</span>')+
-   (r.processed_at?'<span>Processed / forwarded: '+esc(date(r.processed_at))+'</span>':'')+'</div>'+
-   (r.route_note?'<p class="routing-note">'+esc(r.route_note)+'</p>':'')+'</li>';
- }).join('')+'</ol>';
+ const events=[];
+ routes.forEach((r,i)=>{
+  const sender=r.sender_name||'Unknown sender',recipient=r.recipient_name||'Unknown recipient';
+  const action=r.route_action==='sent'?'Document sent':r.route_action==='forwarded'?'Document forwarded':r.route_action==='returned'?'Returned for correction':label(r.route_action);
+  events.push({when:r.sent_at,title:action,who:sender,detail:'To: '+recipient+(r.recipient_office?' · '+r.recipient_office:''),note:r.route_note||''});
+  if(r.acknowledged_at)events.push({when:r.acknowledged_at,title:'Receipt acknowledged',who:recipient,detail:'Received from: '+sender,note:''});
+  if(r.processed_at)events.push({when:r.processed_at,title:i<routes.length-1?'Routing processed':'Document processed',who:recipient,detail:'Route status: '+routeState(r).label,note:''});
+ });
+ events.sort((a,b)=>new Date(a.when)-new Date(b.when));
+ return '<ol class="routing-timeline">'+events.map((e,i)=>
+  '<li class="routing-step'+(i===events.length-1?' routing-step-current':'')+'">'+
+  '<div class="routing-step-head"><strong>'+esc(e.title)+'</strong><span class="small muted">'+esc(date(e.when))+'</span></div>'+
+  '<div class="routing-people"><div><small>Handled by</small>'+routePerson(e.who,'')+'</div><div><small>Details</small><span>'+esc(e.detail)+'</span></div></div>'+
+  (e.note?'<p class="routing-note">'+esc(e.note)+'</p>':'')+'</li>'
+ ).join('')+'</ol>';
 }
+
 function documentPage(){
  const rows=[...state.docs].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).map(d=>'<tr>'+
   '<td><b>'+esc(d.tracking_number)+'</b></td><td>'+esc(d.subject)+'</td>'+
