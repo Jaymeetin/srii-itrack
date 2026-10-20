@@ -1050,7 +1050,7 @@ function modalHtml(){
   body='<h3>'+esc(d.subject)+'</h3><p class="sub">'+esc(d.document_type)+' · Created '+esc(date(d.created_at))+'</p>'+
    '<section class="routing-current-panel"><h3>Current Route</h3>'+routingOverview(d)+'</section>'+
    '<section class="doc-detail-attachments"><h3>Attached Files</h3><div data-doc-files="'+esc(d.id)+'">'+attachmentListHtml(d.id)+'</div></section>'+
-   '<h3>Full Routing History</h3>'+routingTimeline(routes);
+   '<details class="routing-history-collapse"><summary><strong>Routing History</strong><span class="small muted"> '+routes.length+' routing step(s) · Tap to view complete journey</span></summary>'+routingTimeline(routes)+'</details>';
   if(canForward)body+='<div class="field"><label>Next recipient</label><select id="next-person"><option value="">Choose recipient</option>'+
     state.recipients.filter(x=>x.user_id!==state.session.user.id).map(x=>
      '<option value="'+esc(x.user_id)+'">'+esc(x.display_name)+' · '+esc(x.school_name)+'</option>').join('')+
