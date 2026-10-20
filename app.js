@@ -14,7 +14,7 @@ const knownViews=new Set(['dashboard','announcements','monitoring','documents','
 const urlView=new URLSearchParams(location.search).get('view');
 const firstView=knownViews.has(urlView)?urlView:'dashboard';
 localStorage.removeItem('srii-current-view');
-const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:'login',queueTicket:localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',privateDetails:null,profileRequests:[],userFeedback:[],issue:null,maintenance:{enabled:false,message:''}};
+const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:'login',queueTicket:localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',privateDetails:null,profileRequests:[],userFeedback:[],issue:null,maintenance:{enabled:false,message:''}};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=x=>x?new Date(x).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}):'—';
@@ -26,6 +26,7 @@ const isOic=()=>state.profile?.role==='oic_psds';
 const districtOversight=()=>yesAdmin()||isOic();
 const isMain=()=>state.profile?.role==='main_admin';
 const active=()=>state.profile?.account_status==='active';
+const isAoII=()=>active()&&state.profile?.role==='school_user'&&/^(?:(?:administrative|administration)\s+officer\s+(?:ii|2)|ao\s*(?:ii|2))$/i.test((state.profile?.position_title||'').trim());
 function rememberView(view){
  if(!knownViews.has(view))throw new Error('Unknown application page.');
  state.view=view;
@@ -220,6 +221,23 @@ function attachmentListHtml(documentId){
    '</span></div>';
  }).join('')+'</div>';
 }
+window.addEventListener('itrack:school-submitted',async event=>{
+ if(!active()||state.view!=='monitoring'||state.selectedId!==event.detail?.announcementId)return;
+ try{
+  await loadMonitor();
+  const school=state.schools.find(x=>x.id===event.detail?.schoolId);
+  const status=state.monitor.find(x=>x.school_name===school?.name)?.submission_status;
+  if(!status)return;
+  if(state.monitorSchool?.schoolId===event.detail.schoolId){
+   state.monitorSchool.status=status;
+   const badge=document.getElementById('monitor-school-current-status');
+   if(badge)badge.innerHTML=pTag(status);
+  }
+  const row=document.querySelector('.status-school-row[data-school-id="'+event.detail.schoolId+'"]');
+  const tag=row?.querySelector('.tag');
+  if(tag)tag.outerHTML=pTag(status);
+ }catch(error){console.warn('School status refresh pending',error);}
+});
 window.addEventListener('itrack:document-uploaded',async event=>{
  const id=event.detail?.documentId;
  if(!active()||state.view!=='documents'||!state.docs.some(x=>x.id===id))return;
@@ -884,24 +902,62 @@ function monitorPage(){
  const n=x=>state.monitor.filter(s=>s.submission_status===x).length;
  const rows=state.monitor.map(x=>{
   const status=String(x.submission_status||'Pending');
-  const canInspect=yesAdmin()&&['Submitted','Late'].includes(status);
-  const matches=state.schools.filter(s=>s.name===x.school_name);
-  const schoolId=matches.length===1?matches[0].id:null;
-  const action=canInspect&&schoolId?
-   '<button class="monitor-status-button" type="button" data-a="monitor-submission" data-school-id="'+esc(schoolId)+'" data-school-name="'+esc(x.school_name)+'" aria-label="View '+esc(status.toLowerCase())+' submissions for '+esc(x.school_name)+'">'+pTag(status)+'<span class="monitor-status-arrow">View uploads ›</span></button>':
-   pTag(status);
-  return '<tr><td>'+esc(x.school_name)+'</td><td>'+action+'</td></tr>';
- });
+  const school=state.schools.find(s=>s.name===x.school_name);
+  if(!school)return '';
+  return '<button type="button" class="status-school-row" data-a="monitor-school" data-school-id="'+esc(school.id)+'" '+
+   'aria-label="Open '+esc(school.name)+' — '+esc(status)+'">'+
+   '<span class="status-school-name">'+esc(school.name)+'</span>'+pTag(status)+
+   '<span class="status-school-chevron" aria-hidden="true">›</span></button>';
+ }).join('');
  return '<div class="eyebrow">District-wide visibility</div><h1>Submission Monitoring</h1>'+
-  '<p class="sub">Track the submission status of each school.'+(yesAdmin()?' Tap a Submitted or Late status to see the actual uploads, timestamps and attachments.':' Only district administrators can inspect other schools’ uploaded files.')+'</p>'+
+  '<p class="sub">Tap any school to view its submission status.'+
+   (isAoII()?' As an approved AO II, you may submit for another school when its AO II is unavailable.':'')+
+   ' Only district administrators verify submissions and access other schools\' uploaded files.</p>'+
   (yesAdmin()?'<div class="school-files-monitor-link"><button type="button" class="btn alt" data-a="nav" data-page="school-files">▣ View All School Attachments</button></div>':'')+
   '<div class="panel"><div class="field"><label for="pick-ann">Announcement</label><select id="pick-ann"><option value="">Choose an announcement</option>'+opts+'</select></div></div>'+
   (state.selectedId?'<div class="stats">'+stat('Required Schools',state.monitor.length,'For selected announcement')+
    stat('Submitted',n('Submitted'),'On time')+stat('Late',n('Late'),'After deadline')+
    stat('Pending',n('Pending'),'Not yet submitted')+'</div>'+
-   '<div class="panel"><h3>School Status</h3>'+table(['School','Status'],rows)+'</div>':
+   '<div class="panel"><h3>School Status</h3><div class="status-school-list">'+(rows||'<p class="empty">No required schools found.</p>')+'</div></div>':
    '<div class="panel empty">Choose an announcement to view status.</div>')+
-  '<div class="notice">Privacy: only active district administrators can inspect school uploads. School users and OIC-PSDS see status information only.</div>';
+  '<div class="notice">Privacy: Everyone can see submission completion, but school files remain private. The uploading AO II is recorded; only district administrators can verify submissions.</div>';
+}
+function monitorSchoolModal(){
+ const item=state.monitorSchool;
+ if(!item)return '<p class="notice">School status is not available.</p>';
+ const info='<div class="monitor-file-summary">'+
+  '<div><span class="small muted">School</span><strong>'+esc(item.schoolName)+'</strong></div>'+
+  '<div><span class="small muted">Submission Status</span><span id="monitor-school-current-status">'+pTag(item.status)+'</span></div>'+
+  '<div><span class="small muted">Announcement</span><strong>'+esc(item.announcementName)+'</strong></div>'+
+  '<div><span class="small muted">Deadline</span><strong>'+esc(date(item.deadlineAt))+'</strong></div></div>';
+ const adminButton=yesAdmin()&&['Submitted','Late'].includes(item.status)?
+  '<div class="toolbar"><button class="btn alt" data-a="monitor-submission" data-school-id="'+esc(item.schoolId)+'">View Uploaded Files (Admin)</button></div>':'';
+ const action=item.canSubmit?
+  '<div id="monitor-school-upload-host" data-announcement-id="'+esc(item.announcementId)+'" data-school-id="'+esc(item.schoolId)+'" data-assignment-id="'+esc(item.assignmentId)+'" data-school-name="'+esc(item.schoolName)+'"></div>'+
+  '<p class="note">The actual uploader and represented school are recorded automatically. A submission requires district administrator verification; the represented school does not approve it.</p>':
+  '<p class="note">'+(isOic()?'Oversight account: view status only.':
+    item.announcementOpen?'Only approved AO II accounts and district administrators can submit for another school.':
+    'This announcement is closed; new submissions are unavailable.')+'</p>';
+ return info+adminButton+action;
+}
+async function openMonitorSchool(schoolId){
+ if(!active()||state.view!=='monitoring')throw new Error('Open Submission Monitoring first.');
+ const school=state.schools.find(s=>s.id===schoolId);
+ const ann=state.announcements.find(a=>a.id===state.selectedId);
+ if(!school||!ann)throw new Error('School or announcement was not found.');
+ const entry=state.monitor.find(x=>x.school_name===school.name);
+ if(!entry)throw new Error('This school is not assigned to the selected announcement.');
+ let assignmentId=null;
+ if((yesAdmin()||isAoII())&&ann.status==='open'){
+  const {data,error}=await db.rpc('i_track_status_school_upload_target',{p_announcement_id:ann.id,p_school_id:school.id});
+  if(error)throw error;
+  assignmentId=data?.[0]?.assignment_id||null;
+ }
+ state.monitorSchool={schoolId:school.id,schoolName:school.name,announcementId:ann.id,
+  announcementName:announcementName(ann),deadlineAt:ann.deadline_at,
+  status:entry.submission_status||'Pending',assignmentId,
+  canSubmit:!!assignmentId,announcementOpen:ann.status==='open'};
+ state.modal='monitor-school';show();
 }
 async function openMonitorSubmission(schoolId){
  if(!yesAdmin()||!active()||state.view!=='monitoring')throw new Error('District administrator access required.');
@@ -1015,23 +1071,29 @@ function routingTimeline(routes,approvals=[],divisionEvents=[]){
 }
 
 function documentPage(){
- const rows=[...state.docs].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).map(d=>{const last=documentRoutes(d.id).at(-1);const filterStatus=last?.processed_at?'processed':last?.route_status||'none';return '<tr data-route-status="'+esc(filterStatus)+'" data-created="'+esc((d.created_at||'').slice(0,10))+'">'+
-  '<td><b>'+esc(d.tracking_number)+'</b></td><td>'+esc(d.subject)+'</td>'+
-  '<td>'+esc(d.document_type)+'</td>'+
-  '<td class="routing-overview-cell">'+routingOverview(d)+'</td>'+
-  '<td class="doc-attachment-cell"><div data-doc-files="'+esc(d.id)+'">'+attachmentListHtml(d.id)+'</div></td>'+
-  '<td><button class="btn tiny alt" data-a="detail" data-id="'+esc(d.id)+'">View Routing History</button> <button class="btn tiny alt" data-a="division-forward" data-id="'+esc(d.id)+'">Forward to Division</button></td></tr>';});
- return '<div class="sectionhead"><div><div class="eyebrow">Routing and acknowledgment</div><h1>My Documents</h1>'+
-  '<p class="sub">See senders, recipients, received status, forwarding, returns, and full document movement.</p></div>'+
+ const rows=[...state.docs].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).map(d=>{
+  const last=documentRoutes(d.id).at(-1);
+  const filterStatus=last?.processed_at?'processed':last?.route_status||'none';
+  const files=state.docAttachments.filter(f=>f.document_id===d.id).length;
+  return '<button type="button" class="compact-doc-row" data-document-row data-a="detail" data-id="'+esc(d.id)+'" '+
+   'data-route-status="'+esc(filterStatus)+'" data-created="'+esc((d.created_at||'').slice(0,10))+'" '+
+   'aria-label="Open files and routing history for '+esc(d.tracking_number)+' · '+esc(d.subject)+'">'+
+   '<span class="compact-doc-id">'+esc(d.tracking_number)+'</span>'+
+   '<span class="compact-doc-name" title="'+esc(d.subject)+'">'+esc(d.subject)+'</span>'+
+   '<span class="compact-doc-arrow" aria-hidden="true">›</span></button>';
+ });
+ return '<div class="sectionhead"><div><div class="eyebrow">Routing, files and document movement</div><h1>My Documents</h1>'+
+  '<p class="sub">One document per line. Tap the tracking number or name to see attachments, current whereabouts and full routing history.</p></div>'+
   '<button class="btn" data-a="send">+ Route Document</button></div>'+
-  '<div class="panel"><h3>Document Registry</h3><div class="field"><label for="document-search">Search documents</label><input id="document-search" type="search" placeholder="Tracking number, title, document type or current handler" autocomplete="off"></div><div class="document-filter-row"><div class="field"><label for="document-status-filter">Routing status</label><select id="document-status-filter"><option value="">All statuses</option><option value="awaiting_ack">Awaiting acknowledgment</option><option value="received">Receipt acknowledged · Awaiting action</option><option value="processed">Processed route</option><option value="none">No route</option></select></div><div class="field"><label for="document-date-filter">Created on or after</label><input id="document-date-filter" type="date"></div><button class="btn alt tiny" type="button" data-a="clear-document-filters">Clear Filters</button></div>'+
-  '<div id="document-search-count" class="small muted" aria-live="polite"></div>'+table(['Tracking #','Document Name','Type','Current Route / Receipt','Attachments','History'],rows)+'</div>'+
-  '<div class="panel"><h3>Compress a Screenshot</h3><div class="notice">Image compression works locally and is free. Documents can be attached using the secure upload panel above.</div>'+
-  '<div class="filebox"><input id="image-file" type="file" accept="image/jpeg,image/png,image/webp,.pdf,.doc,.docx">'+
-  '<p id="file-status" class="note" style="margin:9px 0 0">'+esc(state.fileNote||'Choose a screenshot, PDF, or Word document.')+'</p></div>'+
-  '<div class="toolbar" style="margin-top:13px"><button class="btn alt" data-a="compress">Compress File</button>'+
-  (state.compressed?'<button class="btn alt" data-a="save-compressed">Download Compressed Image</button>':'')+
-  '<button class="btn" disabled>Upload to Drive — Use secure panel above</button></div></div>';
+  '<div class="panel compact-doc-panel"><h3>Documents</h3>'+
+  '<div class="field"><label for="document-search">Search documents</label><input id="document-search" type="search" placeholder="Tracking number or document name" autocomplete="off"></div>'+
+  '<div class="document-filter-row"><div class="field"><label for="document-status-filter">Routing status</label>'+
+  '<select id="document-status-filter"><option value="">All statuses</option><option value="awaiting_ack">Awaiting acknowledgment</option>'+
+  '<option value="received">Acknowledged · Awaiting action</option><option value="processed">Processed</option><option value="none">No route</option></select></div>'+
+  '<div class="field"><label for="document-date-filter">Created on or after</label><input id="document-date-filter" type="date"></div>'+
+  '<button type="button" class="btn alt tiny" data-a="clear-document-filters">Clear Filters</button></div>'+
+  '<div id="document-search-count" class="small muted" aria-live="polite"></div>'+
+  '<div class="compact-doc-list">'+(rows.join('')||'<p class="empty">No documents found.</p>')+'</div></div>';
 }
 
 function divisionPage(){
@@ -1134,6 +1196,10 @@ function modalHtml(){
   title='Route a Document';
   body=`<form id="form-doc">${field('Subject','subject')}<div class='field'><label for='doc-type'>Document Type (approved)</label><select name='type' id='doc-type' required><option value=''>Choose approved document type</option>${state.docTypes.map(t=>'<option value="'+esc(t.name)+'">'+esc(t.name)+'</option>').join('')}</select></div><div class="field"><label>Routing destination</label><select name="destination" id="doc-destination"><option value="person">Send to registered recipient</option><option value="division">Submit to Division — I will prepare the transmittal</option></select></div><div class="field" id="doc-recipient-field"><label>Recipient</label><select name="recipient" id="doc-recipient"><option value="">Choose recipient</option>${state.recipients.filter(x=>x.user_id!==state.session.user.id).map(x=>`<option value="${x.user_id}">${esc(x.display_name)} · ${esc(x.school_name)}</option>`).join('')}</select></div><div class="field"><label>Instructions (optional)</label><textarea name="notes"></textarea></div></form><div class='notice'>Choose an administrator-approved document type. Attach files separately through the secure upload panel after the document is created.</div><div class='field'><label for='suggested-doc-type'>Suggest a missing document type</label><input id='suggested-doc-type' type='text' maxlength='140' placeholder='Enter new document type'></div><div class='toolbar'><button type='button' class='btn alt tiny' data-a='suggest-doc-type'>Submit Type Suggestion</button></div><p id='type-suggestion-feedback' class='small muted' aria-live='polite'>New types require District Administrator approval before use.</p><p class='note'>Recent suggestions: ${state.docTypeRequests.slice(0,3).map(r=>esc(r.requested_name)+' ('+esc(label(r.status))+')').join('; ')||'None yet'}</p>`;
   footer='<button class="btn alt" data-a="close">Cancel</button><button class="btn" type="submit" form="form-doc">Send Document</button>';
+ }else if(m==='monitor-school'){
+  title='School Submission Status';
+  body=monitorSchoolModal();
+  footer='<button type="button" class="btn alt" data-a="close">Close</button>';
  }else if(m==='monitor-submission'){
   title='School Submission Details';
   body=monitorSubmissionModal();
@@ -1146,9 +1212,9 @@ function modalHtml(){
   const awaitingDecision=mine&&last.route_status==='received'&&!last.processed_at;
   const canApprove=awaitingDecision;
   body='<h3>'+esc(d.subject)+'</h3><p class="sub">'+esc(d.document_type)+' · Created '+esc(date(d.created_at))+'</p>'+
-   '<section class="routing-current-panel"><h3>Current Route</h3>'+routingOverview(d)+'</section>'+
+   '<section class="routing-current-panel"><h3>Current Whereabouts / Responsible Handler</h3>'+routingOverview(d)+'</section>'+
    '<section class="doc-detail-attachments"><h3>Attached Files</h3><div data-doc-files="'+esc(d.id)+'">'+attachmentListHtml(d.id)+'</div></section>'+
-   '<details class="routing-history-collapse"><summary><strong>Routing History</strong><span class="small muted"> Routing, approval and Division events · Tap to view complete journey</span></summary>'+routingTimeline(routes,state.approvals,state.divisionHistory)+'</details>';
+   '<details class="routing-history-collapse" open><summary><strong>Routing History</strong><span class="small muted"> Routing, approval and Division events · Tap to view complete journey</span></summary>'+routingTimeline(routes,state.approvals,state.divisionHistory)+'</details>';
   if(canAck)body+='<p class="notice">Acknowledging confirms that you received this document. It does not mean the document has been approved. Review the attachment and sender details before acknowledging.</p>';
   if(awaitingDecision)body+='<p class="notice">Receipt acknowledged. You may approve, forward, or return this document. Approval is recorded separately.</p>';
   if(canForward)body+='<div class="field"><label>Recipient for forwarding or return</label><p class="small muted">For Return for Correction, select the person who must correct the document (normally its original sender). For Forward, select the next handler.</p><select id="next-person"><option value="">Choose recipient</option>'+
@@ -1298,11 +1364,12 @@ async function click(e){
    return;
   }
   if(a==='monitor'){state.selectedId=t.dataset.id;rememberAnnouncement(state.selectedId);rememberView('monitoring');await load();return;}
+  if(a==='monitor-school'){await openMonitorSchool(t.dataset.schoolId);return;}
   if(a==='monitor-submission'){
    if(!yesAdmin()||state.view!=='monitoring')throw new Error('District administrator access required.');
    await openMonitorSubmission(t.dataset.schoolId);return;
   }
-  if(a==='close'){state.modal=null;state.monitorDetail=null;state.monitorFiles=[];show();return;}
+  if(a==='close'){const refreshStatus=state.modal==='monitor-school';state.modal=null;state.monitorSchool=null;state.monitorDetail=null;state.monitorFiles=[];if(refreshStatus&&state.view==='monitoring')await loadMonitor();show();return;}
   if(a==='new-announcement'){state.modal='new-announcement';show();return;}
   if(a==='suggest-doc-type'){
    if(!active()||isOic())throw new Error('Only active routing users may suggest document types.');
@@ -1608,7 +1675,7 @@ function filterDocumentRegistry(){
  const status=document.getElementById('document-status-filter')?.value||'';
  const dateMin=document.getElementById('document-date-filter')?.value||'';
  let visible=0;
- input.closest('.panel')?.querySelectorAll('table tbody tr').forEach(row=>{
+ input.closest('.panel')?.querySelectorAll('[data-document-row]').forEach(row=>{
   const match=(!query||row.textContent.toLocaleLowerCase().includes(query))&&(!status||row.dataset.routeStatus===status)&&(!dateMin||row.dataset.created>=dateMin);
   row.hidden=!match;
   if(match)visible++;
