@@ -921,7 +921,7 @@ function routingTimeline(routes){
  }).join('')+'</ol>';
 }
 function documentPage(){
- const rows=state.docs.map(d=>'<tr>'+
+ const rows=[...state.docs].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).map(d=>'<tr>'+
   '<td><b>'+esc(d.tracking_number)+'</b></td><td>'+esc(d.subject)+'</td>'+
   '<td>'+esc(d.document_type)+'</td>'+
   '<td class="routing-overview-cell">'+routingOverview(d)+'</td>'+
@@ -930,8 +930,8 @@ function documentPage(){
  return '<div class="sectionhead"><div><div class="eyebrow">Routing and acknowledgment</div><h1>My Documents</h1>'+
   '<p class="sub">See senders, recipients, received status, forwarding, returns, and full document movement.</p></div>'+
   '<button class="btn" data-a="send">+ Route Document</button></div>'+
-  '<div class="panel"><h3>Document Registry</h3>'+
-  table(['Tracking #','Document Name','Type','Current Route / Receipt','Attachments','History'],rows)+'</div>'+
+  '<div class="panel"><h3>Document Registry</h3><div class="field"><label for="document-search">Search documents</label><input id="document-search" type="search" placeholder="Tracking number, title, document type or current handler" autocomplete="off"></div>'+
+  '<div id="document-search-count" class="small muted" aria-live="polite"></div>'+table(['Tracking #','Document Name','Type','Current Route / Receipt','Attachments','History'],rows)+'</div>'+
   '<div class="panel"><h3>Compress a Screenshot</h3><div class="notice">Image compression works locally and is free. Documents can be attached using the secure upload panel above.</div>'+
   '<div class="filebox"><input id="image-file" type="file" accept="image/jpeg,image/png,image/webp,.pdf,.doc,.docx">'+
   '<p id="file-status" class="note" style="margin:9px 0 0">'+esc(state.fileNote||'Choose a screenshot, PDF, or Word document.')+'</p></div>'+
@@ -1379,6 +1379,10 @@ async function submit(e){
   }
   if(form.id==='form-doc'){
    const direct=fd.get('destination')==='division';const params={p_subject:clean(fd.get('subject')),p_document_type:clean(fd.get('type')),p_notes:clean(fd.get('notes'))};if(!direct)params.p_recipient_id=clean(fd.get('recipient'));
+   if(!params.p_subject||!params.p_document_type)throw new Error('Enter the document name and type.');
+   if(!direct&&!params.p_recipient_id)throw new Error('Choose a recipient.');
+   const recipientName=direct?'Division Transmittal Queue':(state.recipients.find(x=>x.user_id===params.p_recipient_id)?.display_name||'selected recipient');
+   if(!confirm('Send "'+params.p_subject+'" to '+recipientName+'? Please verify the destination before continuing.'))return;
    const {data,error}=await db.rpc(direct?'i_track_send_to_division':'i_track_send_document',params);if(error)throw error;
    state.modal=null;rememberView(direct?'division':'documents');await load();pop(direct?'Added to Division transmittal queue: '+data+' — select the document and assign yourself as submitter.':'Document routed: '+data);return;
   }
@@ -1387,6 +1391,7 @@ async function submit(e){
 $.addEventListener('click',click);
 $.addEventListener('submit',submit);
 $.addEventListener('change',async e=>{
+ if(e.target.id==='document-search'){const q=e.target.value.trim().toLocaleLowerCase();let visible=0;document.querySelectorAll('.panel table tbody tr').forEach(row=>{const match=row.textContent.toLocaleLowerCase().includes(q);row.hidden=!match;if(match)visible++;});const count=document.getElementById('document-search-count');if(count)count.textContent=visible+' matching document(s)';return;}
  if(e.target.id==='doc-destination'){const direct=e.target.value==='division',field=document.getElementById('doc-recipient-field'),recipient=document.getElementById('doc-recipient');if(field)field.hidden=direct;if(recipient)recipient.required=!direct;return;}
  if(e.target.id==='division-current'){state.divisionSelected=e.target.value;show();return;}
  if(e.target.id==='registration-type'){
