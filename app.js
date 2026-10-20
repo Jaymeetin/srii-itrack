@@ -1390,8 +1390,20 @@ async function submit(e){
 }
 $.addEventListener('click',click);
 $.addEventListener('submit',submit);
+$.addEventListener('input',e=>{
+ if(e.target.id!=='document-search')return;
+ const q=e.target.value.trim().toLocaleLowerCase();
+ let visible=0;
+ const tableElement=e.target.closest('.panel')?.querySelector('table');
+ tableElement?.querySelectorAll('tbody tr').forEach(row=>{
+  const match=row.textContent.toLocaleLowerCase().includes(q);
+  row.hidden=!match;
+  if(match)visible++;
+ });
+ const count=document.getElementById('document-search-count');
+ if(count)count.textContent=visible+' matching document(s)';
+});
 $.addEventListener('change',async e=>{
- if(e.target.id==='document-search'){const q=e.target.value.trim().toLocaleLowerCase();let visible=0;document.querySelectorAll('.panel table tbody tr').forEach(row=>{const match=row.textContent.toLocaleLowerCase().includes(q);row.hidden=!match;if(match)visible++;});const count=document.getElementById('document-search-count');if(count)count.textContent=visible+' matching document(s)';return;}
  if(e.target.id==='doc-destination'){const direct=e.target.value==='division',field=document.getElementById('doc-recipient-field'),recipient=document.getElementById('doc-recipient');if(field)field.hidden=direct;if(recipient)recipient.required=!direct;return;}
  if(e.target.id==='division-current'){state.divisionSelected=e.target.value;show();return;}
  if(e.target.id==='registration-type'){
