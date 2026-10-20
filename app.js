@@ -909,11 +909,11 @@ function routingTimeline(routes){
  routes.forEach((r,i)=>{
   const sender=r.sender_name||'Unknown sender',recipient=r.recipient_name||'Unknown recipient';
   const action=r.route_action==='sent'?'Document sent':r.route_action==='forwarded'?'Document forwarded':r.route_action==='returned'?'Returned for correction':label(r.route_action);
-  events.push({when:r.sent_at,title:action,who:sender,detail:'To: '+recipient+(r.recipient_office?' · '+r.recipient_office:''),note:r.route_note||''});
+  if(r.sent_at)events.push({when:r.sent_at,title:action,who:sender,detail:'To: '+recipient+(r.recipient_office?' · '+r.recipient_office:''),note:r.route_note||''});
   if(r.acknowledged_at)events.push({when:r.acknowledged_at,title:'Receipt acknowledged',who:recipient,detail:'Received from: '+sender,note:''});
-  if(r.processed_at)events.push({when:r.processed_at,title:i<routes.length-1?'Routing processed':'Document processed',who:recipient,detail:'Route status: '+routeState(r).label,note:''});
+  if(r.processed_at)events.push({when:r.processed_at,title:i<routes.length-1?'Routing processed':'Document processing recorded',who:recipient,detail:'Route status: '+routeState(r).label,note:''});
  });
- events.sort((a,b)=>new Date(a.when)-new Date(b.when));
+ events.sort((a,b)=>new Date(a.when).getTime()-new Date(b.when).getTime());
  return '<ol class="routing-timeline">'+events.map((e,i)=>
   '<li class="routing-step'+(i===events.length-1?' routing-step-current':'')+'">'+
   '<div class="routing-step-head"><strong>'+esc(e.title)+'</strong><span class="small muted">'+esc(date(e.when))+'</span></div>'+
@@ -1056,7 +1056,7 @@ function modalHtml(){
    '<section class="routing-current-panel"><h3>Current Route</h3>'+routingOverview(d)+'</section>'+
    '<section class="doc-detail-attachments"><h3>Attached Files</h3><div data-doc-files="'+esc(d.id)+'">'+attachmentListHtml(d.id)+'</div></section>'+
    '<details class="routing-history-collapse"><summary><strong>Routing History</strong><span class="small muted"> '+routes.length+' routing step(s) · Tap to view complete journey</span></summary>'+routingTimeline(routes)+'</details>';
-  if(canAck)body+='<p class="notice">Acknowledging confirms that you received this document. It does not mean the document has been approved.</p>';
+  if(canAck)body+='<p class="notice">Acknowledging confirms that you received this document. It does not mean the document has been approved. Review the attachment and sender details before acknowledging.</p>';
   if(awaitingDecision)body+='<p class="notice">Receipt acknowledged. Forward or return the document below. Final approval is not yet available and must not be inferred from acknowledgment.</p>';
   if(canForward)body+='<div class="field"><label>Next recipient</label><select id="next-person"><option value="">Choose recipient</option>'+
     state.recipients.filter(x=>x.user_id!==state.session.user.id).map(x=>
