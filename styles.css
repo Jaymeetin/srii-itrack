@@ -458,3 +458,9 @@
 #document-search{width:100%;max-width:520px}
 tr[hidden]{display:none!important}
 @media(max-width:600px){.routing-history-collapse summary{align-items:flex-start;flex-direction:column;gap:2px}.routing-history-collapse summary::after{position:absolute;right:25px}.routing-history-collapse{position:relative}}
+
+/* Normal user document registry filters */
+.document-filter-row{display:flex;flex-wrap:wrap;gap:12px;align-items:end;margin-bottom:10px}
+.document-filter-row .field{flex:1 1 190px;max-width:280px}
+.document-filter-row select,.document-filter-row input{width:100%}
+@media(max-width:600px){.document-filter-row .field{flex-basis:100%;max-width:none}}
