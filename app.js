@@ -14,7 +14,7 @@ const knownViews=new Set(['dashboard','announcements','monitoring','documents','
 const urlView=new URLSearchParams(location.search).get('view');
 const firstView=knownViews.has(urlView)?urlView:'dashboard';
 localStorage.removeItem('srii-current-view');
-const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],recipients:[],monitor:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:'login',queueTicket:localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],modal:null,detail:null,routes:[],approvals:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',issue:null,maintenance:{enabled:false,message:''}};
+const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],recipients:[],monitor:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:'login',queueTicket:localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],modal:null,detail:null,routes:[],approvals:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',issue:null,maintenance:{enabled:false,message:''}};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=x=>x?new Date(x).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}):'—';
@@ -128,6 +128,13 @@ async function load(){
    })());
   }
   if(state.view==='division')tasks.push((async()=>{const {data,error}=await db.rpc('i_track_division_list');if(error)throw error;state.divisionData=data||{transmittals:[],items:[],eligible:[],people:[]};const deepLink=new URLSearchParams(location.search).get('transmittal');if(deepLink&&state.divisionData.transmittals.some(t=>t.id===deepLink))state.divisionSelected=deepLink;const notice=await db.from('division_notifications').select('id,message,created_at').order('created_at',{ascending:false}).limit(12);state.divisionNotices=notice.data||[];const retrieval=await db.rpc('i_track_division_retrievable');if(retrieval.error)throw retrieval.error;state.divisionRetrievable=retrieval.data||[];})());
+  if(!yesAdmin()&&!isOic()&&['dashboard','documents'].includes(state.view))tasks.push((async()=>{
+   const {data,error}=await db.from('document_notifications')
+    .select('id,document_id,event_key,message,created_at,read_at')
+    .order('created_at',{ascending:false}).limit(12);
+   if(error){console.error('Document notifications unavailable',error);state.documentNotices=[];return;}
+   state.documentNotices=data||[];
+  })());
   if(state.view==='dashboard'){
    if(isOic())tasks.push((async()=>{const {data,error}=await db.rpc('i_track_district_report');if(error)throw error;state.districtReport=data||[];})());
    else if(yesAdmin())tasks.push((async()=>{const {data,error}=await db.rpc('i_track_registration_counts');if(!error)state.counts=Array.isArray(data)?data[0]:data;})());
@@ -640,6 +647,16 @@ function appPage(){
  $.innerHTML=`<div class="app"><aside class="sidebar">${brand()}<nav>${nav}</nav><div class="sidebar-footer"><button data-a="theme">◐ Light / Dark Mode</button><button data-a="logout">↩ Sign Out</button><div class="user-mini">${esc(name)}<br>${esc(label(state.profile.role))} · ${esc(school)}</div></div></aside>
  <div class="main"><header class="topbar"><div><h2>${esc(title)}</h2><div class="note">One District. One Direction.</div></div><div class="topbar-actions">${pTag('active')}<button class="desktop-signout" type="button" data-a="logout" title="Sign out of SRII i-TRACK">↩ Sign Out</button></div></header><div class="content">${body}</div></div></div>${state.modal?modalHtml():''}`;
 }
+function documentNotificationPanel(){
+ const notices=state.documentNotices||[];
+ const unread=notices.filter(n=>!n.read_at).length;
+ return '<section class="panel v2-board"><div class="panel-head"><h3>Document Notifications'+(unread?' ('+unread+' unread)':'')+'</h3></div>'+
+ (notices.length?'<div class="v2-notice-list">'+notices.map(n=>
+  '<div class="v2-notice-item"><div class="v2-notice-copy"><strong>'+esc(n.message)+'</strong><small>'+esc(date(n.created_at))+(n.read_at?' · Read':' · Unread')+'</small></div>'+
+  (state.docs.some(d=>d.id===n.document_id)?'<button class="btn tiny alt" data-a="doc-notice-open" data-id="'+esc(n.document_id)+'">Review</button>':'')+
+  (!n.read_at?'<button class="btn tiny alt" data-a="doc-notice-read" data-id="'+esc(n.id)+'">Mark Read</button>':'')+'</div>'
+ ).join('')+'</div>':'<p class="note">No document notifications yet.</p>')+'</section>';
+}
 function dashboardPage(){
  const name=state.profile.display_name||"District User";
  const school=state.schools.find(x=>x.id===state.profile.school_id)?.name||"District Office";
@@ -717,7 +734,7 @@ function dashboardPage(){
     '<button data-a="nav" data-page="announcements"><span>◷</span><strong>Due Dates</strong><small>Latest notices</small></button>')+
   '</div>';
  return '<section class="v2-intro"><div><div class="eyebrow">SAN REMIGIO II DISTRICT</div><h1>Welcome back, '+esc(name)+'!</h1><p class="v2-role">'+esc(oversight?"OIC-PSDS · District Oversight (Read Only)":admin?"District Administrator":school)+'</p></div><div class="v2-motto">One District. One Direction.<br><strong>Organized for a Stronger SRII.</strong></div></section>'+
-  '<div class="v2-metrics">'+metricHtml+'</div>'+
+  '<div class="v2-metrics">'+metricHtml+'</div>'+(!admin&&!oversight?documentNotificationPanel():'')+
   '<div class="v2-home-grid"><div class="v2-home-primary">'+
   '<section class="panel v2-board"><div class="panel-head"><h3>Latest Announcements</h3><button class="btn tiny alt" data-a="nav" data-page="announcements">View All</button></div><div class="v2-notice-list">'+announcements+'</div></section>'+
   '<section class="panel v2-board">'+(!admin&&!oversight?'<div class="panel-head"><h3>Documents Requiring Action</h3><button class="btn tiny alt" data-a="nav" data-page="documents">View All</button></div><div class="v2-notice-list">'+actionNeededHtml+'</div>':'')+'<h3>Quick Actions</h3>'+quick+'</section>'+
@@ -1207,6 +1224,19 @@ async function click(e){
   if(a==='close'){state.modal=null;state.monitorDetail=null;state.monitorFiles=[];show();return;}
   if(a==='new-announcement'){state.modal='new-announcement';show();return;}
   if(a==='send'){if(isOic())throw new Error('OIC-PSDS accounts cannot route documents.');await loadRecipients();state.modal='send';show();return;}
+  if(a==='doc-notice-read'){
+   const notice=(state.documentNotices||[]).find(n=>String(n.id)===t.dataset.id);
+   if(!notice)return;
+   const {error}=await db.from('document_notifications').update({read_at:new Date().toISOString()}).eq('id',notice.id);
+   if(error)throw error;
+   notice.read_at=new Date().toISOString();show();return;
+  }
+  if(a==='doc-notice-open'){
+   if(isOic())throw new Error('You cannot open private documents.');
+   rememberView('documents');await load();
+   if(!state.docs.some(d=>d.id===t.dataset.id))throw new Error('This document is not available to your account.');
+   await openDetail(t.dataset.id);return;
+  }
   if(a==='detail'){if(isOic())throw new Error('OIC-PSDS accounts cannot view private documents.');await openDetail(t.dataset.id);return;}
   if(a==='admin-password-reset'||a==='admin-email-confirmation'){
    if(!yesAdmin()||!active()||state.view!=='approvals')
