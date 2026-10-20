@@ -8,13 +8,13 @@ const db=window.supabase?.createClient(C.url,C.publishableKey,{auth:{persistSess
 // Reuse one authenticated client across tracking, upload and download screens.
 // Multiple clients refreshing the same mobile session can reset upload forms.
 window.ITRACK_DB=db;
-const knownViews=new Set(['dashboard','announcements','monitoring','documents','reports','school-files','verification','approvals','archive','division']);
+const knownViews=new Set(['dashboard','announcements','monitoring','documents','reports','school-files','verification','approvals','archive','division','settings']);
 // The manifest launches at ./ (Home). Navigation keeps the page in the URL,
 // so a real refresh returns to that page without persistent cross-launch state.
 const urlView=new URLSearchParams(location.search).get('view');
 const firstView=knownViews.has(urlView)?urlView:'dashboard';
 localStorage.removeItem('srii-current-view');
-const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],recipients:[],monitor:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:'login',queueTicket:localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',issue:null,maintenance:{enabled:false,message:''}};
+const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],recipients:[],monitor:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:'login',queueTicket:localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',privateDetails:null,profileRequests:[],issue:null,maintenance:{enabled:false,message:''}};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=x=>x?new Date(x).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}):'—';
@@ -98,7 +98,7 @@ async function sync(){
   if(error)throw error;
   state.profile=data;
   if(active())await readMaintenance();
-  if(isOic()&&!['dashboard','announcements','monitoring','reports'].includes(state.view))rememberView('dashboard');
+  if(isOic()&&!['dashboard','announcements','monitoring','reports','settings'].includes(state.view))rememberView('dashboard');
   if(!yesAdmin()&&['school-files','verification','approvals','archive'].includes(state.view))rememberView('dashboard');
   if(!districtOversight()&&state.view==='reports')rememberView('dashboard');
   if(active())await load();else show();
@@ -139,6 +139,16 @@ async function load(){
     ...(routing.data||[]).map(n=>({...n,source:'routing'})),
     ...(division.data||[]).map(n=>({...n,source:'division'}))
    ].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,12);
+  })());
+  if(state.view==='settings'&&!yesAdmin())tasks.push((async()=>{
+   const [privateResult,requestsResult]=await Promise.all([
+    db.from('user_private_details').select('employee_id,birthdate,plantilla_item,messenger_url,prc_id,bachelors_degree').eq('user_id',state.session.user.id).maybeSingle(),
+    db.from('profile_change_requests').select('id,requested_name,requested_position,requested_school_id,status,submitted_at,reviewer_note').order('submitted_at',{ascending:false}).limit(5)
+   ]);
+   if(privateResult.error)throw privateResult.error;
+   if(requestsResult.error)throw requestsResult.error;
+   state.privateDetails=privateResult.data||{};
+   state.profileRequests=requestsResult.data||[];
   })());
   if(state.view==='dashboard'){
    if(isOic())tasks.push((async()=>{const {data,error}=await db.rpc('i_track_district_report');if(error)throw error;state.districtReport=data||[];})());
@@ -633,11 +643,11 @@ function pendingPage(){
 }
 const menu=[['dashboard','⌂ Home'],['announcements','▤ Announcements'],['monitoring','▥ Submission Status']];
 function appPage(){
- const nav=[...menu,...(!isOic()?[['documents','▣ My Documents'],['division','▤ Division Transmittals']]:[]),...(districtOversight()?[['reports','▥ District Reports']]:[]),...(yesAdmin()?[['school-files','▣ School Attachments'],['verification','✓ Submission Verification'],['approvals','♙ Account Approvals'],['archive','▤ Archive Documents']]:[])].map(([id,title])=>`<button class="${state.view===id?'active':''}" data-a="nav" data-page="${id}">${title}</button>`).join('');
- const title={dashboard:'Home',announcements:'Announcements',monitoring:'Submission Monitoring',documents:'My Documents',division:'Division Transmittals',reports:'District Reports','school-files':'School Attachments',verification:'Submission Verification',approvals:'Account Management',archive:'Document Archiving'}[state.view]||'Overview';
+ const nav=[...menu,...(!isOic()?[['documents','▣ My Documents'],['division','▤ Division Transmittals']]:[]),...(districtOversight()?[['reports','▥ District Reports']]:[]),...(!yesAdmin()?[['settings','⚙ Personal Settings']]:[]),...(yesAdmin()?[['school-files','▣ School Attachments'],['verification','✓ Submission Verification'],['approvals','♙ Account Approvals'],['archive','▤ Archive Documents']]:[])].map(([id,title])=>`<button class="${state.view===id?'active':''}" data-a="nav" data-page="${id}">${title}</button>`).join('');
+ const title={dashboard:'Home',announcements:'Announcements',monitoring:'Submission Monitoring',documents:'My Documents',division:'Division Transmittals',settings:'Personal Settings',reports:'District Reports','school-files':'School Attachments',verification:'Submission Verification',approvals:'Account Management',archive:'Document Archiving'}[state.view]||'Overview';
  const school=state.schools.find(x=>x.id===state.profile.school_id)?.name||'District Office';
  const name=state.profile.display_name||(isOic()?'OIC-PSDS':'District Administrator');
- let body={dashboard:dashboardPage,announcements:announcementPage,monitoring:monitorPage,documents:documentPage,division:divisionPage,reports:districtReportPage,'school-files':schoolAttachmentsPage,verification:verificationPage,approvals:approvalPage,archive:archivePage}[state.view]?.()||dashboardPage();
+ let body={dashboard:dashboardPage,announcements:announcementPage,monitoring:monitorPage,documents:documentPage,division:divisionPage,settings:settingsPage,reports:districtReportPage,'school-files':schoolAttachmentsPage,verification:verificationPage,approvals:approvalPage,archive:archivePage}[state.view]?.()||dashboardPage();
  if(state.view==='dashboard'&&yesAdmin())body='<section class="panel" style="padding:20px;margin:16px 0;border:2px solid #d7bd6b"><h3>🔧 System Maintenance</h3><p class="note">Pause access for regular users while admins continue working.</p><p><strong>Status: '+(state.maintenance.enabled?'MAINTENANCE ON':'Running normally')+'</strong></p><button class="btn" data-a="maintenance-toggle">'+(state.maintenance.enabled?'Turn OFF Maintenance — Reopen App':'Turn ON Maintenance — Pause Users')+'</button></section>'+body;
  // Read-only presentation context for the upload panel. Not an authorization
  // mechanism: Supabase RLS and the Edge Function enforce permissions.
@@ -652,6 +662,45 @@ function appPage(){
  $.innerHTML=`<div class="app"><aside class="sidebar">${brand()}<nav>${nav}</nav><div class="sidebar-footer"><button data-a="theme">◐ Light / Dark Mode</button><button data-a="logout">↩ Sign Out</button><div class="user-mini">${esc(name)}<br>${esc(label(state.profile.role))} · ${esc(school)}</div></div></aside>
  <div class="main"><header class="topbar"><div><h2>${esc(title)}</h2><div class="note">One District. One Direction.</div></div><div class="topbar-actions">${pTag('active')}<button class="desktop-signout" type="button" data-a="logout" title="Sign out of SRII i-TRACK">↩ Sign Out</button></div></header><div class="content">${body}</div></div></div>${state.modal?modalHtml():''}`;
 }
+function settingsPage(){
+ const p=state.profile||{},d=state.privateDetails||{},pending=state.profileRequests||[];
+ const schoolName=state.schools.find(x=>x.id===p.school_id)?.name||'District Office';
+ const email=state.session?.user?.email||'';
+ const verified=!!(state.session?.user?.email_confirmed_at||state.session?.user?.confirmed_at);
+ const rows=pending.map(r=>'<div class="settings-request-row"><strong>'+esc(label(r.status))+'</strong><span>'+esc(date(r.submitted_at))+'</span><p>'+
+   (r.requested_name?'Name: '+esc(r.requested_name)+' · ':'')+
+   (r.requested_position?'Position: '+esc(r.requested_position)+' · ':'')+
+   (r.requested_school_id?'School: '+esc(state.schools.find(s=>s.id===r.requested_school_id)?.name||'School requested'):'')+
+   '</p>'+(r.reviewer_note?'<p class="note">Admin notes: '+esc(r.reviewer_note)+'</p>':'')+'</div>').join('')||'<p class="note">No profile change requests.</p>';
+ const schools=state.schools.filter(x=>x.is_active||x.id===p.school_id).map(x=>'<option value="'+esc(x.id)+'"'+(x.id===p.school_id?' selected':'')+'>'+esc(x.name)+'</option>').join('');
+ const input=(caption,name,value,type='text',extra='')=>'<div class="field"><label for="settings-'+esc(name)+'">'+esc(caption)+'</label><input id="settings-'+esc(name)+'" name="'+esc(name)+'" type="'+type+'" value="'+esc(value||'')+'" '+extra+'></div>';
+ return '<div class="sectionhead"><div><div class="eyebrow">Your account</div><h1>Personal Settings</h1><p class="sub">Manage your security, personal details, and requests to correct official records.</p></div></div>'+
+ '<div class="settings-grid"><section class="panel"><h3>Account Security</h3>'+
+ '<p><strong>'+esc(email)+'</strong> · '+(verified?'Email verified':'Email verification pending')+'</p>'+
+ '<form id="settings-email-form"><h4>Change email address</h4>'+input('New email','email','', 'email','autocomplete="email" required')+
+ '<p class="note">Supabase may send confirmation links to your old and new addresses. The current address remains active until verification is complete.</p><button type="submit" class="btn alt">Request Email Change</button></form>'+
+ '<form id="settings-password-form"><h4>Change password</h4>'+input('New password','new_password','','password','autocomplete="new-password" minlength="8" required')+
+ input('Confirm new password','confirm_password','','password','autocomplete="new-password" minlength="8" required')+
+ '<button type="submit" class="btn alt">Change Password</button><p class="note">You will be signed out after changing your password.</p></form></section>'+
+ '<section class="panel"><h3>Official Profile</h3><p class="note">Current role: '+esc(label(p.role))+' · '+esc(schoolName)+'. Requested changes require District Administrator approval before they affect your account.</p>'+
+ '<form id="settings-profile-form">'+input('Full name','full_name',p.display_name,'text','maxlength="160" required')+
+ input('Position title','position_title',p.position_title,'text','maxlength="160"')+
+ (!isOic()?'<div class="field"><label for="settings-school">School</label><select id="settings-school" name="school_id"><option value="">No school change</option>'+schools+'</select></div>':'<p class="note">OIC-PSDS accounts remain without a school assignment.</p>')+
+ '<button type="submit" class="btn">Request Profile Change</button></form>'+
+ '<h4>Recent requests</h4>'+rows+'</section>'+
+ '<section class="panel settings-private"><h3>Optional Personal Information</h3><p class="note">Only your signed-in account can read or edit these optional details. Leave any field blank if you do not wish to provide it. Do not share passwords here.</p>'+
+ '<form id="settings-private-form"><div class="settings-fields">'+
+ input('Employee ID','employee_id',d.employee_id,'text','maxlength="60"')+
+ input('Birth date','birthdate',d.birthdate,'date')+
+ input('Plantilla item','plantilla_item',d.plantilla_item,'text','maxlength="150"')+
+ input('Messenger profile link','messenger_url',d.messenger_url,'url','maxlength="500" placeholder="https://"')+
+ input('PRC ID','prc_id',d.prc_id,'text','maxlength="80"')+
+ input('Bachelor\'s degree','bachelors_degree',d.bachelors_degree,'text','maxlength="200"')+
+ '</div><button type="submit" class="btn">Save Private Details</button></form></section>'+
+ '</div><div class="toolbar"><button type="button" class="btn alt" data-a="theme">Toggle Light / Dark Mode</button>'+
+ '<button type="button" class="btn alt" data-a="logout">Sign Out</button></div>';
+}
+
 function documentNotificationPanel(){
  const notices=state.documentNotices||[];
  const unread=notices.filter(n=>!n.read_at).length;
@@ -1200,7 +1249,7 @@ async function click(e){
   if(a==='nav'){
    if(['verification','school-files','approvals','archive'].includes(t.dataset.page)&&!yesAdmin())throw new Error('District administrator access required.');
    if(t.dataset.page==='reports'&&!districtOversight())throw new Error('District oversight access required.');
-   if(isOic()&&!['dashboard','announcements','monitoring','reports'].includes(t.dataset.page))throw new Error('This OIC-PSDS account is read-only.');
+   if(isOic()&&!['dashboard','announcements','monitoring','reports','settings'].includes(t.dataset.page))throw new Error('This OIC-PSDS account is read-only.');
    rememberView(t.dataset.page);state.modal=null;
    await load();return;
   }
