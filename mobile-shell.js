@@ -120,6 +120,8 @@ function openMore(){
    '<span class="mobile-sheet-label">SYSTEM TEST TOOLS</span>'+
    '<button type="button" class="mobile-menu-button" data-mobile="link" data-href="./upload-test.html">Test Google Drive Upload <small>›</small></button>':'')+
   '<span class="mobile-sheet-label">PREFERENCES</span>'+
+  (app.querySelector('.sidebar nav button[data-page="settings"]')?
+   '<button type="button" class="mobile-menu-button" data-mobile="navigate" data-page="settings">⚙ &nbsp; Personal Settings <small>›</small></button>':'')+
   '<button type="button" class="mobile-menu-button" data-mobile="theme">◐ &nbsp; Switch Light / Dark Mode <small>›</small></button>'+
   '<button type="button" class="mobile-menu-button danger" data-mobile="logout">↩ &nbsp; Sign Out <small>›</small></button>'+
  '</div>';
