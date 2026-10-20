@@ -14,7 +14,7 @@ const knownViews=new Set(['dashboard','announcements','monitoring','documents','
 const urlView=new URLSearchParams(location.search).get('view');
 const firstView=knownViews.has(urlView)?urlView:'dashboard';
 localStorage.removeItem('srii-current-view');
-const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:'login',queueTicket:localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',privateDetails:null,profileRequests:[],userFeedback:[],issue:null,maintenance:{enabled:false,message:''}};
+const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:'login',queueTicket:localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',privateDetails:null,profileRequests:[],userFeedback:[],issue:null,maintenance:{enabled:false,message:''}};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=x=>x?new Date(x).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}):'—';
@@ -26,6 +26,7 @@ const isOic=()=>state.profile?.role==='oic_psds';
 const districtOversight=()=>yesAdmin()||isOic();
 const isMain=()=>state.profile?.role==='main_admin';
 const active=()=>state.profile?.account_status==='active';
+const isAoII=()=>active()&&state.profile?.role==='school_user'&&/^(?:(?:administrative|administration)\s+officer\s+(?:ii|2)|ao\s*(?:ii|2))$/i.test((state.profile?.position_title||'').trim());
 function rememberView(view){
  if(!knownViews.has(view))throw new Error('Unknown application page.');
  state.view=view;
@@ -884,24 +885,62 @@ function monitorPage(){
  const n=x=>state.monitor.filter(s=>s.submission_status===x).length;
  const rows=state.monitor.map(x=>{
   const status=String(x.submission_status||'Pending');
-  const canInspect=yesAdmin()&&['Submitted','Late'].includes(status);
-  const matches=state.schools.filter(s=>s.name===x.school_name);
-  const schoolId=matches.length===1?matches[0].id:null;
-  const action=canInspect&&schoolId?
-   '<button class="monitor-status-button" type="button" data-a="monitor-submission" data-school-id="'+esc(schoolId)+'" data-school-name="'+esc(x.school_name)+'" aria-label="View '+esc(status.toLowerCase())+' submissions for '+esc(x.school_name)+'">'+pTag(status)+'<span class="monitor-status-arrow">View uploads ›</span></button>':
-   pTag(status);
-  return '<tr><td>'+esc(x.school_name)+'</td><td>'+action+'</td></tr>';
- });
+  const school=state.schools.find(s=>s.name===x.school_name);
+  if(!school)return '';
+  return '<button type="button" class="status-school-row" data-a="monitor-school" data-school-id="'+esc(school.id)+'" '+
+   'aria-label="Open '+esc(school.name)+' — '+esc(status)+'">'+
+   '<span class="status-school-name">'+esc(school.name)+'</span>'+pTag(status)+
+   '<span class="status-school-chevron" aria-hidden="true">›</span></button>';
+ }).join('');
  return '<div class="eyebrow">District-wide visibility</div><h1>Submission Monitoring</h1>'+
-  '<p class="sub">Track the submission status of each school.'+(yesAdmin()?' Tap a Submitted or Late status to see the actual uploads, timestamps and attachments.':' Only district administrators can inspect other schools’ uploaded files.')+'</p>'+
+  '<p class="sub">Tap any school to view its submission status.'+
+   (isAoII()?' As an approved AO II, you may submit for another school when its AO II is unavailable.':'')+
+   ' Only district administrators verify submissions and access other schools\' uploaded files.</p>'+
   (yesAdmin()?'<div class="school-files-monitor-link"><button type="button" class="btn alt" data-a="nav" data-page="school-files">▣ View All School Attachments</button></div>':'')+
   '<div class="panel"><div class="field"><label for="pick-ann">Announcement</label><select id="pick-ann"><option value="">Choose an announcement</option>'+opts+'</select></div></div>'+
   (state.selectedId?'<div class="stats">'+stat('Required Schools',state.monitor.length,'For selected announcement')+
    stat('Submitted',n('Submitted'),'On time')+stat('Late',n('Late'),'After deadline')+
    stat('Pending',n('Pending'),'Not yet submitted')+'</div>'+
-   '<div class="panel"><h3>School Status</h3>'+table(['School','Status'],rows)+'</div>':
+   '<div class="panel"><h3>School Status</h3><div class="status-school-list">'+(rows||'<p class="empty">No required schools found.</p>')+'</div></div>':
    '<div class="panel empty">Choose an announcement to view status.</div>')+
-  '<div class="notice">Privacy: only active district administrators can inspect school uploads. School users and OIC-PSDS see status information only.</div>';
+  '<div class="notice">Privacy: Everyone can see submission completion, but school files remain private. The uploading AO II is recorded; only district administrators can verify submissions.</div>';
+}
+function monitorSchoolModal(){
+ const item=state.monitorSchool;
+ if(!item)return '<p class="notice">School status is not available.</p>';
+ const info='<div class="monitor-file-summary">'+
+  '<div><span class="small muted">School</span><strong>'+esc(item.schoolName)+'</strong></div>'+
+  '<div><span class="small muted">Submission Status</span>'+pTag(item.status)+'</div>'+
+  '<div><span class="small muted">Announcement</span><strong>'+esc(item.announcementName)+'</strong></div>'+
+  '<div><span class="small muted">Deadline</span><strong>'+esc(date(item.deadlineAt))+'</strong></div></div>';
+ const adminButton=yesAdmin()&&['Submitted','Late'].includes(item.status)?
+  '<div class="toolbar"><button class="btn alt" data-a="monitor-submission" data-school-id="'+esc(item.schoolId)+'">View Uploaded Files (Admin)</button></div>':'';
+ const action=item.canSubmit?
+  '<div id="monitor-school-upload-host" data-announcement-id="'+esc(item.announcementId)+'" data-school-id="'+esc(item.schoolId)+'" data-assignment-id="'+esc(item.assignmentId)+'" data-school-name="'+esc(item.schoolName)+'"></div>'+
+  '<p class="note">The actual uploader and represented school are recorded automatically. A submission requires district administrator verification; the represented school does not approve it.</p>':
+  '<p class="note">'+(isOic()?'Oversight account: view status only.':
+    item.announcementOpen?'Only approved AO II accounts and district administrators can submit for another school.':
+    'This announcement is closed; new submissions are unavailable.')+'</p>';
+ return info+adminButton+action;
+}
+async function openMonitorSchool(schoolId){
+ if(!active()||state.view!=='monitoring')throw new Error('Open Submission Monitoring first.');
+ const school=state.schools.find(s=>s.id===schoolId);
+ const ann=state.announcements.find(a=>a.id===state.selectedId);
+ if(!school||!ann)throw new Error('School or announcement was not found.');
+ const entry=state.monitor.find(x=>x.school_name===school.name);
+ if(!entry)throw new Error('This school is not assigned to the selected announcement.');
+ let assignmentId=null;
+ if((yesAdmin()||isAoII())&&ann.status==='open'){
+  const {data,error}=await db.rpc('i_track_status_school_upload_target',{p_announcement_id:ann.id,p_school_id:school.id});
+  if(error)throw error;
+  assignmentId=data?.[0]?.assignment_id||null;
+ }
+ state.monitorSchool={schoolId:school.id,schoolName:school.name,announcementId:ann.id,
+  announcementName:announcementName(ann),deadlineAt:ann.deadline_at,
+  status:entry.submission_status||'Pending',assignmentId,
+  canSubmit:!!assignmentId,announcementOpen:ann.status==='open'};
+ state.modal='monitor-school';show();
 }
 async function openMonitorSubmission(schoolId){
  if(!yesAdmin()||!active()||state.view!=='monitoring')throw new Error('District administrator access required.');
@@ -1140,6 +1179,10 @@ function modalHtml(){
   title='Route a Document';
   body=`<form id="form-doc">${field('Subject','subject')}<div class='field'><label for='doc-type'>Document Type (approved)</label><select name='type' id='doc-type' required><option value=''>Choose approved document type</option>${state.docTypes.map(t=>'<option value="'+esc(t.name)+'">'+esc(t.name)+'</option>').join('')}</select></div><div class="field"><label>Routing destination</label><select name="destination" id="doc-destination"><option value="person">Send to registered recipient</option><option value="division">Submit to Division — I will prepare the transmittal</option></select></div><div class="field" id="doc-recipient-field"><label>Recipient</label><select name="recipient" id="doc-recipient"><option value="">Choose recipient</option>${state.recipients.filter(x=>x.user_id!==state.session.user.id).map(x=>`<option value="${x.user_id}">${esc(x.display_name)} · ${esc(x.school_name)}</option>`).join('')}</select></div><div class="field"><label>Instructions (optional)</label><textarea name="notes"></textarea></div></form><div class='notice'>Choose an administrator-approved document type. Attach files separately through the secure upload panel after the document is created.</div><div class='field'><label for='suggested-doc-type'>Suggest a missing document type</label><input id='suggested-doc-type' type='text' maxlength='140' placeholder='Enter new document type'></div><div class='toolbar'><button type='button' class='btn alt tiny' data-a='suggest-doc-type'>Submit Type Suggestion</button></div><p id='type-suggestion-feedback' class='small muted' aria-live='polite'>New types require District Administrator approval before use.</p><p class='note'>Recent suggestions: ${state.docTypeRequests.slice(0,3).map(r=>esc(r.requested_name)+' ('+esc(label(r.status))+')').join('; ')||'None yet'}</p>`;
   footer='<button class="btn alt" data-a="close">Cancel</button><button class="btn" type="submit" form="form-doc">Send Document</button>';
+ }else if(m==='monitor-school'){
+  title='School Submission Status';
+  body=monitorSchoolModal();
+  footer='<button type="button" class="btn alt" data-a="close">Close</button>';
  }else if(m==='monitor-submission'){
   title='School Submission Details';
   body=monitorSubmissionModal();
@@ -1304,11 +1347,12 @@ async function click(e){
    return;
   }
   if(a==='monitor'){state.selectedId=t.dataset.id;rememberAnnouncement(state.selectedId);rememberView('monitoring');await load();return;}
+  if(a==='monitor-school'){await openMonitorSchool(t.dataset.schoolId);return;}
   if(a==='monitor-submission'){
    if(!yesAdmin()||state.view!=='monitoring')throw new Error('District administrator access required.');
    await openMonitorSubmission(t.dataset.schoolId);return;
   }
-  if(a==='close'){state.modal=null;state.monitorDetail=null;state.monitorFiles=[];show();return;}
+  if(a==='close'){const refreshStatus=state.modal==='monitor-school';state.modal=null;state.monitorSchool=null;state.monitorDetail=null;state.monitorFiles=[];if(refreshStatus&&state.view==='monitoring')await loadMonitor();show();return;}
   if(a==='new-announcement'){state.modal='new-announcement';show();return;}
   if(a==='suggest-doc-type'){
    if(!active()||isOic())throw new Error('Only active routing users may suggest document types.');
