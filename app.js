@@ -100,6 +100,7 @@ async function sync(){
   if(active())await readMaintenance();
   if(isOic()&&!['dashboard','announcements','monitoring','reports','settings'].includes(state.view))rememberView('dashboard');
   if(!yesAdmin()&&['school-files','verification','approvals','archive'].includes(state.view))rememberView('dashboard');
+  if(yesAdmin()&&state.view==='settings')rememberView('dashboard');
   if(!districtOversight()&&state.view==='reports')rememberView('dashboard');
   if(active())await load();else show();
  }catch(e){state.issue=e.message;show();}
@@ -1265,6 +1266,7 @@ async function click(e){
   if(a==='nav'){
    if(['verification','school-files','approvals','archive'].includes(t.dataset.page)&&!yesAdmin())throw new Error('District administrator access required.');
    if(t.dataset.page==='reports'&&!districtOversight())throw new Error('District oversight access required.');
+   if(t.dataset.page==='settings'&&yesAdmin())throw new Error('Personal Settings in this redesign are for Normal User accounts.');
    if(isOic()&&!['dashboard','announcements','monitoring','reports','settings'].includes(t.dataset.page))throw new Error('This OIC-PSDS account is read-only.');
    rememberView(t.dataset.page);state.modal=null;
    await load();return;
