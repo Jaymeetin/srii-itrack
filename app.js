@@ -14,7 +14,7 @@ const knownViews=new Set(['dashboard','announcements','monitoring','documents','
 const urlView=new URLSearchParams(location.search).get('view');
 const firstView=knownViews.has(urlView)?urlView:'dashboard';
 localStorage.removeItem('srii-current-view');
-const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],recipients:[],monitor:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:'login',queueTicket:localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],modal:null,detail:null,routes:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',issue:null};
+const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],recipients:[],monitor:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:'login',queueTicket:localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],modal:null,detail:null,routes:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',issue:null,maintenance:{enabled:false,message:''}};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=x=>x?new Date(x).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}):'—';
@@ -88,6 +88,7 @@ async function initial(){
  const {data:{session}}=await db.auth.getSession();state.session=session;await sync();
  if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('./sw.js').catch(()=>{});
 }
+async function readMaintenance(){if(!state.session)return;const {data,error}=await db.from('system_maintenance').select('enabled,message').eq('id',true).maybeSingle();if(!error&&data)state.maintenance=data;}
 async function sync(){
  try{
   state.issue=null;
@@ -96,6 +97,7 @@ async function sync(){
   const {data,error}=await db.from('profiles').select('id,display_name,school_id,requested_school_id,role,account_status,position_title').eq('id',state.session.user.id).single();
   if(error)throw error;
   state.profile=data;
+  if(active())await readMaintenance();
   if(isOic()&&!['dashboard','announcements','monitoring','reports'].includes(state.view))rememberView('dashboard');
   if(!yesAdmin()&&['school-files','verification','approvals','archive'].includes(state.view))rememberView('dashboard');
   if(!districtOversight()&&state.view==='reports')rememberView('dashboard');
@@ -457,6 +459,7 @@ function show(){
  if(!state.session){window.ITRACK_CONTEXT=null;authPage();return;}
  if(!state.profile){$.innerHTML='<div class="startup">Preparing account…</div>';return;}
  if(!active()){window.ITRACK_CONTEXT=null;pendingPage();return;}
+ if(state.maintenance.enabled&&!yesAdmin()){window.ITRACK_CONTEXT=null;$.innerHTML='<div class="startup" style="max-width:580px;margin:12vh auto;padding:30px;text-align:center"><h2>🔧 SRII i-TRACK Maintenance</h2><p>'+esc(state.maintenance.message)+'</p><p class="note">Your account and saved documents remain unchanged.</p><button class="btn" data-a="maintenance-refresh">Check Again</button> <button class="btn alt" data-a="logout">Sign Out</button></div>';return;}
  appPage();
 }
 
@@ -622,7 +625,8 @@ function appPage(){
  const title={dashboard:'Home',announcements:'Announcements',monitoring:'Submission Monitoring',documents:'My Documents',division:'Division Transmittals',reports:'District Reports','school-files':'School Attachments',verification:'Submission Verification',approvals:'Account Management',archive:'Document Archiving'}[state.view]||'Overview';
  const school=state.schools.find(x=>x.id===state.profile.school_id)?.name||'District Office';
  const name=state.profile.display_name||(isOic()?'OIC-PSDS':'District Administrator');
- const body={dashboard:dashboardPage,announcements:announcementPage,monitoring:monitorPage,documents:documentPage,division:divisionPage,reports:districtReportPage,'school-files':schoolAttachmentsPage,verification:verificationPage,approvals:approvalPage,archive:archivePage}[state.view]?.()||dashboardPage();
+ let body={dashboard:dashboardPage,announcements:announcementPage,monitoring:monitorPage,documents:documentPage,division:divisionPage,reports:districtReportPage,'school-files':schoolAttachmentsPage,verification:verificationPage,approvals:approvalPage,archive:archivePage}[state.view]?.()||dashboardPage();
+ if(state.view==='dashboard'&&yesAdmin())body='<section class="panel" style="padding:20px;margin:16px 0;border:2px solid #d7bd6b"><h3>🔧 System Maintenance</h3><p class="note">Pause access for regular users while admins continue working.</p><p><strong>Status: '+(state.maintenance.enabled?'MAINTENANCE ON':'Running normally')+'</strong></p><button class="btn" data-a="maintenance-toggle">'+(state.maintenance.enabled?'Turn OFF Maintenance — Reopen App':'Turn ON Maintenance — Pause Users')+'</button></section>'+body;
  // Read-only presentation context for the upload panel. Not an authorization
  // mechanism: Supabase RLS and the Edge Function enforce permissions.
  window.ITRACK_CONTEXT={
@@ -1082,6 +1086,9 @@ async function click(e){
  const t=e.target.closest('[data-a]');if(!t||state.busy)return;
  const a=t.dataset.a;
  try{
+  if(a==='maintenance-refresh'){await readMaintenance();show();return;}
+  if(a==='maintenance-toggle'){if(!yesAdmin())throw Error('Admin only');const next=!state.maintenance.enabled;if(!confirm(next?'Turn ON Maintenance Mode? Regular users will see a maintenance notice.':'Turn OFF Maintenance Mode and reopen the app for regular users?'))return;const {error}=await db.rpc('i_track_set_maintenance',{p_enabled:next});if(error)throw error;await readMaintenance();show();pop(next?'Maintenance Mode enabled.':'Maintenance Mode disabled.');return;}
+  if(state.maintenance.enabled&&!yesAdmin()&&a!=='logout'){await readMaintenance();show();return;}
   if(a==='division-admin-search'){if(!yesAdmin())throw Error('Admin only');const query=document.getElementById('division-admin-query')?.value?.trim()||'';if(query.length<2)throw Error('Enter at least two characters.');const {data,error}=await db.rpc('i_track_division_admin_find',{p_query:query});if(error)throw error;state.divisionQuery=query;state.divisionSearchResults=data||[];show();return;}
   if(a==='division-admin-resolve'){if(!yesAdmin())throw Error('Admin only');const d=state.divisionSearchResults.find(x=>x.id===t.dataset.id);if(!d)throw Error('Document not found');const reason=prompt('Reason for '+t.dataset.act+' (required)');if(!reason?.trim())return;if(!confirm('Apply '+t.dataset.act+' to '+d.tracking_number+'?'))return;const {error}=d.last_item_id?await db.rpc('i_track_division_action',{p_action:t.dataset.act==='received'?'admin_received':t.dataset.act==='corrected'?'correct':t.dataset.act,p_transmittal:d.last_transmittal_id,p_item:d.last_item_id,p_reason:reason.trim()}):await db.rpc('i_track_division_admin_resolve',{p_document:d.id,p_resolution:t.dataset.act,p_reason:reason.trim()});if(error)throw error;state.divisionSearchResults=[];await load();pop('Resolution recorded.');return;}
   if(a==='division-forward'){if(!confirm('Forward this acknowledged document to the Division transmittal queue? Only its current recipient may do this.'))return;const {error}=await db.rpc('i_track_division_forward',{p_document:t.dataset.id});if(error)throw error;pop('Document forwarded to Division queue. Open Division Transmittals to prepare it.');return;}
@@ -1253,7 +1260,7 @@ async function click(e){
 }
 async function submit(e){
  const form=e.target;if(!['queue-join','queue-complete','login','resend-email','forgot-password','set-password','form-ann','form-doc'].includes(form.id))return;
- e.preventDefault();if(state.busy)return;state.busy=true;form.querySelectorAll('button[type=submit]').forEach(x=>x.disabled=true);
+ e.preventDefault();if(state.maintenance.enabled&&!yesAdmin()&&state.session){await readMaintenance();show();return;}if(state.busy)return;state.busy=true;form.querySelectorAll('button[type=submit]').forEach(x=>x.disabled=true);
  try{
   const fd=new FormData(form);
   if(form.id==='forgot-password'){
@@ -1421,5 +1428,6 @@ setInterval(()=>{
    queueRead().catch(e=>console.warn('Queue time reached; use Check Queue to refresh',e));
  }
 },15000);
+setInterval(async()=>{if(!state.session||!active())return;const was=state.maintenance.enabled;await readMaintenance();if(was!==state.maintenance.enabled)show();},20000);
 initial();
 })();
