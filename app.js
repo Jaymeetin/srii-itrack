@@ -112,7 +112,8 @@ async function load(){
    tasks.push((async()=>{const {data,error}=await db.from('announcements').select('id,announcement_code,title,description,status,deadline_at,original_deadline_at,created_at').order('created_at',{ascending:false});if(error)throw error;state.announcements=data||[];if(!state.selectedId||!state.announcements.some(x=>x.id===state.selectedId))state.selectedId=state.announcements.find(x=>x.status!=='draft')?.id||'';})());
   }
   if(!isOic()&&['dashboard','documents','division'].includes(state.view)){
-   tasks.push((async()=>{const {data,error}=await db.from('documents').select('id,tracking_number,subject,document_type,status,created_by,origin_school_id,created_at').order('created_at',{ascending:false}).limit(200);if(error)throw error;state.docs=data||[];if(state.view==='documents')await Promise.all([loadDocumentAttachments(),loadRoutingHistory()]);})());
+   tasks.push((async()=>{const {data,error}=await db.from('documents').select('id,tracking_number,subject,document_type,status,created_by,origin_school_id,created_at').order('created_at',{ascending:false}).limit(200);if(error)throw error;state.docs=data||[];if(state.view==='documents')await Promise.all([loadDocumentAttachments(),loadRoutingHistory()]);
+    else if(state.view==='dashboard')await loadRoutingHistory();})());
   }
   if(yesAdmin()&&['dashboard','approvals'].includes(state.view)){
    tasks.push((async()=>{const {data,error}=await db.from('profiles').select('id,display_name,school_id,requested_school_id,position_title,role,account_status,created_at').order('created_at',{ascending:false});if(error)throw error;state.profiles=data||[];})());
@@ -942,7 +943,7 @@ function routingTimeline(routes,approvals=[]){
 }
 
 function documentPage(){
- const rows=[...state.docs].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).map(d=>{const last=documentRoutes(d.id).at(-1);const filterStatus=last?.route_status||'none';return '<tr data-route-status="'+esc(filterStatus)+'" data-created="'+esc((d.created_at||'').slice(0,10))+'">'+
+ const rows=[...state.docs].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).map(d=>{const last=documentRoutes(d.id).at(-1);const filterStatus=last?.processed_at?'processed':last?.route_status||'none';return '<tr data-route-status="'+esc(filterStatus)+'" data-created="'+esc((d.created_at||'').slice(0,10))+'">'+
   '<td><b>'+esc(d.tracking_number)+'</b></td><td>'+esc(d.subject)+'</td>'+
   '<td>'+esc(d.document_type)+'</td>'+
   '<td class="routing-overview-cell">'+routingOverview(d)+'</td>'+
@@ -951,7 +952,7 @@ function documentPage(){
  return '<div class="sectionhead"><div><div class="eyebrow">Routing and acknowledgment</div><h1>My Documents</h1>'+
   '<p class="sub">See senders, recipients, received status, forwarding, returns, and full document movement.</p></div>'+
   '<button class="btn" data-a="send">+ Route Document</button></div>'+
-  '<div class="panel"><h3>Document Registry</h3><div class="field"><label for="document-search">Search documents</label><input id="document-search" type="search" placeholder="Tracking number, title, document type or current handler" autocomplete="off"></div><div class="document-filter-row"><div class="field"><label for="document-status-filter">Routing status</label><select id="document-status-filter"><option value="">All statuses</option><option value="awaiting_ack">Awaiting acknowledgment</option><option value="received">Receipt acknowledged · Awaiting action</option><option value="none">No route</option><option value="other">Other processed status</option></select></div><div class="field"><label for="document-date-filter">Created on or after</label><input id="document-date-filter" type="date"></div><button class="btn alt tiny" type="button" data-a="clear-document-filters">Clear Filters</button></div>'+
+  '<div class="panel"><h3>Document Registry</h3><div class="field"><label for="document-search">Search documents</label><input id="document-search" type="search" placeholder="Tracking number, title, document type or current handler" autocomplete="off"></div><div class="document-filter-row"><div class="field"><label for="document-status-filter">Routing status</label><select id="document-status-filter"><option value="">All statuses</option><option value="awaiting_ack">Awaiting acknowledgment</option><option value="received">Receipt acknowledged · Awaiting action</option><option value="processed">Processed route</option><option value="none">No route</option></select></div><div class="field"><label for="document-date-filter">Created on or after</label><input id="document-date-filter" type="date"></div><button class="btn alt tiny" type="button" data-a="clear-document-filters">Clear Filters</button></div>'+
   '<div id="document-search-count" class="small muted" aria-live="polite"></div>'+table(['Tracking #','Document Name','Type','Current Route / Receipt','Attachments','History'],rows)+'</div>'+
   '<div class="panel"><h3>Compress a Screenshot</h3><div class="notice">Image compression works locally and is free. Documents can be attached using the secure upload panel above.</div>'+
   '<div class="filebox"><input id="image-file" type="file" accept="image/jpeg,image/png,image/webp,.pdf,.doc,.docx">'+
@@ -1451,7 +1452,7 @@ function filterDocumentRegistry(){
  const dateMin=document.getElementById('document-date-filter')?.value||'';
  let visible=0;
  input.closest('.panel')?.querySelectorAll('table tbody tr').forEach(row=>{
-  const match=(!query||row.textContent.toLocaleLowerCase().includes(query))&&(!status||(status==="other"?!["awaiting_ack","received","none"].includes(row.dataset.routeStatus):row.dataset.routeStatus===status))&&(!dateMin||row.dataset.created>=dateMin);
+  const match=(!query||row.textContent.toLocaleLowerCase().includes(query))&&(!status||row.dataset.routeStatus===status)&&(!dateMin||row.dataset.created>=dateMin);
   row.hidden=!match;
   if(match)visible++;
  });
