@@ -14,7 +14,7 @@ const knownViews=new Set(['dashboard','announcements','monitoring','documents','
 const urlView=new URLSearchParams(location.search).get('view');
 const firstView=knownViews.has(urlView)?urlView:'dashboard';
 localStorage.removeItem('srii-current-view');
-const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],recipients:[],monitor:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:'login',queueTicket:localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',privateDetails:null,profileRequests:[],issue:null,maintenance:{enabled:false,message:''}};
+const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:'login',queueTicket:localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',privateDetails:null,profileRequests:[],issue:null,maintenance:{enabled:false,message:''}};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=x=>x?new Date(x).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}):'—';
@@ -112,7 +112,7 @@ async function load(){
    tasks.push((async()=>{const {data,error}=await db.from('announcements').select('id,announcement_code,title,description,status,deadline_at,original_deadline_at,created_at').order('created_at',{ascending:false});if(error)throw error;state.announcements=data||[];if(!state.selectedId||!state.announcements.some(x=>x.id===state.selectedId))state.selectedId=state.announcements.find(x=>x.status!=='draft')?.id||'';})());
   }
   if(!isOic()&&['dashboard','documents','division'].includes(state.view)){
-   tasks.push((async()=>{const {data,error}=await db.from('documents').select('id,tracking_number,subject,document_type,status,created_by,origin_school_id,created_at').order('created_at',{ascending:false}).limit(200);if(error)throw error;state.docs=data||[];if(state.view==='documents')await Promise.all([loadDocumentAttachments(),loadRoutingHistory()]);
+   tasks.push((async()=>{const {data,error}=await db.from('documents').select('id,tracking_number,subject,document_type,status,created_by,origin_school_id,created_at').order('created_at',{ascending:false}).limit(200);if(error)throw error;state.docs=data||[];if(state.view==='documents')await Promise.all([loadDocumentAttachments(),loadRoutingHistory(),loadDocumentTypes()]);
     else if(state.view==='dashboard')await loadRoutingHistory();})());
   }
   if(yesAdmin()&&['dashboard','approvals'].includes(state.view)){
@@ -228,6 +228,16 @@ window.addEventListener('itrack:document-uploaded',async event=>{
   });
  }catch(error){console.error('Could not refresh document attachments',error);}
 });
+async function loadDocumentTypes(){
+ const [catalog,suggestions]=await Promise.all([
+  db.from('document_types').select('name').eq('is_active',true).order('name'),
+  db.from('document_type_requests').select('id,requested_name,status,submitted_at').eq('suggested_by',state.session.user.id).order('submitted_at',{ascending:false}).limit(8)
+ ]);
+ if(catalog.error)throw catalog.error;
+ if(suggestions.error)throw suggestions.error;
+ state.docTypes=catalog.data||[];
+ state.docTypeRequests=suggestions.data||[];
+}
 async function loadRecipients(){const {data,error}=await db.rpc('i_track_recipient_directory');if(error)throw error;state.recipients=data||[];}
 async function loadMonitor(){if(!state.selectedId){state.monitor=[];return;}const {data,error}=await db.rpc('i_track_monitor',{p_announcement_id:state.selectedId});if(error)throw error;state.monitor=data||[];}
 async function loadVerification(){
@@ -1286,7 +1296,21 @@ async function click(e){
   }
   if(a==='close'){state.modal=null;state.monitorDetail=null;state.monitorFiles=[];show();return;}
   if(a==='new-announcement'){state.modal='new-announcement';show();return;}
-  if(a==='send'){if(isOic())throw new Error('OIC-PSDS accounts cannot route documents.');await loadRecipients();state.modal='send';show();return;}
+  if(a==='suggest-doc-type'){
+   if(!active()||isOic())throw new Error('Only active routing users may suggest document types.');
+   const name=clean(document.getElementById('suggested-doc-type')?.value);
+   if(name.length<2||name.length>140)throw new Error('Enter a document type between 2 and 140 characters.');
+   if(state.docTypes.some(x=>x.name.toLowerCase()===name.toLowerCase()))throw new Error('This document type already exists in the approved list.');
+   if(state.docTypeRequests.some(x=>x.status==='pending'&&x.requested_name.toLowerCase()===name.toLowerCase()))throw new Error('You already suggested this type, and it is pending review.');
+   const {error}=await db.from('document_type_requests').insert({suggested_by:state.session.user.id,requested_name:name});
+   if(error)throw error;
+   state.docTypeRequests.unshift({requested_name:name,status:'pending',submitted_at:new Date().toISOString()});
+   const info=document.getElementById('type-suggestion-feedback');
+   if(info)info.textContent='Suggestion submitted: '+name+'. It will appear in the dropdown only after administrator approval.';
+   const field=document.getElementById('suggested-doc-type');if(field)field.value='';
+   pop('Document type suggestion submitted for review.');return;
+  }
+  if(a==='send'){if(isOic())throw new Error('OIC-PSDS accounts cannot route documents.');await Promise.all([loadRecipients(),loadDocumentTypes()]);state.modal='send';show();return;}
   if(a==='doc-notice-read'){
    const source=t.dataset.source;
    if(!['routing','division'].includes(source))throw new Error('Unknown notification type.');
@@ -1549,6 +1573,7 @@ async function submit(e){
   if(form.id==='form-doc'){
    const direct=fd.get('destination')==='division';const params={p_subject:clean(fd.get('subject')),p_document_type:clean(fd.get('type')),p_notes:clean(fd.get('notes'))};if(!direct)params.p_recipient_id=clean(fd.get('recipient'));
    if(!params.p_subject||!params.p_document_type)throw new Error('Enter the document name and type.');
+   if(!state.docTypes.some(t=>t.name===params.p_document_type))throw new Error('Choose an approved document type from the list.');
    if(!direct&&!params.p_recipient_id)throw new Error('Choose a recipient.');
    const recipientName=direct?'Division Transmittal Queue':(state.recipients.find(x=>x.user_id===params.p_recipient_id)?.display_name||'selected recipient');
    if(!confirm('Send "'+params.p_subject+'" to '+recipientName+'? Please verify the destination before continuing.'))return;
