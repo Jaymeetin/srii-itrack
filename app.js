@@ -932,7 +932,7 @@ function documentPage(){
  return '<div class="sectionhead"><div><div class="eyebrow">Routing and acknowledgment</div><h1>My Documents</h1>'+
   '<p class="sub">See senders, recipients, received status, forwarding, returns, and full document movement.</p></div>'+
   '<button class="btn" data-a="send">+ Route Document</button></div>'+
-  '<div class="panel"><h3>Document Registry</h3><div class="field"><label for="document-search">Search documents</label><input id="document-search" type="search" placeholder="Tracking number, title, document type or current handler" autocomplete="off"></div><div class="document-filter-row"><div class="field"><label for="document-status-filter">Routing status</label><select id="document-status-filter"><option value="">All statuses</option><option value="awaiting_ack">Awaiting acknowledgment</option><option value="received">Acknowledged / Received</option><option value="none">No route</option></select></div><div class="field"><label for="document-date-filter">Created on or after</label><input id="document-date-filter" type="date"></div></div>'+
+  '<div class="panel"><h3>Document Registry</h3><div class="field"><label for="document-search">Search documents</label><input id="document-search" type="search" placeholder="Tracking number, title, document type or current handler" autocomplete="off"></div><div class="document-filter-row"><div class="field"><label for="document-status-filter">Routing status</label><select id="document-status-filter"><option value="">All statuses</option><option value="awaiting_ack">Awaiting acknowledgment</option><option value="received">Receipt acknowledged · Awaiting action</option><option value="none">No route</option><option value="other">Other processed status</option></select></div><div class="field"><label for="document-date-filter">Created on or after</label><input id="document-date-filter" type="date"></div><button class="btn alt tiny" type="button" data-a="clear-document-filters">Clear Filters</button></div>'+
   '<div id="document-search-count" class="small muted" aria-live="polite"></div>'+table(['Tracking #','Document Name','Type','Current Route / Receipt','Attachments','History'],rows)+'</div>'+
   '<div class="panel"><h3>Compress a Screenshot</h3><div class="notice">Image compression works locally and is free. Documents can be attached using the secure upload panel above.</div>'+
   '<div class="filebox"><input id="image-file" type="file" accept="image/jpeg,image/png,image/webp,.pdf,.doc,.docx">'+
@@ -1249,6 +1249,10 @@ async function click(e){
    const {error}=await db.rpc('i_track_set_backup_admin',{p_user_id:t.dataset.id,p_enable:t.dataset.enable==='true'});if(error)throw error;
    await load();pop('Permissions updated.');return;
   }
+  if(a==='clear-document-filters'){
+   for(const id of ['document-search','document-status-filter','document-date-filter']){const field=document.getElementById(id);if(field)field.value='';}
+   filterDocumentRegistry();return;
+  }
   if(a==='ack'){
    const {error}=await db.rpc('i_track_acknowledge_route',{p_route_id:t.dataset.id});if(error)throw error;state.modal=null;await load();pop('Receipt acknowledged.');return;
   }
@@ -1405,7 +1409,7 @@ function filterDocumentRegistry(){
  const dateMin=document.getElementById('document-date-filter')?.value||'';
  let visible=0;
  input.closest('.panel')?.querySelectorAll('table tbody tr').forEach(row=>{
-  const match=(!query||row.textContent.toLocaleLowerCase().includes(query))&&(!status||row.dataset.routeStatus===status)&&(!dateMin||row.dataset.created>=dateMin);
+  const match=(!query||row.textContent.toLocaleLowerCase().includes(query))&&(!status||(status==="other"?!["awaiting_ack","received","none"].includes(row.dataset.routeStatus):row.dataset.routeStatus===status))&&(!dateMin||row.dataset.created>=dateMin);
   row.hidden=!match;
   if(match)visible++;
  });
