@@ -1381,10 +1381,59 @@ async function click(e){
  }catch(e){err(e);}
 }
 async function submit(e){
- const form=e.target;if(!['queue-join','queue-complete','login','resend-email','forgot-password','set-password','form-ann','form-doc'].includes(form.id))return;
+ const form=e.target;if(!['queue-join','queue-complete','login','resend-email','forgot-password','set-password','form-ann','form-doc','settings-email-form','settings-password-form','settings-profile-form','settings-private-form'].includes(form.id))return;
  e.preventDefault();if(state.maintenance.enabled&&!yesAdmin()&&state.session){await readMaintenance();show();return;}if(state.busy)return;state.busy=true;form.querySelectorAll('button[type=submit]').forEach(x=>x.disabled=true);
  try{
   const fd=new FormData(form);
+  if(form.id==='settings-private-form'){
+   if(yesAdmin()||!state.session?.user?.id)throw new Error('Personal settings are available to active non-admin users.');
+   const columns=['employee_id','birthdate','plantilla_item','messenger_url','prc_id','bachelors_degree'];
+   const values=Object.fromEntries(columns.map(name=>[name,clean(fd.get(name))||null]));
+   if(values.messenger_url&&!/^https:\/\//i.test(values.messenger_url))throw new Error('Messenger link must begin with https://');
+   if(values.birthdate&&new Date(values.birthdate)>new Date())throw new Error('Birth date cannot be in the future.');
+   const {error}=await db.from('user_private_details').upsert({user_id:state.session.user.id,...values},{onConflict:'user_id'});
+   if(error)throw error;
+   await load();pop('Your private details were saved.');return;
+  }
+  if(form.id==='settings-profile-form'){
+   if(yesAdmin()||!state.session?.user?.id)throw new Error('Account profile request is not available.');
+   if((state.profileRequests||[]).some(r=>r.status==='pending'))throw new Error('A profile correction request is already pending administrator review.');
+   const name=clean(fd.get('full_name')),position=clean(fd.get('position_title'));
+   const school=isOic()?null:(clean(fd.get('school_id'))||state.profile.school_id);
+   if(!name)throw new Error('Enter your full name.');
+   const request={requested_by:state.session.user.id,
+    requested_name:name!==clean(state.profile.display_name)?name:null,
+    requested_position:position!==clean(state.profile.position_title)?position:null,
+    requested_school_id:school!==state.profile.school_id?school:null};
+   if(!request.requested_name&&!request.requested_position&&!request.requested_school_id)
+    throw new Error('No changes were found in your official profile.');
+   if(!confirm('Send these official profile changes to the District Administrator for review? They will not take effect immediately.'))return;
+   const {error}=await db.from('profile_change_requests').insert(request);
+   if(error)throw error;
+   await load();pop('Profile change request submitted for administrator review.');return;
+  }
+  if(form.id==='settings-email-form'){
+   if(yesAdmin()||!state.session?.user?.id)throw new Error('Account settings are not available.');
+   const email=clean(fd.get('email')).toLowerCase();
+   if(!email||!email.includes('@'))throw new Error('Enter a valid email address.');
+   if(email===String(state.session.user.email||'').toLowerCase())throw new Error('This is already your registered email.');
+   if(!confirm('Request a change of your login email address? You may need to verify it from email confirmation links.'))return;
+   const {error}=await db.auth.updateUser({email},{emailRedirectTo:location.origin+location.pathname});
+   if(error)throw emailQuotaError(error,'Email change');
+   pop('Email change requested. Check your email accounts for confirmation instructions.');return;
+  }
+  if(form.id==='settings-password-form'){
+   if(yesAdmin()||!state.session?.user?.id)throw new Error('Account settings are not available.');
+   const password=String(fd.get('new_password')||'');
+   if(password.length<8)throw new Error('New password must have at least 8 characters.');
+   if(password!==String(fd.get('confirm_password')||''))throw new Error('Passwords do not match.');
+   if(!confirm('Change your login password now? You will need to sign in again.'))return;
+   const {error}=await db.auth.updateUser({password});if(error)throw error;
+   const {error:signoutError}=await db.auth.signOut();
+   if(signoutError)console.warn('Password changed but signout returned an error.',signoutError);
+   state.session=null;state.profile=null;state.modal=null;rememberView('dashboard');show();
+   pop('Password updated. Sign in again using your new password.');return;
+  }
   if(form.id==='forgot-password'){
    const email=clean(fd.get('email'));
    if(!email)throw new Error('Enter your registered email address.');
