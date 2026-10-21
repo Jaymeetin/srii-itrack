@@ -14,7 +14,7 @@ const knownViews=new Set(['dashboard','announcements','monitoring','documents','
 const urlView=new URLSearchParams(location.search).get('view');
 const firstView=knownViews.has(urlView)?urlView:'dashboard';
 localStorage.removeItem('srii-current-view');
-const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:'login',queueTicket:localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',privateDetails:null,profileRequests:[],userFeedback:[],issue:null,maintenance:{enabled:false,message:''}};
+const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:'login',queueTicket:localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],showRemovedAccounts:false,modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',privateDetails:null,profileRequests:[],userFeedback:[],issue:null,maintenance:{enabled:false,message:''}};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=x=>x?new Date(x).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}):'—';
@@ -1216,7 +1216,8 @@ function divisionPrintHtml(t,items,qrImage=''){
 function approvalPage(){
  if(!yesAdmin())return '<div class="notice danger">Administrator access required.</div>';
  const emailById=new Map(state.accountEmails.map(r=>[r.user_id,r]));
- const rows=state.profiles.map(p=>{
+ const removedCount=state.profiles.filter(p=>p.account_status==='deleted').length;
+ const rows=state.profiles.filter(p=>state.showRemovedAccounts||p.account_status!=='deleted').map(p=>{
   const oversight=p.role==='oic_psds';
   const school=oversight?'District Office (no school)':state.schools.find(s=>s.id===(p.school_id||p.requested_school_id))?.name||'Unassigned';
   const pending=p.account_status==='pending';
@@ -1234,13 +1235,16 @@ function approvalPage(){
   if(isMain()&&p.account_status==='active'&&p.role!=='main_admin'&&p.role!=='oic_psds')
    actions.push('<button class="btn tiny alt" data-a="backup" data-id="'+esc(p.id)+'" data-enable="'+(p.role==='backup_admin'?'false':'true')+'">'+
    (p.role==='backup_admin'?'Remove Backup':'Make Backup')+'</button>');
-  if(canAssist&&email){
+  const canDelete=(p.account_status!=='deleted'&&p.role!=='main_admin'&&p.id!==state.session?.user?.id)&&
+    (isMain()||p.role==='school_user');
+  if(canDelete)actions.push('<button type="button" class="btn tiny danger" data-a="admin-delete-user" data-id="'+esc(p.id)+'">Delete User</button>');
+  if(canAssist&&email&&p.account_status!=='deleted'){
    actions.push('<button type="button" class="btn tiny alt" data-a="admin-password-reset" data-id="'+esc(p.id)+'">Send Password Reset</button>');
    if(emailRecord?.email_confirmed===false)
     actions.push('<button type="button" class="btn tiny alt" data-a="admin-email-confirmation" data-id="'+esc(p.id)+'">Resend Verification</button>');
   }
   const roleLabel=oversight?'OIC-PSDS · Read Only':label(p.role);
-  const emailStatus=emailRecord?.email_confirmed===true?'<span class="account-email-state is-confirmed">Email verified</span>':
+  const emailStatus=p.account_status==='deleted'?'<span class="small muted">Account access removed</span>':emailRecord?.email_confirmed===true?'<span class="account-email-state is-confirmed">Email verified</span>':
      emailRecord?.email_confirmed===false?'<span class="account-email-state is-unconfirmed">Awaiting verification</span>':
      '<span class="small muted">Email status unavailable</span>';
   return '<tr><td><strong>'+esc(p.display_name||'Unnamed user')+'</strong>'+
@@ -1253,7 +1257,9 @@ function approvalPage(){
  });
  return '<div class="eyebrow">Administrator controls</div><h1>Account Approvals</h1>'+
   '<p class="sub">Approve personnel, check who is awaiting email verification, or send a password-reset link. Resetting a password preserves all documents and account history. The Main Administrator approves OIC-PSDS accounts.</p>'+
-  '<div class="notice">Recovery and verification emails use Supabase Auth. Requests may be temporarily blocked until a dedicated SMTP sender is configured. Do not delete an account to fix a forgotten password.</div>'+
+  '<div class="notice">Delete User removes SRII i-TRACK access and retains the historical account ID, document routing, uploader attribution, and all Google Drive files. It does not erase the underlying Supabase Auth login record or free the email address. Do not use Delete User for forgotten passwords.</div>'+
+  '<div class="account-delete-toolbar"><button type="button" class="btn alt tiny" data-a="toggle-removed-users">'+
+   (state.showRemovedAccounts?'Hide Deleted Accounts':'Show Deleted Accounts ('+removedCount+')')+'</button></div>'+
   '<div class="panel">'+table(['Name','School / Office','Status','Role','Email verification','Actions'],rows)+'</div>'+
   '<section class="panel"><h3>Registration Email Queue</h3>'+
   '<p class="note">Waiting-list tickets are not registered accounts and cannot be approved here. These are estimated two-per-hour signup windows, not confirmed email deliveries. The provider email quota is also used for password resets and other messages.</p>'+
@@ -1508,6 +1514,33 @@ async function click(e){
    state.selectedSchoolSubmission=t.dataset.id;state.modal='school-submission-detail';show();return;
   }
   if(a==='detail'){if(isOic())throw new Error('OIC-PSDS accounts cannot view private documents.');await openDetail(t.dataset.id);return;}
+  if(a==='toggle-removed-users'){
+   if(!yesAdmin()||state.view!=='approvals')throw new Error('Administrator access required.');
+   state.showRemovedAccounts=!state.showRemovedAccounts;show();return;
+  }
+  if(a==='admin-delete-user'){
+   if(!yesAdmin()||!active()||state.view!=='approvals')
+     throw new Error('Only an active district administrator can remove an account.');
+   const user=state.profiles.find(p=>p.id===t.dataset.id);
+   if(!user)throw new Error('User not found. Refresh the accounts.');
+   if(user.id===state.session.user.id||user.role==='main_admin')
+     throw new Error('Your own account and Main Administrator are protected.');
+   if(!isMain()&&user.role!=='school_user')
+     throw new Error('Only the Main Administrator may remove privileged accounts.');
+   if(user.account_status==='deleted')throw new Error('This user is already removed.');
+   const labelName=user.display_name||'Unnamed account';
+   const confirmation=prompt('DELETE USER: '+labelName+'\\n\\nThis removes access to SRII i-TRACK. Google Drive files, document history, and uploader records remain unchanged. The underlying Supabase Auth login record is retained for history, so this does NOT free the email for re-registration.\\n\\nType DELETE to confirm:');
+   if(confirmation===null)return;
+   if(confirmation!=='DELETE')throw new Error('Deletion canceled. You must type DELETE exactly.');
+   if(!confirm('Remove SRII i-TRACK access for '+labelName+' now? You cannot use this to reset a password.'))return;
+   state.busy=true;t.disabled=true;
+   try{
+    const {error}=await db.rpc('i_track_admin_remove_user',{p_target:user.id,p_confirm:'DELETE'});
+    if(error)throw error;
+    await load();pop('User access removed. Google Drive files and document history were preserved.');
+   }finally{state.busy=false;t.disabled=false;}
+   return;
+  }
   if(a==='admin-password-reset'||a==='admin-email-confirmation'){
    if(!yesAdmin()||!active()||state.view!=='approvals')
     throw new Error('Administrator access required.');
