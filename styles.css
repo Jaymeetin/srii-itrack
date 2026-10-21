@@ -522,3 +522,9 @@ tr[hidden]{display:none!important}
 .monitor-visible-file .small{margin-top:5px;line-height:1.45}
 .monitor-visible-file button{flex-shrink:0;min-height:40px}
 @media(max-width:730px){.monitor-visible-files{padding:11px}.monitor-visible-file{gap:7px}.monitor-visible-file button{padding:8px 10px}}
+
+/* Admin account removal controls: compact with clear destructive styling */
+.account-delete-toolbar{display:flex;justify-content:flex-end;margin:8px 0 12px}
+.account-recovery-actions .danger{white-space:nowrap}
+.account-recovery-actions{flex-wrap:wrap;row-gap:7px}
+@media(max-width:740px){.account-delete-toolbar{justify-content:flex-start}.account-recovery-actions .danger{min-height:38px}}
