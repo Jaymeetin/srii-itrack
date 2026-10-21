@@ -85,7 +85,7 @@ function markPanel(){
    const paragraphs=conn.querySelectorAll("p");
    if(paragraphs.length>=3){
      paragraphs[1].innerHTML='<span class="tag warn">PILOT</span> DepEd Google Drive uploads';
-     paragraphs[2].textContent="Authenticated uploads are being tested with district administrators, SINUNDOLAN ES and BUGO CS before wider rollout.";
+     paragraphs[2].textContent="Authorized routed-document attachments are available district-wide. School announcement submissions still follow role-based permissions.";
    }
  }
  const host=root.querySelector("#monitor-school-upload-host");
@@ -101,7 +101,7 @@ function markPanel(){
   '<span class="iu-pilot">TRIAL</span></div>'+
   '<p class="iu-description">'+(kind==="announcement"?
    (host?'Upload for this school using your own AO II account. Your identity and the represented school are recorded; only district administrators verify the submission.':'Choose an assigned requirement and upload a PDF, Word file, or image. Revised submissions keep their version history.'):
-   'Choose a document you are authorized to access. Upload supporting files without changing its permanent tracking number.'
+   'Attach a file to a document you created, sent, or received through routing. Files remain private to authorized participants.'
   )+'</p>'+
   '<div class="iu-loading iu-message">Checking your approved account and available '+(kind==="announcement"?"requirements":"documents")+'…</div>'+
   '<div class="iu-controls" hidden>'+
@@ -190,9 +190,12 @@ async function initialize(node,kind){
    const school=await withDeadline(db.from("schools")
     .select("name,is_active").eq("id",profile.school_id).single(),"School approval check");
    if(school.error||!school.data?.is_active)throw Error("Your approved school is not active.");
-   if(profile.role!=="school_user" || (kind==="document"&&!PILOT_SCHOOL_IDS.has(profile.school_id)) ||
-       (kind==="announcement"&&!aoII&&!PILOT_SCHOOL_IDS.has(profile.school_id)))
-    throw Error("You do not have permission to upload files for this destination.");
+   if(profile.role!=="school_user")
+    throw Error("Only approved school personnel or district administrators can upload files.");
+   // Any active school user may attach to an authorized routed document.
+   // RLS limits the document picker; the upload server independently verifies involvement.
+   if(kind==="announcement"&&!aoII&&!PILOT_SCHOOL_IDS.has(profile.school_id))
+    throw Error("Submitting announcement requirements for other schools requires an approved AO II account.");
   }
   let options=[];
   loadingMessage(node,"Loading assigned "+(kind==="announcement"?"requirements":"documents")+"…");
