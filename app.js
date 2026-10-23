@@ -1227,7 +1227,7 @@ function approvalPage(){
     (p.role!=='backup_admin'||isMain())&&(!oversight||isMain());
   const actions=[];
   if(canReview){
-   actions.push('<button class="btn tiny" data-a="approve" data-id="'+esc(p.id)+'">Approve</button>');
+   actions.push('<button class="btn tiny" data-a="account-approve" data-id="'+esc(p.id)+'">Approve</button>');
    actions.push('<button class="btn tiny danger" data-a="reject" data-id="'+esc(p.id)+'">Reject</button>');
   }else if(pending&&oversight){
    actions.push('<span class="small muted">Main Administrator approval only</span>');
@@ -1317,7 +1317,7 @@ function modalHtml(){
     '</select></div><div class="field"><label>Remarks (required for Return for Correction)</label><input id="route-note" placeholder="Explain the correction needed, or add forwarding instructions"></div>';
   footer='<button class="btn alt" data-a="close">Close</button>'+
    (canAck?'<button class="btn" data-a="ack" data-id="'+esc(last.route_id)+'">Acknowledge Receipt</button>':'')+
-   (canApprove?'<button class="btn" data-a="approve" data-id="'+esc(last.route_id)+'">Approve Document</button>':'')+
+   (canApprove?'<button class="btn" data-a="document-approve" data-id="'+esc(last.route_id)+'">Approve Document</button>':'')+
    (canForward?'<button class="btn alt" data-a="route" data-id="'+esc(last.route_id)+'" data-return="true">Return for Correction</button>'+
     '<button class="btn" data-a="route" data-id="'+esc(last.route_id)+'" data-return="false">Forward</button>':'');
 
@@ -1575,11 +1575,11 @@ async function click(e){
    }
    return;
   }
-  if(a==='approve'||a==='reject'){
+  if(a==='account-approve'||a==='reject'){
    const user=state.profiles.find(p=>p.id===t.dataset.id);if(!user)return;
    if(user.role==='oic_psds'&&!isMain())throw new Error('Only the Main Administrator can review OIC-PSDS registration.');
-   if(!confirm(`${a==='approve'?'Approve':'Reject'} ${user.role==='oic_psds'?'the read-only OIC-PSDS District Office account':'this school user'}?`))return;
-   const {error}=await db.rpc('i_track_review_account',{p_user_id:user.id,p_approve:a==='approve',p_school_id:user.requested_school_id||null});if(error)throw error;
+   if(!confirm(`${a==='account-approve'?'Approve':'Reject'} ${user.role==='oic_psds'?'the read-only OIC-PSDS District Office account':'this school user'}?`))return;
+   const {error}=await db.rpc('i_track_review_account',{p_user_id:user.id,p_approve:a==='account-approve',p_school_id:user.requested_school_id||null});if(error)throw error;
    await load();pop('Account reviewed.');return;
   }
   if(a==='backup'){
@@ -1591,7 +1591,7 @@ async function click(e){
    for(const id of ['document-search','document-status-filter','document-date-filter']){const field=document.getElementById(id);if(field)field.value='';}
    filterDocumentRegistry();return;
   }
-  if(a==='approve'){
+  if(a==='document-approve'){
    if(!confirm('Approve this document? This records your final approval and closes the current route.'))return;
    const {error}=await db.rpc('i_track_approve_route',{p_route_id:t.dataset.id});
    if(error)throw error;
