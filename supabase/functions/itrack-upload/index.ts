@@ -171,7 +171,9 @@ Deno.serve(async (req: Request) => {
         // substitute the school of a forwarding or assisting uploader.
         if (!d.origin_school_id)
           return response({error:"This document has no originating school. An administrator must correct its school before a file can be placed in the new folder layout."},409);
-        if (!docType || docType.length>150 || docType.includes("/") ||\n            docType.includes(String.fromCharCode(92)) ||\n            Array.from(docType).some(ch=>ch.charCodeAt(0)<32) ||
+        if (!docType || docType.length>150 || docType.includes("/") ||
+            docType.includes(String.fromCharCode(92)) ||
+            Array.from(docType).some(ch=>ch.charCodeAt(0)<32) ||
             docType==="." || docType==="..")
           return response({error:"Invalid document type for the Google Drive folder"},409);
         if (!/^[A-Za-z0-9][A-Za-z0-9 ._-]{0,99}$/.test(d.tracking_number))
