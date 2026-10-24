@@ -1,7 +1,7 @@
 # SRII i-TRACK — Routed Document Folder Reorganization (Trial)
 
 ## Status
-The migration has been PREPARED, **not yet executed in Google Drive**. The Apps Script project's source is not connected to this ChatGPT session. Do not merge or activate the staged Supabase upload-code change before updating the Apps Script bridge.
+The migration of all six existing routed-document files was **completed directly using the connected Google Drive service**. The Apps Script project source is not available, so future-upload activation is **not complete**. Do not merge or activate the staged Supabase upload code before updating the Apps Script bridge.
 
 This package changes **routed documents only**. There is no action on announcement folders or files.
 
@@ -28,12 +28,12 @@ The top-level `School Documents` folder is new. School Name is the **document's 
 
 **Do not commit either manifest to a public repository.** They contain private Drive file IDs and checksums.
 
-## Existing-file migration (no deletion)
-1. In the *existing* Google Apps Script project used by SRII i-TRACK, add a new script file named `RoutedDocumentFolders.gs` and paste the supplied code. Do **not** replace `SecureUpload.gs` or its `doPost(e)`.
+## Existing-file migration — completed (do not rerun)
+1. Historical migration is already complete via Google Drive. These original script-based migration instructions remain for audit/reference only; do not rerun it for the six completed files.
 2. In **Project Settings → Script Properties**, add `SRII_ROUTED_MIGRATION_MANIFEST`. Paste the exact one-line contents of `Routed_Migration_Script_Property_Value.txt` as its value.
-3. Run `iTrackPreviewRoutedMigration` from Apps Script. This reads and verifies files without changing any folder or file. The expected result with the updated private manifest is **6 READY**, **0 held for missing originating school**. If the count differs or any file check fails, stop.
-4. Only after inspecting the preview, add Script Property `SRII_ROUTED_MIGRATION_CONFIRMATION` with exact value `MOVE_ROUTED_FILES_ONLY`, and run `iTrackRunRoutedMigration`.
-5. Re-run the preview; all six files should now show `ALREADY CORRECT`. Test View and Download in SRII i-TRACK. They should continue to work because the Drive file IDs did not change.
+3. If you use the private manifest for read-only verification, `iTrackPreviewRoutedMigration` should now show **6 ALREADY CORRECT**, **0 READY**, and **0 blocked**.
+4. DO NOT run `iTrackRunRoutedMigration` for this already-completed migration; moving the six files again is unnecessary.
+5. Drive file metadata and target folder listing already verified all six original IDs and sizes. Test authorized View and Download in SRII i-TRACK using the existing file links.
 
 ### District Office document confirmed by owner
 Tracking `SRII-2026-000001` (Memorandum) belongs to **DISTRICT OFFICE**. All three attachments now appear in the updated private migration manifest under `School Documents / DISTRICT OFFICE / Memorandum / SRII-2026-000001`. Its originating school ID remains `NULL` because the District Office is not one of the schools; the creator was verified as the Main Administrator. Do not assign an invented school ID or use the school of an assisting uploader.
