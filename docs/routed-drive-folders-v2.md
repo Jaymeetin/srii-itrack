@@ -1,0 +1,68 @@
+# SRII i-TRACK — Routed Document Folder Reorganization (Trial)
+
+## Status
+The migration has been PREPARED, **not yet executed in Google Drive**. The Apps Script project's source is not connected to this ChatGPT session. Do not merge or activate the staged Supabase upload-code change before updating the Apps Script bridge.
+
+This package changes **routed documents only**. There is no action on announcement folders or files.
+
+## Exact destination
+Inside the existing Drive root identified by the Apps Script `ROOT_FOLDER_ID`:
+
+```
+SRII i-TRACK DOCUMENTS/
+  School Documents/
+    SINUNDOLAN ES/
+      Loyalty Pay Requirements/
+        SRII-2026-000003/
+          (existing file — same Google Drive file ID)
+```
+
+The top-level `School Documents` folder is new. School Name is the **document's originating school**, NEVER the assisting uploader's school. Document ID means the readable `tracking_number` (e.g. `SRII-2026-000003`), not a random UUID.
+
+## Package files
+- `RoutedDocumentFolders.gs` — Apps Script *add-on* with a new-path helper, a verified dry-run preview and an idempotent move.
+- `Routed_Migration_Manifest.json` — private manifest for the existing 6 routed-document attachments.
+- `Routed_Migration_Script_Property_Value.txt` — same manifest on one line for convenient copy into Apps Script Script Properties.
+- `Migration_Inventory.csv` — the expected destination of each attachment and records on hold.
+- `README.txt` — these instructions.
+
+**Do not commit either manifest to a public repository.** They contain private Drive file IDs and checksums.
+
+## Existing-file migration (no deletion)
+1. In the *existing* Google Apps Script project used by SRII i-TRACK, add a new script file named `RoutedDocumentFolders.gs` and paste the supplied code. Do **not** replace `SecureUpload.gs` or its `doPost(e)`.
+2. In **Project Settings → Script Properties**, add `SRII_ROUTED_MIGRATION_MANIFEST`. Paste the exact one-line contents of `Routed_Migration_Script_Property_Value.txt` as its value.
+3. Run `iTrackPreviewRoutedMigration` from Apps Script. This reads and verifies files without changing any folder or file. The expected result is **3 READY** and **3 held for missing originating school**. If the count differs or any file check fails, stop.
+4. Only after inspecting the preview, add Script Property `SRII_ROUTED_MIGRATION_CONFIRMATION` with exact value `MOVE_ROUTED_FILES_ONLY`, and run `iTrackRunRoutedMigration`.
+5. Re-run the preview; these three files should now show `ALREADY CORRECT`. Test View and Download in SRII i-TRACK. They should continue to work because the Drive file IDs did not change.
+
+### Unresolved school for one older record
+Tracking `SRII-2026-000001` (Memorandum) has no `origin_school_id` recorded in Supabase, and its three attachments include a district-uploaded file. These **three files are deliberately excluded** until the authoritative originating school is identified; neither an uploader's school nor the district account's name should be guessed. After correcting the originating school record, regenerate their entries in the manifest and use another preview-first run.
+
+### Unconfirmed upload on October 23
+Tracking `SRII-2026-000007` has an upload attempt marked `failed` with no Drive file ID, despite a report that the file may exist in Drive. It cannot be safely relocated by ID until it is located and reconciled. Do not delete or blindly reupload it.
+
+## New uploads — bridge integration after migration
+The Supabase Edge source for the new routed layout is staged on a development branch, NOT deployed to live. Its new path is behind the `ITRACK_ROUTED_FOLDER_LAYOUT=school_v2` environment flag; without that flag it preserves the current upload behavior.
+
+The signed payload still uses `category: "Documents"` (so Announcements are unaffected), but for routed documents it uses a verified, signed `folderLabel` of
+`RD2::<URL-ENCODED DOCUMENT TYPE>::<TRACKING NUMBER>` and `schoolName` from the document's `origin_school_id`.
+
+In the **existing** `SecureUpload.gs`, AFTER the existing signed-request verification and immediately BEFORE sending the successful upload response, insert a call for the saved file:
+
+```javascript
+iTrackPutRoutedFile_(p, savedFile); // change savedFile to your actual DriveApp File variable
+```
+
+If you only have the resulting file ID variable, use `DriveApp.getFileById(savedFileId)`. The function does nothing for Announcements and legacy routed uploads. It moves only signed `RD2::` uploads to the new target folder. It never deletes or reuploads files.
+
+Because `SecureUpload.gs` is not available in this repository, the exact variable name and insertion point must be checked in that script before this line is installed. Do not add a second `doPost`.
+
+After deploying the Apps Script as a new version, and confirming it can process an RD2 upload without breaking announcement uploads, deploy the staged Edge source with the environment flag set. The staged Edge version requires an originating school to be present and never replaces it with the uploader's school.
+
+## Safety
+- Only `public.document_attachments` IDs were included; there are **zero** announcement-submission IDs in this manifest.
+- Move in Drive preserves file IDs, checksums and app links.
+- Script refuses files outside `ROOT_FOLDER_ID` and any file with an `Announcements` folder in its ancestor chain.
+- No file or folder is trashed; old empty folders are left intact.
+- No Supabase document or attachment records are deleted or updated by migration.
+- Two administrator steps (dry-run preview, then explicit move confirmation) prevent accidental bulk movement.
