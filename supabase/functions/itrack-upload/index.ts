@@ -169,8 +169,15 @@ Deno.serve(async (req: Request) => {
         const docType=String(d.document_type||"").trim();
         // The document's ORIGINAL school governs the Drive destination; never
         // substitute the school of a forwarding or assisting uploader.
-        if (!d.origin_school_id)
-          return response({error:"This document has no originating school. An administrator must correct its school before a file can be placed in the new folder layout."},409);
+        if (!d.origin_school_id) {
+          const {data:creator,error:creatorError}=await db.from("profiles")
+            .select("role").eq("id",d.created_by).single();
+          if (creatorError || !["main_admin","backup_admin"].includes(creator?.role))
+            return response({error:"A valid originating school or verified District Office origin is required."},409);
+          schoolId=null;
+        } else {
+          schoolId=d.origin_school_id;
+        }
         if (!docType || docType.length>150 || docType.includes("/") ||
             docType.includes(String.fromCharCode(92)) ||
             Array.from(docType).some(ch=>ch.charCodeAt(0)<32) ||
@@ -178,7 +185,6 @@ Deno.serve(async (req: Request) => {
           return response({error:"Invalid document type for the Google Drive folder"},409);
         if (!/^[A-Za-z0-9][A-Za-z0-9 ._-]{0,99}$/.test(d.tracking_number))
           return response({error:"Invalid document tracking number for the Drive folder"},409);
-        schoolId=d.origin_school_id;
         // The signed folderLabel is parsed only for Documents by
         // RoutedDocumentFolders.gs, after the existing Apps Script HMAC check.
         folderLabel="RD2::"+encodeURIComponent(docType)+"::"+d.tracking_number;
