@@ -23,7 +23,7 @@ The top-level `School Documents` folder is new. School Name is the **document's 
 - `RoutedDocumentFolders.gs` — Apps Script *add-on* with a new-path helper, a verified dry-run preview and an idempotent move.
 - `Routed_Migration_Manifest.json` — private manifest for the existing 6 routed-document attachments.
 - `Routed_Migration_Script_Property_Value.txt` — same manifest on one line for convenient copy into Apps Script Script Properties.
-- `Migration_Inventory.csv` — the expected destination of each attachment and records on hold.
+- `Migration_Inventory.csv` — the expected destination for each of the six routed-document attachments.
 - `README.txt` — these instructions.
 
 **Do not commit either manifest to a public repository.** They contain private Drive file IDs and checksums.
@@ -31,12 +31,12 @@ The top-level `School Documents` folder is new. School Name is the **document's 
 ## Existing-file migration (no deletion)
 1. In the *existing* Google Apps Script project used by SRII i-TRACK, add a new script file named `RoutedDocumentFolders.gs` and paste the supplied code. Do **not** replace `SecureUpload.gs` or its `doPost(e)`.
 2. In **Project Settings → Script Properties**, add `SRII_ROUTED_MIGRATION_MANIFEST`. Paste the exact one-line contents of `Routed_Migration_Script_Property_Value.txt` as its value.
-3. Run `iTrackPreviewRoutedMigration` from Apps Script. This reads and verifies files without changing any folder or file. The expected result is **3 READY** and **3 held for missing originating school**. If the count differs or any file check fails, stop.
+3. Run `iTrackPreviewRoutedMigration` from Apps Script. This reads and verifies files without changing any folder or file. The expected result with the updated private manifest is **6 READY**, **0 held for missing originating school**. If the count differs or any file check fails, stop.
 4. Only after inspecting the preview, add Script Property `SRII_ROUTED_MIGRATION_CONFIRMATION` with exact value `MOVE_ROUTED_FILES_ONLY`, and run `iTrackRunRoutedMigration`.
-5. Re-run the preview; these three files should now show `ALREADY CORRECT`. Test View and Download in SRII i-TRACK. They should continue to work because the Drive file IDs did not change.
+5. Re-run the preview; all six files should now show `ALREADY CORRECT`. Test View and Download in SRII i-TRACK. They should continue to work because the Drive file IDs did not change.
 
-### Unresolved school for one older record
-Tracking `SRII-2026-000001` (Memorandum) has no `origin_school_id` recorded in Supabase, and its three attachments include a district-uploaded file. These **three files are deliberately excluded** until the authoritative originating school is identified; neither an uploader's school nor the district account's name should be guessed. After correcting the originating school record, regenerate their entries in the manifest and use another preview-first run.
+### District Office document confirmed by owner
+Tracking `SRII-2026-000001` (Memorandum) belongs to **DISTRICT OFFICE**. All three attachments now appear in the updated private migration manifest under `School Documents / DISTRICT OFFICE / Memorandum / SRII-2026-000001`. Its originating school ID remains `NULL` because the District Office is not one of the schools; the creator was verified as the Main Administrator. Do not assign an invented school ID or use the school of an assisting uploader.
 
 ### Unconfirmed upload on October 23
 Tracking `SRII-2026-000007` has an upload attempt marked `failed` with no Drive file ID, despite a report that the file may exist in Drive. It cannot be safely relocated by ID until it is located and reconciled. Do not delete or blindly reupload it.
@@ -57,7 +57,7 @@ If you only have the resulting file ID variable, use `DriveApp.getFileById(saved
 
 Because `SecureUpload.gs` is not available in this repository, the exact variable name and insertion point must be checked in that script before this line is installed. Do not add a second `doPost`.
 
-After deploying the Apps Script as a new version, and confirming it can process an RD2 upload without breaking announcement uploads, deploy the staged Edge source with the environment flag set. The staged Edge version requires an originating school to be present and never replaces it with the uploader's school.
+After deploying the Apps Script as a new version, and confirming it can process an RD2 upload without breaking announcement uploads, deploy the staged Edge source with the environment flag set. **Not yet ready to enable for District Office uploads:** the staged Edge version currently requires an originating school ID. Before activation, it must be updated to recognize district-admin-created documents with no school ID as `DISTRICT OFFICE`; the source is not enabled on the live service. For school-origin documents, the source never substitutes the uploader's school.
 
 ## Safety
 - Only `public.document_attachments` IDs were included; there are **zero** announcement-submission IDs in this manifest.
