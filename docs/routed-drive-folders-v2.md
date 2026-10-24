@@ -66,3 +66,16 @@ After deploying the Apps Script as a new version, and confirming it can process 
 - No file or folder is trashed; old empty folders are left intact.
 - No Supabase document or attachment records are deleted or updated by migration.
 - Two administrator steps (dry-run preview, then explicit move confirmation) prevent accidental bulk movement.
+
+## Activation checklist for future uploads (Apps Script deployment required)
+
+The six existing routed-document attachments have ALREADY been moved in Google Drive. Do not run the earlier migration manifest again.
+
+1. Open the EXISTING SecureUpload.gs source in the Apps Script project that owns the ITRACK_APPS_SCRIPT_URL deployment.
+2. Add apps-script/RoutedDocumentFolders.gs from this PR. If you previously installed the migration package's RoutedDocumentFolders.gs, do NOT install another definition of iTrackPutRoutedFile_.
+3. After verifying the existing upload request HMAC, after creating the DriveApp File, and before returning success, invoke iTrackPutRoutedFile_(p, savedFile), using your actual variables. Do not add a second doPost.
+4. Deploy a NEW version of the existing Google Apps Script web app, preserving the deployment endpoint and Google Drive permissions.
+5. Only AFTER verifying the bridge update should the staged Edge Function be deployed and ITRACK_ROUTED_FOLDER_LAYOUT set to school_v2.
+6. Test a school document, a District Office document, and an ANNOUNCEMENT. Verify paths, Drive file IDs and that announcements are unmodified.
+
+The Google Drive connector can move files and create folders but DOES NOT support editing/redeploying Apps Script project source. Thus this last activation cannot be performed through that connector alone.
