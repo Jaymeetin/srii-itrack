@@ -4,6 +4,26 @@
 const C=window.ITRACK_CONFIG;
 const $=document.getElementById('app');
 const toast=document.getElementById('toast');
+// Supabase redirects expired confirmation links with error_code=otp_expired
+// (in the query string or the URL hash). Capture this before its auth client
+// processes/clears the callback; never treat a URL parameter as verification.
+function expiredEmailLinkFromUrl(){
+ const fragment=location.hash.startsWith('#?')?location.hash.slice(2):location.hash.slice(1);
+ const parts=[new URLSearchParams(location.search),new URLSearchParams(fragment)];
+ const code=parts.map(p=>p.get('error_code')||'').find(Boolean)||'';
+ const description=parts.map(p=>p.get('error_description')||'').find(Boolean)||'';
+ const expired=code==='otp_expired'||code==='otp_invalid'||
+  /(?:link|token).*?(?:expired|invalid)|(?:expired|invalid).*?(?:link|token)/i.test(description);
+ if(!expired)return false;
+ try{
+  const url=new URL(location.href);
+  for(const key of ['error','error_code','error_description'])url.searchParams.delete(key);
+  if(['#error=','#error_code=','#error_description=','#?error='].some(prefix=>url.hash.startsWith(prefix)))url.hash='';
+  history.replaceState(history.state,'',url.pathname+url.search+url.hash);
+ }catch(e){console.warn('Expired-link redirect could not be cleaned',e);}
+ return true;
+}
+const arrivedFromExpiredEmailLink=expiredEmailLinkFromUrl();
 const db=window.supabase?.createClient(C.url,C.publishableKey,{auth:{persistSession:true,detectSessionInUrl:true,autoRefreshToken:true}});
 // Reuse one authenticated client across tracking, upload and download screens.
 // Multiple clients refreshing the same mobile session can reset upload forms.
@@ -14,7 +34,7 @@ const knownViews=new Set(['dashboard','announcements','monitoring','documents','
 const urlView=new URLSearchParams(location.search).get('view');
 const firstView=knownViews.has(urlView)?urlView:'dashboard';
 localStorage.removeItem('srii-current-view');
-const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:'login',queueTicket:localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],showRemovedAccounts:false,modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',privateDetails:null,profileRequests:[],userFeedback:[],issue:null,maintenance:{enabled:false,message:''}};
+const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:arrivedFromExpiredEmailLink?'resend':'login',emailHelpReason:arrivedFromExpiredEmailLink?'expired':'',queueTicket:localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],showRemovedAccounts:false,modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',privateDetails:null,profileRequests:[],userFeedback:[],issue:null,maintenance:{enabled:false,message:''}};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=x=>x?new Date(x).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}):'—';
@@ -650,6 +670,10 @@ function authPage(){
   '<div class="notice warn"><strong>Email sending is currently limited.</strong> Try again after approximately '+
    esc(date(new Date(state.emailRetryAt).toISOString()))+
    '. The wait is an estimate and does not guarantee delivery.</div>':'';
+ const verificationNotice=state.authMode==='resend'&&state.emailHelpReason==='expired'?
+  '<div class="notice warn" role="alert"><strong>This email link has expired or is invalid.</strong> Request a new confirmation email below, then open the newest link promptly. Do not register again; administrator approval is preserved. If the expired email was for a password reset, use Forgot Password instead.</div>':
+  state.authMode==='resend'&&state.emailHelpReason==='unverified'?
+  '<div class="notice warn" role="alert"><strong>Your account is not yet email-verified.</strong> Request a fresh confirmation email below and open its newest link. Administrator approval alone does not confirm an email; you do not need to register again.</div>':'';
  const footer=recovering?'<p class="note">Supabase must validate your recovery link before a password can be changed.</p>':
   queued?'<div class="switch"><button type="button" class="link-button" data-a="back-to-login">Back to Sign In</button></div>':
   completing?'<div class="switch"><button type="button" class="link-button" data-a="queue-check">Back to My Queue</button></div>':
@@ -667,7 +691,7 @@ function authPage(){
   '<main class="auth-content"><div class="auth-card">'+
    '<div class="auth-top"><button class="btn alt tiny" data-a="theme">◐ Light / Dark</button></div>'+
    '<div class="eyebrow">Welcome to SRII i-TRACK</div><h1>'+heading+'</h1><p class="sub">'+intro+'</p>'+
-   pendingText+
+   pendingText+verificationNotice+
    (queued?queueCard():('<form id="'+formId+'">'+formContents+
     '<button type="submit" class="btn block">'+actionLabel+'</button></form>'))+
    footer+
@@ -1245,7 +1269,8 @@ function approvalPage(){
   }
   const roleLabel=oversight?'OIC-PSDS · Read Only':label(p.role);
   const emailStatus=p.account_status==='deleted'?'<span class="small muted">Account access removed</span>':emailRecord?.email_confirmed===true?'<span class="account-email-state is-confirmed">Email verified</span>':
-     emailRecord?.email_confirmed===false?'<span class="account-email-state is-unconfirmed">Awaiting verification</span>':
+     emailRecord?.email_confirmed===false&&p.account_status==='active'?'<span class="account-email-state is-unconfirmed">Approved — Email verification pending</span>':
+     emailRecord?.email_confirmed===false?'<span class="account-email-state is-unconfirmed">Email verification pending</span>':
      '<span class="small muted">Email status unavailable</span>';
   return '<tr><td><strong>'+esc(p.display_name||'Unnamed user')+'</strong>'+
    '<div class="small muted">'+esc(p.position_title||'')+'</div></td>'+
@@ -1257,6 +1282,7 @@ function approvalPage(){
  });
  return '<div class="eyebrow">Administrator controls</div><h1>Account Approvals</h1>'+
   '<p class="sub">Approve personnel, check who is awaiting email verification, or send a password-reset link. Resetting a password preserves all documents and account history. The Main Administrator approves OIC-PSDS accounts.</p>'+
+  '<div class="notice warn"><strong>Approval and email verification are separate.</strong> An approved account marked “Email verification pending” cannot sign in until the user verifies their email. Use <strong>Resend Verification</strong> to request a fresh link if the previous one expired. Do not delete or recreate the account.</div>'+
   '<div class="notice">Delete User removes SRII i-TRACK access and retains the historical account ID, document routing, uploader attribution, and all Google Drive files. It does not erase the underlying Supabase Auth login record or free the email address. Do not use Delete User for forgotten passwords.</div>'+
   '<div class="account-delete-toolbar"><button type="button" class="btn alt tiny" data-a="toggle-removed-users">'+
    (state.showRemovedAccounts?'Hide Deleted Accounts':'Show Deleted Accounts ('+removedCount+')')+'</button></div>'+
@@ -1405,7 +1431,7 @@ async function click(e){
    await queueRead();state.authMode='queue-complete';show();return;
   }
   if(a==='resend-help'){state.authMode='resend';show();return;}
-  if(a==='forgot-help'){state.authMode='forgot';show();return;}
+  if(a==='forgot-help'){state.emailHelpReason='';state.authMode='forgot';show();return;}
   if(a==='toggle-password'){
    const fieldId=t.dataset.for;
    const input=fieldId?document.getElementById(fieldId):null;
@@ -1418,7 +1444,7 @@ async function click(e){
    t.innerHTML=visible?eyeOffIcon:eyeIcon;
    input.focus({preventScroll:true});return;
   }
-  if(a==='back-to-login'){state.authMode='login';show();return;}
+  if(a==='back-to-login'){state.emailHelpReason='';state.authMode='login';show();return;}
   if(a==='theme'){state.theme=state.theme==='dark'?'light':'dark';localStorage.setItem('srii-theme',state.theme);document.documentElement.dataset.theme=state.theme;show();return;}
   if(a==='logout'){await db.auth.signOut();state.session=null;state.profile=null;state.recoveryReady=false;rememberView('dashboard');localStorage.removeItem('srii-current-view');sessionStorage.removeItem('srii-last-announcement');sessionStorage.removeItem('srii-review-announcement');state.modal=null;state.schoolFiles=[];state.accountEmails=[];show();return;}
   if(a==='refresh'){await sync();return;}
@@ -1580,7 +1606,10 @@ async function click(e){
    if(user.role==='oic_psds'&&!isMain())throw new Error('Only the Main Administrator can review OIC-PSDS registration.');
    if(!confirm(`${a==='account-approve'?'Approve':'Reject'} ${user.role==='oic_psds'?'the read-only OIC-PSDS District Office account':'this school user'}?`))return;
    const {error}=await db.rpc('i_track_review_account',{p_user_id:user.id,p_approve:a==='account-approve',p_school_id:user.requested_school_id||null});if(error)throw error;
-   await load();pop('Account reviewed.');return;
+   await load();
+   if(a==='account-approve'&&state.accountEmails.some(r=>r.user_id===user.id&&r.email_confirmed===false))
+    pop('Account approved. Email verification is still pending; use Resend Verification if the original link expired.');
+   else pop('Account reviewed.');return;
   }
   if(a==='backup'){
    if(!confirm('Change Backup Administrator permissions?'))return;
@@ -1719,8 +1748,9 @@ async function submit(e){
     type:'signup',email,options:{emailRedirectTo:location.origin+location.pathname}
    });
    if(error)throw emailQuotaError(error,'Verification');
+   state.emailHelpReason='';
    state.authMode='login';show();
-   pop('Confirmation requested. If the address has a pending registration and delivery is available, check its inbox and Spam folder.');return;
+   pop('New verification email requested. Open the newest link promptly; older links may be expired. Your administrator approval stays intact. Check Inbox or Spam for delivery.');return;
   }
   if(form.id==='queue-join'){
    const email=clean(fd.get('email')),name=clean(fd.get('full_name')),
@@ -1780,7 +1810,17 @@ async function submit(e){
    pop('Account created. Check your email for verification, then wait for district approval.');return;
   }
   if(form.id==='login'){
-   const {error}=await db.auth.signInWithPassword({email:clean(fd.get('email')),password:String(fd.get('password')||'')});if(error)throw error;
+   const email=clean(fd.get('email'));
+   const {error}=await db.auth.signInWithPassword({email,password:String(fd.get('password')||'')});
+   if(error){
+    if(error.code==='email_not_confirmed'||/email not confirmed/i.test(error.message||'')){
+     state.lastSignupEmail=email;
+     state.emailHelpReason='unverified';
+     state.authMode='resend';show();return;
+    }
+    throw error;
+   }
+   state.emailHelpReason='';
    await sync();pop('Signed in.');return;
   }
   if(form.id==='form-ann'){
