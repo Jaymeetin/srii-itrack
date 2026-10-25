@@ -8,7 +8,8 @@ const toast=document.getElementById('toast');
 // (in the query string or the URL hash). Capture this before its auth client
 // processes/clears the callback; never treat a URL parameter as verification.
 function expiredEmailLinkFromUrl(){
- const parts=[new URLSearchParams(location.search),new URLSearchParams(location.hash.replace(/^#\\??/,''))];
+ const fragment=location.hash.startsWith('#?')?location.hash.slice(2):location.hash.slice(1);
+ const parts=[new URLSearchParams(location.search),new URLSearchParams(fragment)];
  const code=parts.map(p=>p.get('error_code')||'').find(Boolean)||'';
  const description=parts.map(p=>p.get('error_description')||'').find(Boolean)||'';
  const expired=code==='otp_expired'||code==='otp_invalid'||
@@ -17,7 +18,7 @@ function expiredEmailLinkFromUrl(){
  try{
   const url=new URL(location.href);
   for(const key of ['error','error_code','error_description'])url.searchParams.delete(key);
-  if(/^#\\??(?:error|error_code|error_description)=/.test(url.hash))url.hash='';
+  if(['#error=','#error_code=','#error_description=','#?error='].some(prefix=>url.hash.startsWith(prefix)))url.hash='';
   history.replaceState(history.state,'',url.pathname+url.search+url.hash);
  }catch(e){console.warn('Expired-link redirect could not be cleaned',e);}
  return true;
