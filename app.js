@@ -1095,7 +1095,7 @@ function routePerson(name,office){
 }
 function routingOverview(d){
  const steps=documentRoutes(d.id),last=steps.at(-1);
- if(!last)return '<span class="small muted">No routing history yet</span>';
+ if(!last)return d.created_by===state.session?.user?.id?'<div class="routing-overview"><span class="routing-status routing-status-received">Self-Tracking / Division Submission</span><span class="small muted">Owner: You · No registered recipient or acknowledgment required. Open Division Transmittals to print and track physical submission.</span></div>':'<span class="small muted">No person-to-person routing history</span>';
  const status=routeState(last);
  return '<div class="routing-overview"><span class="routing-status routing-status-'+status.kind+'">'+esc(status.label)+'</span>'+
   '<span class="small muted">'+esc(label(last.route_action))+' · '+esc(date(last.sent_at))+
@@ -1207,7 +1207,7 @@ function divisionPage(){
  const data=state.divisionData||{},ts=data.transmittals||[],items=data.items||[],people=data.people||[];
  const activeId=state.divisionSelected&&ts.some(t=>t.id===state.divisionSelected)?state.divisionSelected:ts[0]?.id;
  const t=ts.find(x=>x.id===activeId);
- const opts=people.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name)+' — '+esc(p.position||'')+'</option>').join('');
+ const opts=people.map(p=>'<option value="'+esc(p.id)+'" '+(p.id===state.session?.user?.id?'selected':'')+'>'+esc(p.name)+' — '+esc(p.position||'')+'</option>').join('');
  const eligible=(data.eligible||[]).map(d=>'<label style="display:block;padding:8px;border-bottom:1px solid #ddd"><input type="checkbox" class="division-pick" value="'+esc(d.id)+'"> '+esc(d.tracking_number)+' — '+esc(d.subject)+' ('+esc(d.document_type)+')</label>').join('');
  const rows=(items.filter(i=>i.transmittal_id===activeId)).map(i=>{
  const actions=[];
@@ -1308,9 +1308,9 @@ function modalHtml(){
   body=`<form id="form-ann">${field('Title','title')}<div class="field"><label>Description / Instructions</label><textarea name="description" placeholder="What should schools submit?"></textarea></div>${field('Deadline (Philippine time)','deadline','datetime-local')}<div class="field"><label>Required schools</label><label class="small"><input type="checkbox" id="all-schools" checked> Select all schools</label><div class="school-grid">${state.schools.filter(x=>x.is_active).map(x=>`<label><input class="school-checkbox" type="checkbox" value="${x.id}" checked> ${esc(x.name)}</label>`).join('')}</div></div></form>`;
   footer='<button class="btn alt" data-a="close">Cancel</button><button class="btn" type="submit" form="form-ann">Publish</button>';
  }else if(m==='send'){
-  title='Route a Document';
-  body=`<form id="form-doc">${field('Subject','subject')}<div class='field'><label for='doc-type'>Document Type (approved)</label><select name='type' id='doc-type' required><option value=''>Choose approved document type</option>${state.docTypes.map(t=>'<option value="'+esc(t.name)+'">'+esc(t.name)+'</option>').join('')}</select></div><div class="field"><label>Routing destination</label><select name="destination" id="doc-destination"><option value="person">Send to registered recipient</option><option value="division">Submit to Division — I will prepare the transmittal</option></select></div><div class="field" id="doc-recipient-field"><label>Recipient</label><select name="recipient" id="doc-recipient"><option value="">Choose recipient</option>${state.recipients.filter(x=>x.user_id!==state.session.user.id).map(x=>`<option value="${x.user_id}">${esc(x.display_name)} · ${esc(x.school_name)}</option>`).join('')}</select></div><div class="field"><label>Instructions (optional)</label><textarea name="notes"></textarea></div></form><div class='notice'>Choose an administrator-approved document type. Attach files separately through the secure upload panel after the document is created.</div><div class='field'><label for='suggested-doc-type'>Suggest a missing document type</label><input id='suggested-doc-type' type='text' maxlength='140' placeholder='Enter new document type'></div><div class='toolbar'><button type='button' class='btn alt tiny' data-a='suggest-doc-type'>Submit Type Suggestion</button></div><p id='type-suggestion-feedback' class='small muted' aria-live='polite'>New types require District Administrator approval before use.</p><p class='note'>Recent suggestions: ${state.docTypeRequests.slice(0,3).map(r=>esc(r.requested_name)+' ('+esc(label(r.status))+')').join('; ')||'None yet'}</p>`;
-  footer='<button class="btn alt" data-a="close">Cancel</button><button class="btn" type="submit" form="form-doc">Send Document</button>';
+  title='Route or Track a Document';
+  body=`<form id="form-doc">${field('Subject','subject')}<div class='field'><label for='doc-type'>Document Type (approved)</label><select name='type' id='doc-type' required><option value=''>Choose approved document type</option>${state.docTypes.map(t=>'<option value="'+esc(t.name)+'">'+esc(t.name)+'</option>').join('')}</select></div><div class="field"><label for="doc-destination">Who is this document for?</label><select name="destination" id="doc-destination" required><option value="person">Send to Another Person</option><option value="self">Myself — Self-Tracking / Division Submission</option></select></div><div class="field" id="doc-recipient-field"><label for="doc-recipient">Recipient</label><select name="recipient" id="doc-recipient" required><option value="">Choose recipient</option>${state.recipients.filter(x=>x.user_id!==state.session.user.id).map(x=>`<option value="${x.user_id}">${esc(x.display_name)} · ${esc(x.school_name)}</option>`).join('')}</select></div><div class="notice" id="self-track-note" hidden><strong>Self-Tracking:</strong> No recipient is needed. You remain the document owner. A Division transmittal will be prepared under your own account for printing. Record the actual submission date only after you deliver the document.</div><div class="field"><label>Instructions (optional)</label><textarea name="notes"></textarea></div></form><div class='notice'>Choose an administrator-approved document type. Attach files separately through the secure upload panel after the document is created.</div><div class='field'><label for='suggested-doc-type'>Suggest a missing document type</label><input id='suggested-doc-type' type='text' maxlength='140' placeholder='Enter new document type'></div><div class='toolbar'><button type='button' class='btn alt tiny' data-a='suggest-doc-type'>Submit Type Suggestion</button></div><p id='type-suggestion-feedback' class='small muted' aria-live='polite'>New types require District Administrator approval before use.</p><p class='note'>Recent suggestions: ${state.docTypeRequests.slice(0,3).map(r=>esc(r.requested_name)+' ('+esc(label(r.status))+')').join('; ')||'None yet'}</p>`;
+  footer='<button class="btn alt" data-a="close">Cancel</button><button class="btn" id="doc-submit-btn" type="submit" form="form-doc">Send Document</button>';
  }else if(m==='school-submission-detail'){
   const selected=(state.schoolSubmissionDocs||[]).find(f=>f.assignment_id===state.selectedSchoolSubmission);
   title=selected?(selected.announcement_code||'School Submission')+' · '+selected.school_name:'School Submission';
@@ -1342,6 +1342,7 @@ function modalHtml(){
      '<option value="'+esc(x.user_id)+'">'+esc(x.display_name)+' · '+esc(x.school_name)+'</option>').join('')+
     '</select></div><div class="field"><label>Remarks (required for Return for Correction)</label><input id="route-note" placeholder="Explain the correction needed, or add forwarding instructions"></div>';
   footer='<button class="btn alt" data-a="close">Close</button>'+
+   (!last&&d.created_by===state.session?.user?.id?'<button class="btn" data-a="open-self-division">Open My Transmittal</button>':'')+
    (canAck?'<button class="btn" data-a="ack" data-id="'+esc(last.route_id)+'">Acknowledge Receipt</button>':'')+
    (canApprove?'<button class="btn" data-a="document-approve" data-id="'+esc(last.route_id)+'">Approve Document</button>':'')+
    (canForward?'<button class="btn alt" data-a="route" data-id="'+esc(last.route_id)+'" data-return="true">Return for Correction</button>'+
@@ -1387,6 +1388,7 @@ async function click(e){
   if(a==='division-admin-search'){if(!yesAdmin())throw Error('Admin only');const query=document.getElementById('division-admin-query')?.value?.trim()||'';if(query.length<2)throw Error('Enter at least two characters.');const {data,error}=await db.rpc('i_track_division_admin_find',{p_query:query});if(error)throw error;state.divisionQuery=query;state.divisionSearchResults=data||[];show();return;}
   if(a==='division-admin-resolve'){if(!yesAdmin())throw Error('Admin only');const d=state.divisionSearchResults.find(x=>x.id===t.dataset.id);if(!d)throw Error('Document not found');const reason=prompt('Reason for '+t.dataset.act+' (required)');if(!reason?.trim())return;if(!confirm('Apply '+t.dataset.act+' to '+d.tracking_number+'?'))return;const {error}=d.last_item_id?await db.rpc('i_track_division_action',{p_action:t.dataset.act==='received'?'admin_received':t.dataset.act==='corrected'?'correct':t.dataset.act,p_transmittal:d.last_transmittal_id,p_item:d.last_item_id,p_reason:reason.trim()}):await db.rpc('i_track_division_admin_resolve',{p_document:d.id,p_resolution:t.dataset.act,p_reason:reason.trim()});if(error)throw error;state.divisionSearchResults=[];await load();pop('Resolution recorded.');return;}
   if(a==='division-forward'){if(!confirm('Forward this acknowledged document to the Division transmittal queue? Only its current recipient may do this.'))return;const {error}=await db.rpc('i_track_division_forward',{p_document:t.dataset.id});if(error)throw error;pop('Document forwarded to Division queue. Open Division Transmittals to prepare it.');return;}
+  if(a==='open-self-division'){state.modal=null;rememberView('division');await load();return;}
   if(a==='division-refresh'){await load();return;}
   if(a==='division-create'){
    const docs=[...document.querySelectorAll('.division-pick:checked')].map(x=>x.value),submitter=document.getElementById('division-submitter')?.value;
@@ -1832,14 +1834,54 @@ async function submit(e){
    state.modal=null;rememberView('announcements');await load();pop('Announcement created.');return;
   }
   if(form.id==='form-doc'){
-   const direct=fd.get('destination')==='division';const params={p_subject:clean(fd.get('subject')),p_document_type:clean(fd.get('type')),p_notes:clean(fd.get('notes'))};if(!direct)params.p_recipient_id=clean(fd.get('recipient'));
+   const myself=fd.get('destination')==='self';
+   const params={p_subject:clean(fd.get('subject')),p_document_type:clean(fd.get('type')),p_notes:clean(fd.get('notes'))};
+   if(!myself)params.p_recipient_id=clean(fd.get('recipient'));
    if(!params.p_subject||!params.p_document_type)throw new Error('Enter the document name and type.');
    if(!state.docTypes.some(t=>t.name===params.p_document_type))throw new Error('Choose an approved document type from the list.');
-   if(!direct&&!params.p_recipient_id)throw new Error('Choose a recipient.');
-   const recipientName=direct?'Division Transmittal Queue':(state.recipients.find(x=>x.user_id===params.p_recipient_id)?.display_name||'selected recipient');
-   if(!confirm('Send "'+params.p_subject+'" to '+recipientName+'? Please verify the destination before continuing.'))return;
-   const {data,error}=await db.rpc(direct?'i_track_send_to_division':'i_track_send_document',params);if(error)throw error;
-   state.modal=null;rememberView(direct?'division':'documents');await load();pop(direct?'Added to Division transmittal queue: '+data+' — select the document and assign yourself as submitter.':'Document routed: '+data);return;
+   if(!myself&&!params.p_recipient_id)throw new Error('Choose a recipient.');
+   if(!myself&&params.p_recipient_id===state.session.user.id)throw new Error('Choose Myself for self-tracking instead.');
+   const question=myself?
+    'Track "'+params.p_subject+'" myself and prepare a Division transmittal? No recipient will be assigned.':
+    'Send "'+params.p_subject+'" to '+(state.recipients.find(x=>x.user_id===params.p_recipient_id)?.display_name||'selected recipient')+'?';
+   if(!confirm(question))return;
+   const {data:tracking,error}=await db.rpc(myself?'i_track_send_to_division':'i_track_send_document',params);
+   if(error)throw error;
+   state.modal=null;
+   if(!myself){
+    rememberView('documents');await load();
+    pop('Document routed: '+tracking);return;
+   }
+   // The document itself is already saved. If preparing the transmittal fails,
+   // don't repeat the send RPC: that would create a duplicate document.
+   let transmittalId=null,transmittalNumber=null,acceptError=null,prepError=null;
+   try {
+    const {data:doc,error:lookupError}=await db.from('documents')
+     .select('id').eq('tracking_number',tracking).eq('created_by',state.session.user.id).single();
+    if(lookupError)throw lookupError;
+    if(!doc?.id)throw new Error('Document lookup failed after saving.');
+    const {data:prepared,error:prepFailure}=await db.rpc('i_track_division_action',{
+     p_action:'create',p_documents:[doc.id],p_submitter:state.session.user.id
+    });
+    if(prepFailure)throw prepFailure;
+    if(!prepared?.id)throw new Error('Transmittal ID was not returned.');
+    transmittalId=prepared.id;transmittalNumber=prepared.number;
+    const {error:ackFailure}=await db.rpc('i_track_division_action',{
+     p_action:'accept',p_transmittal:prepared.id
+    });
+    if(ackFailure)acceptError=ackFailure;
+   }catch(e){prepError=e;}
+   if(transmittalId)state.divisionSelected=transmittalId;
+   rememberView('division');await load();
+   if(prepError){
+    pop('Self-tracked document '+tracking+' was saved. Its transmittal was not created automatically ('+
+     (prepError.message||'please retry')+'). Select the document under Create Transmittal and choose yourself as submitter.',true);
+   }else if(acceptError){
+    pop('Document '+tracking+' and transmittal '+transmittalNumber+' were created. Tap Accept Assignment, then Print / Save PDF.');
+   }else{
+    pop('Self-tracked document '+tracking+' and transmittal '+transmittalNumber+' are ready. Tap Print / Save PDF.');
+   }
+   return;
   }
  }catch(e){err(e);}finally{state.busy=false;form.querySelectorAll('button[type=submit]').forEach(x=>{x.disabled=false;});}
 }
@@ -1863,7 +1905,16 @@ function filterDocumentRegistry(){
 $.addEventListener('input',e=>{if(['document-search','document-date-filter'].includes(e.target.id))filterDocumentRegistry();});
 $.addEventListener('change',async e=>{
  if(['document-status-filter','document-date-filter'].includes(e.target.id)){filterDocumentRegistry();return;}
- if(e.target.id==='doc-destination'){const direct=e.target.value==='division',field=document.getElementById('doc-recipient-field'),recipient=document.getElementById('doc-recipient');if(field)field.hidden=direct;if(recipient)recipient.required=!direct;return;}
+ if(e.target.id==='doc-destination'){
+  const own=e.target.value==='self',field=document.getElementById('doc-recipient-field');
+  const recipient=document.getElementById('doc-recipient');
+  const note=document.getElementById('self-track-note'),submit=document.getElementById('doc-submit-btn');
+  if(field){field.hidden=own;field.style.display=own?'none':'';}
+  if(recipient){recipient.required=!own;recipient.disabled=own;if(own)recipient.value='';}
+  if(note)note.hidden=!own;
+  if(submit)submit.textContent=own?'Save & Prepare My Transmittal':'Send Document';
+  return;
+ }
  if(e.target.id==='division-current'){state.divisionSelected=e.target.value;show();return;}
  if(e.target.id==='registration-type'){
   const oic=e.target.value==='oic_psds';
