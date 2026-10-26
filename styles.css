@@ -528,3 +528,6 @@ tr[hidden]{display:none!important}
 .account-recovery-actions .danger{white-space:nowrap}
 .account-recovery-actions{flex-wrap:wrap;row-gap:7px}
 @media(max-width:740px){.account-delete-toolbar{justify-content:flex-start}.account-recovery-actions .danger{min-height:38px}}
+
+/* Self-tracking is recipient-free; the existing .field flex rule must not override hidden. */
+#doc-recipient-field[hidden],#self-track-note[hidden]{display:none!important}
