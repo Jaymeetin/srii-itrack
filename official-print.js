@@ -16,14 +16,14 @@ const CSS=`@page{size:A4;margin:12mm 16mm}*{box-sizing:border-box}body{margin:0;
 .logo-head{display:block;object-fit:contain;width:55px;height:55px;margin:0 auto 5px}
 .separator{border-top:2px solid #444;margin:6px 0 18px}
 h1{font-size:12pt;margin:12px 0;text-align:center}
-h2{font-size:11.3pt;margin:19px 0 12px;text-align:left}
+h2{font-size:11.3pt;margin:19px 0 12px;text-align:center}
 .doc-date{text-align:center;margin:7px 0 22px;font-size:9.3pt}
 .intro{line-height:1.54;text-align:justify;text-indent:22px;margin:0 6px 20px}
 .category{font-weight:700;margin:16px 0 5px;font-size:9.5pt}
 .item{line-height:1.6;padding-left:16px;break-inside:avoid}
 .item strong{font-weight:600}
 .item-id{font-size:8pt;color:#89929e;font-weight:400;margin-left:7px;white-space:nowrap}
-.signature{position:absolute;right:0;bottom:38mm;text-align:center;width:58%;line-height:1.16;font-size:9pt}
+.signature{position:absolute;left:50%;right:auto;transform:translateX(-50%);bottom:38mm;text-align:center;width:66%;line-height:1.16;font-size:9pt}
 .signature strong{display:block;text-decoration:underline;font-size:9pt}
 .sign-date{text-align:center;margin-top:30px;font-size:9pt}
 .footer{position:absolute;bottom:0;left:0;right:0;border-top:1px solid #333;display:flex;align-items:center;gap:9px;padding-top:6px;height:18mm;font-size:8.5pt;line-height:1.3}
@@ -31,7 +31,7 @@ h2{font-size:11.3pt;margin:19px 0 12px;text-align:left}
 .footer .brand-pair{height:14mm;width:22mm;max-width:22mm}
 .footer .seal{height:15mm;width:15mm}
 .footer .address{flex:1}
-@media screen{body{background:#dedede;padding:14px}.sheet{width:210mm;padding:12mm 16mm;background:white;margin:0 auto 20px;box-shadow:0 2px 14px #0002;height:297mm}.footer{left:16mm;right:16mm;bottom:12mm}.signature{right:16mm}}
+@media screen{body{background:#dedede;padding:14px}.sheet{width:210mm;padding:12mm 16mm;background:white;margin:0 auto 20px;box-shadow:0 2px 14px #0002;height:297mm}.footer{left:16mm;right:16mm;bottom:12mm}.signature{left:50%;right:auto;transform:translateX(-50%)}}
 `;
 function header(withSeal){return '<div class="letterhead">'+(withSeal?'<img class="logo-head" src="'+seal+'">':'')+
 '<div>Republic of the Philippines</div><div class="deped">Department of Education</div>'+
@@ -40,7 +40,7 @@ function header(withSeal){return '<div class="letterhead">'+(withSeal?'<img clas
 '</div><div class="separator"></div>';}
 function footer(kind,school){return '<div class="footer">'+(kind==='endorsement'?'<img class="brand-pair" src="'+matatag+'"><img class="brand-pair" src="'+logos+'">':'')+
 '<img class="seal" src="'+seal+'"><div class="address"><b>Address:</b> '+
-(kind==='endorsement'?esc(school||'San Remigio, Antique'):'Binirayan Hills, San Jose, Antique')+
+(kind==='endorsement'?'Bugo, San Remigio, Antique':'Binirayan Hills, San Jose, Antique')+
 (kind==='transmittal'?'<div><b>Contact Information:</b> (036) 540 9837 / 0917 566 4491 / 0998 981 9337</div>':'')+
 '</div></div>';}
 function render(t,items,kind,people=[],schools=[]){
@@ -48,7 +48,7 @@ function render(t,items,kind,people=[],schools=[]){
  const submitter=people.find(p=>p.id===t.assigned_submitter)||{};
  const school=t.authorized_school_name||submitter.school_name||'San Remigio II District';
  const schoolAddress=school+', San Remigio, Antique';
- const sorted=[...items].sort((a,b)=>String(a.document_type||'').localeCompare(String(b.document_type||''))||String(a.document_label||'').localeCompare(String(b.document_label||'')));
+ const sorted=[...items].filter(i=>i.division_status!=='cancelled').sort((a,b)=>String(a.document_type||'').localeCompare(String(b.document_type||''))||String(a.document_label||'').localeCompare(String(b.document_label||'')));
  const pages=[];
  for(const type of (kind==='both'?['endorsement','transmittal']:[kind])){
   const chunks=[];for(let i=0;i<sorted.length;i+=12)chunks.push(sorted.slice(i,i+12));if(!chunks.length)chunks.push([]);

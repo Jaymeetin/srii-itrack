@@ -667,3 +667,16 @@ tr[hidden]{display:none!important}
 .division-print-config .toolbar{margin-top:12px;display:flex;flex-wrap:wrap;gap:9px}
 .division-print-config .note{max-width:640px}
 @media(max-width:600px){.division-print-config{padding:12px}.division-print-config .toolbar .btn{flex:1 1 130px}}
+
+/* 2026-10-28: delegated announcement approvers and editable Division drafts */
+.approver-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px;max-height:260px;overflow-y:auto;margin:8px 0;padding:6px;border:1px solid var(--line);border-radius:10px}
+.approver-list>label{display:flex;align-items:center;gap:8px;padding:10px;border:1px solid var(--line);border-radius:9px;background:var(--paper);cursor:pointer;font-size:13px;line-height:1.35}
+.approver-list input[type="checkbox"]{width:17px;min-width:17px;height:17px;margin:0;accent-color:#1d4b8c}
+.draft-edit-bar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:11px 0;margin:8px 0;border-bottom:1px solid var(--line)}
+.draft-transmittal-editor{margin:10px 0 18px;border:1px solid var(--line);border-radius:12px;padding:15px;background:var(--bg)}
+.draft-transmittal-editor h4,.draft-transmittal-editor h5{margin:10px 0 6px}
+.draft-transmittal-editor h5{font-size:13px}
+.draft-removed-history{margin-top:12px;font-size:12px;color:var(--muted);padding:8px 10px;border:1px dashed var(--line);border-radius:8px}
+.draft-removed-history summary{cursor:pointer;font-weight:650;color:var(--text)}
+.doc-division-tag{display:block;font-size:11px;margin-top:3px;color:var(--blue);font-weight:600}
+@media(max-width:620px){.approver-list{grid-template-columns:1fr}.draft-edit-bar .btn{flex:1 1 auto}}

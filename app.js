@@ -34,7 +34,7 @@ const knownViews=new Set(['dashboard','announcements','monitoring','documents','
 const urlView=new URLSearchParams(location.search).get('view');
 const firstView=knownViews.has(urlView)?urlView:'dashboard';
 localStorage.removeItem('srii-current-view');
-const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:arrivedFromExpiredEmailLink?'resend':'login',emailHelpReason:arrivedFromExpiredEmailLink?'expired':'',queueTicket:localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],showRemovedAccounts:false,modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],compliances:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewCompliances:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',privateDetails:null,profileRequests:[],userFeedback:[],issue:null,maintenance:{enabled:false,message:''}};
+const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:arrivedFromExpiredEmailLink?'resend':'login',emailHelpReason:arrivedFromExpiredEmailLink?'expired':'',queueTicket:localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],showRemovedAccounts:false,modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],compliances:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewCompliances:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',documentDivisionStatuses:[],approverAssignments:[],announcementApproverEditing:null,transmittalEditing:false,privateDetails:null,profileRequests:[],userFeedback:[],issue:null,maintenance:{enabled:false,message:''}};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=x=>x?new Date(x).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}):'—';
@@ -130,12 +130,14 @@ async function load(){
  if(!active()){show();return;}
  try{
   const tasks=[];
+  tasks.push((async()=>{const {data,error}=await db.rpc('i_track_approver_assignments');if(error)throw error;state.approverAssignments=data||[];})());
   if(['dashboard','announcements','monitoring','verification','reports','school-files'].includes(state.view)){
    tasks.push((async()=>{const {data,error}=await db.from('announcements').select('id,announcement_code,title,description,status,deadline_at,original_deadline_at,created_at').order('created_at',{ascending:false});if(error)throw error;state.announcements=data||[];if(!state.selectedId||!state.announcements.some(x=>x.id===state.selectedId))state.selectedId=state.announcements.find(x=>x.status!=='draft')?.id||'';})());
   }
   if(!isOic()&&['dashboard','documents','division'].includes(state.view)){
    tasks.push((async()=>{const {data,error}=await db.from('documents').select('id,tracking_number,subject,document_type,status,destination,created_by,origin_school_id,created_at').order('created_at',{ascending:false}).limit(200);if(error)throw error;state.docs=data||[];if(state.view==='documents')await Promise.all([loadDocumentAttachments(),loadRoutingHistory(),loadDocumentTypes(),loadSchoolSubmissionDocuments(),loadCompliances()]);
-    else if(state.view==='dashboard')await loadRoutingHistory();})());
+    else if(state.view==='dashboard')await loadRoutingHistory();
+    await loadDocumentDivisionStatuses();})());
   }
   if(yesAdmin()&&['dashboard','approvals'].includes(state.view)){
    tasks.push((async()=>{const {data,error}=await db.from('profiles').select('id,display_name,school_id,requested_school_id,position_title,role,account_status,created_at').order('created_at',{ascending:false});if(error)throw error;state.profiles=data||[];})());
@@ -196,11 +198,24 @@ async function load(){
   if(state.view==='reports'&&districtOversight())tasks.push((async()=>{const {data,error}=await db.rpc('i_track_district_report');if(error)throw error;state.districtReport=data||[];})());
   await Promise.all(tasks);
   if(state.view==='monitoring')await loadMonitor();
-  if(state.view==='verification'&&yesAdmin())await loadVerification();
+  if(state.view==='verification'&&(yesAdmin()||state.approverAssignments.some(x=>x.user_id===state.session.user.id)))await loadVerification();
   if(state.view==='school-files'&&yesAdmin())await loadSchoolFiles();
-  if(state.view==='documents')await loadRecipients();
+  if(state.view==='documents'||(yesAdmin()&&['announcements','verification'].includes(state.view)))await loadRecipients();
   show();
  }catch(e){err(e);show();}
+}
+async function loadDocumentDivisionStatuses(){
+ const {data,error}=await db.rpc('i_track_document_division_summary');
+ if(error)throw error;state.documentDivisionStatuses=data||[];
+}
+function divisionStatusForDocument(id){
+ return (state.documentDivisionStatuses||[]).find(x=>x.document_id===id)||null;
+}
+function divisionStageLabel(s){
+ return {in_transmittal:'In Transmittal to Division',submitted_to_division:'Submitted to Division',
+ retrieved_from_division:'Retrieved from Division',forwarded_to_district:'Forwarded to District',
+ received_at_district:'Received at District',received_by_sender:'Completed',
+ lost:'Lost',not_for_return:'Not for Return'}[s]||label(s);
 }
 async function loadCompliances(){
  const {data,error}=await db.rpc('i_track_compliance_list',{p_announcement:null});
@@ -301,14 +316,20 @@ async function loadDocumentTypes(){
 async function loadRecipients(){const {data,error}=await db.rpc('i_track_recipient_directory');if(error)throw error;state.recipients=data||[];}
 async function loadMonitor(){if(!state.selectedId){state.monitor=[];return;}const {data,error}=await db.rpc('i_track_monitor',{p_announcement_id:state.selectedId});if(error)throw error;state.monitor=data||[];}
 async function loadVerification(){
- if(!yesAdmin()||!active())throw new Error('Administrator access required.');
- const announcements=state.announcements.filter(a=>['open','closed'].includes(a.status));
+ if(!active()||(!yesAdmin()&&!state.approverAssignments.some(x=>x.user_id===state.session.user.id)))throw new Error('Assigned approver or administrator access required.');
+ const announcements=state.announcements.filter(a=>['open','closed'].includes(a.status)&&
+  (yesAdmin()||state.approverAssignments.some(x=>x.announcement_id===a.id&&x.user_id===state.session.user.id)));
  if(!state.reviewSelectedId||!announcements.some(a=>a.id===state.reviewSelectedId))
   state.reviewSelectedId=announcements[0]?.id||'';
  const requestedId=state.reviewSelectedId;
  if(!requestedId){
   state.reviewRows=[];state.reviewVersions=[];state.reviewRequired=0;
   return;
+ }
+ if(!yesAdmin()){
+  state.reviewRows=[];state.reviewVersions=[];state.reviewRequired=0;
+  const {data,error}=await db.rpc('i_track_compliance_list',{p_announcement:requestedId});
+  if(error)throw error;state.reviewCompliances=data||[];return;
  }
  const {data:assignments,error:assignmentError}=await db.from('announcement_assignments')
   .select('id,school_id,assigned_user_id').eq('announcement_id',requestedId).eq('obligation_status','required');
@@ -487,11 +508,11 @@ function schoolAttachmentsPage(){
 }
 
 function verificationPage(){
- if(!yesAdmin())return '<div class="notice danger">Administrator access required.</div>';
- const notices=state.announcements.filter(a=>['open','closed'].includes(a.status));
+ if(!yesAdmin()&&!state.approverAssignments.some(x=>x.user_id===state.session.user.id))return '<div class="notice danger">Assigned approver or district administrator access required.</div>';
+ const notices=state.announcements.filter(a=>['open','closed'].includes(a.status)&&(yesAdmin()||state.approverAssignments.some(x=>x.announcement_id===a.id&&x.user_id===state.session.user.id)));
  const options=notices.map(a=>'<option value="'+esc(a.id)+'"'+(a.id===state.reviewSelectedId?' selected':'')+'>'+esc(announcementName(a))+'</option>').join('');
  const uploadedSchools=state.reviewRows.length;
- const complianceRows=(state.reviewCompliances||[]).map(c=>'<tr><td>'+esc(c.school_name)+'<div class="small muted">'+esc(c.number)+'</div></td><td>'+esc(c.has_attachment?'With attachment':'No attachment')+'</td><td>'+pTag(c.status)+'</td><td>'+(c.status==='pending_verification'?'<button class="btn tiny" data-a="compliance-verify" data-id="'+esc(c.id)+'">Approve</button> <button class="btn tiny alt" data-a="compliance-return" data-id="'+esc(c.id)+'">Return</button>':'<span class="small muted">'+esc(date(c.verified_at||c.submitted_at))+'</span>')+'</td></tr>');
+ const complianceRows=(state.reviewCompliances||[]).map(c=>'<tr><td>'+esc(c.school_name)+'<div class="small muted">'+esc(c.number)+'</div></td><td>'+esc(c.has_attachment?'With attachment':'No attachment')+(c.current_submission_id?'<div class="verify-file-actions"><button type="button" class="btn tiny alt iu-file-action" data-mode="view" data-kind="announcement" data-id="'+esc(c.current_submission_id)+'" data-name="Submission attachment">View</button> <button type="button" class="btn tiny alt iu-file-action" data-mode="download" data-kind="announcement" data-id="'+esc(c.current_submission_id)+'" data-name="Submission attachment">Download</button></div>':'')+'</td><td>'+pTag(c.status)+'</td><td>'+(c.status==='pending_verification'?'<button class="btn tiny" data-a="compliance-verify" data-id="'+esc(c.id)+'">Approve</button> <button class="btn tiny alt" data-a="compliance-return" data-id="'+esc(c.id)+'">Return</button>':'<span class="small muted">'+esc(date(c.verified_at||c.submitted_at))+'</span>')+'</td></tr>');
  const awaitingNow=state.reviewRows.filter(s=>s.verification_status==='pending').length;
  const oldPending=state.reviewRows.reduce((count,s)=>count+s.versions.slice(1).filter(f=>f.verification_status==='pending').length,0);
  const currentVerified=state.reviewRows.filter(s=>s.verification_status==='verified').length;
@@ -532,6 +553,12 @@ function verificationPage(){
    '<td><span class="verify-status verify-status-'+currentStatus+'">'+esc(label(currentStatus))+'</span></td>'+
    '<td class="verify-review-cell">'+decision+historyControl+'</td></tr>';
  });
+ if(!yesAdmin())return '<div class="sectionhead"><div><div class="eyebrow">Assigned Approver</div><h1>Submission Verification</h1>'+
+  '<p class="sub">Any one assigned approver may approve or return a pending school response. The other assigned approvers will see the outcome.</p></div>'+
+  '<button class="btn alt" data-a="refresh-verification">↻ Refresh</button></div>'+
+  '<section class="panel"><div class="field"><label>Announcement</label><select id="review-ann">'+options+'</select></div>'+
+  '<p class="note">Only submissions for your assigned announcements are shown. Attachments are not required.</p>'+
+  table(['School / Submission ID','Evidence','Status','Review'],complianceRows)+'</section>';
  return '<div class="sectionhead"><div><div class="eyebrow">District administrator</div>'+
   '<h1>Submission Verification</h1>'+
   '<p class="sub">Review the latest upload, compare it with the latest verified version, and inspect every earlier version.</p></div>'+
@@ -721,7 +748,7 @@ function pendingPage(){
 }
 const menu=[['dashboard','⌂ Home'],['announcements','▤ Announcements'],['monitoring','▥ Submission Status']];
 function appPage(){
- const nav=[...menu,...(!isOic()?[['documents','▣ My Documents'],['division','▤ Division Transmittals']]:[]),...(districtOversight()?[['reports','▥ District Reports']]:[]),...(!yesAdmin()?[['settings','⚙ Personal Settings']]:[]),...(yesAdmin()?[['school-files','▣ School Attachments'],['verification','✓ Submission Verification'],['approvals','♙ Account Approvals'],['archive','▤ Archive Documents']]:[])].map(([id,title])=>`<button class="${state.view===id?'active':''}" data-a="nav" data-page="${id}">${title}</button>`).join('');
+ const nav=[...menu,...(!isOic()?[['documents','▣ My Documents'],['division','▤ Division Transmittals']]:[]),...(districtOversight()?[['reports','▥ District Reports']]:[]),...(!yesAdmin()?[['settings','⚙ Personal Settings']]:[]),...((yesAdmin()||state.approverAssignments.some(x=>x.user_id===state.session.user.id))?[['verification','✓ Submission Verification']]:[]),...(yesAdmin()?[['school-files','▣ School Attachments'],['approvals','♙ Account Approvals'],['archive','▤ Archive Documents']]:[])].map(([id,title])=>`<button class="${state.view===id?'active':''}" data-a="nav" data-page="${id}">${title}</button>`).join('');
  const title={dashboard:'Home',announcements:'Announcements',monitoring:'Submission Monitoring',documents:'My Documents',division:'Division Transmittals',settings:'Personal Settings',reports:'District Reports','school-files':'School Attachments',verification:'Submission Verification',approvals:'Account Management',archive:'Document Archiving'}[state.view]||'Overview';
  const school=state.schools.find(x=>x.id===state.profile.school_id)?.name||'District Office';
  const name=state.profile.display_name||(isOic()?'OIC-PSDS':'District Administrator');
@@ -939,7 +966,7 @@ function exportDistrictReport(){
  setTimeout(()=>URL.revokeObjectURL(url),2000);
 }
 function announcementPage(){
- const rows=state.announcements.map(a=>`<tr><td><span class="ann-ref">${esc(a.announcement_code||'')}</span><strong>${esc(a.title)}</strong><div class="small muted">${esc(a.description||'')}</div></td><td>${pTag(a.status)}</td><td>${short(a.deadline_at)}</td><td><button class="btn tiny alt" data-a="monitor" data-id="${a.id}">Monitor</button></td></tr>`);
+ const rows=state.announcements.map(a=>`<tr><td><span class="ann-ref">${esc(a.announcement_code||'')}</span><strong>${esc(a.title)}</strong><div class="small muted">${esc(a.description||'')}</div></td><td>${pTag(a.status)}</td><td>${short(a.deadline_at)}</td><td><button class="btn tiny alt" data-a="monitor" data-id="${a.id}">Monitor</button>${yesAdmin()?` <button class="btn tiny alt" data-a="manage-approvers" data-id="${a.id}">Approvers</button>`:""}</td></tr>`);
  return `<div class="sectionhead"><div><div class="eyebrow">District requirements</div><h1>Announcements</h1><p class="sub">Official school submission requests and deadlines.</p></div>${yesAdmin()?'<button class="btn" data-a="new-announcement">+ New Announcement</button>':''}</div><div class="panel"><h3>Announcement Board</h3>${table(['Announcement','Status','Deadline',''],rows)}</div>`;
 }
 function monitorPage(){
@@ -1105,6 +1132,10 @@ function routePerson(name,office){
 }
 function routingOverview(d){
  const steps=documentRoutes(d.id),last=steps.at(-1);
+ const division=divisionStatusForDocument(d.id);
+ if(division&&division.division_status!=='received_by_sender'&&d.status!=='completed')
+  return '<div class="routing-overview"><span class="routing-status routing-status-received">'+esc(divisionStageLabel(division.division_status))+'</span>'+
+   '<span class="small muted">Transmittal '+esc(division.transmittal_number)+' · Routing history remains available below.</span></div>';
  if(d.status==='completed')return '<div class="routing-overview"><span class="routing-status routing-status-received">Completed</span><span class="small muted">Document processing is complete. See history for previous routing and Division activity.</span></div>';
  if(d.status==='in_school')return '<div class="routing-overview"><span class="routing-status routing-status-received">In School</span><span class="small muted">Saved in My Documents. No recipient acknowledgment or transmittal is required. You may forward it later.</span></div>';
  if(!last)return '<div class="routing-overview"><span class="routing-status routing-status-received">No Recipient</span><span class="small muted">Use the Division Transmittals page if this document is intended for Division.</span></div>';
@@ -1175,12 +1206,13 @@ function schoolSubmissionDetailModal(){
 function documentPage(){
  const routed=[...state.docs].map(d=>{
   const last=documentRoutes(d.id).at(-1);
-  const filterStatus=d.status==='in_school'?'in_school':last?.processed_at?'processed':last?.route_status||'none';
+  const division=divisionStatusForDocument(d.id);
+  const filterStatus=division?.division_status==='in_transmittal'?'in_transmittal':d.status==='in_school'?'in_school':last?.processed_at?'processed':last?.route_status||'none';
   return {when:d.created_at,markup:'<button type="button" class="compact-doc-row" data-document-row data-a="detail" data-id="'+esc(d.id)+'" '+
    'data-route-status="'+esc(filterStatus)+'" data-created="'+esc((d.created_at||'').slice(0,10))+'" '+
    'aria-label="Open files and routing history for '+esc(d.tracking_number)+' · '+esc(d.subject)+'">'+
    '<span class="compact-doc-id">'+esc(d.tracking_number)+'</span>'+
-   '<span class="compact-doc-name" title="'+esc(d.subject)+'">'+esc(d.subject)+'</span>'+
+   '<span class="compact-doc-name" title="'+esc(d.subject)+'">'+esc(d.subject)+(division?'<span class="small muted doc-division-tag">'+esc(divisionStageLabel(division.division_status))+'</span>':'')+'</span>'+
    '<span class="compact-doc-arrow" aria-hidden="true">›</span></button>'};
  });
  const newestSchoolFiles=new Map();
@@ -1212,7 +1244,7 @@ function documentPage(){
   '<select id="document-status-filter"><option value="">All statuses</option><option value="submission">School submissions</option>'+
   '<option value="awaiting_ack">Awaiting acknowledgment</option>'+
   '<option value="received">Acknowledged · Awaiting action</option><option value="processed">Processed</option>'+
-  '<option value="in_school">In School</option><option value="none">No route</option></select></div>'+
+  '<option value="in_transmittal">In Transmittal to Division</option><option value="in_school">In School</option><option value="none">No route</option></select></div>'+
   '<div class="field"><label for="document-date-filter">Created on or after</label><input id="document-date-filter" type="date"></div>'+
   '<button type="button" class="btn alt tiny" data-a="clear-document-filters">Clear Filters</button></div>'+
   '<div id="document-search-count" class="small muted" aria-live="polite"></div>'+
@@ -1223,10 +1255,15 @@ function divisionPage(){
  const data=state.divisionData||{},ts=data.transmittals||[],items=data.items||[],people=data.people||[];
  const activeId=state.divisionSelected&&ts.some(t=>t.id===state.divisionSelected)?state.divisionSelected:ts[0]?.id;
  const t=ts.find(x=>x.id===activeId);
+ const activeItems=items.filter(i=>i.transmittal_id===activeId&&i.division_status!=='cancelled');
+ const removedItems=items.filter(i=>i.transmittal_id===activeId&&i.division_status==='cancelled');
+ const transmittalLocked=!!t&&(!!t.dispatched_at||t.status!=='draft'||
+  activeItems.some(i=>i.submitted_at||i.division_status!=='in_transmittal'));
+ const canEditDraft=!!t&&!transmittalLocked&&(t.prepared_by===state.profile.id||yesAdmin());
  const opts=people.map(p=>'<option value="'+esc(p.id)+'" '+(p.id===state.session?.user?.id?'selected':'')+'>'+esc(p.name)+' — '+esc(p.position||'')+'</option>').join('');
  const eligible=(data.eligible||[]).map(d=>'<label style="display:block;padding:8px;border-bottom:1px solid #ddd"><input type="checkbox" class="division-pick" value="'+esc(d.id)+'"> '+esc(d.tracking_number)+' — '+esc(d.subject)+' ('+esc(d.document_type)+')</label>').join('');
  const compEligible=(data.eligible_compliances||[]).map(d=>'<label class="division-choice"><input type="checkbox" class="division-compliance-pick" value="'+esc(d.id)+'"><span><strong>'+esc(d.school_name)+'</strong> · '+esc(d.subject)+' <small>'+esc(d.tracking_number)+'</small></span></label>').join('');
- const rows=(items.filter(i=>i.transmittal_id===activeId)).map(i=>{
+ const rows=activeItems.map(i=>{
  const actions=[];
  if(t?.assigned_submitter===state.profile.id&&t.assignment_accepted_at&&i.division_status==='in_transmittal')actions.push('<button class="btn tiny" data-a="division-act" data-act="submit" data-id="'+esc(i.id)+'">Mark as Submitted to Division</button>');
  if(i.division_status==='submitted_to_division')actions.push('<button class="btn tiny alt" data-a="division-act" data-act="retrieve" data-id="'+esc(i.id)+'">Mark as Retrieved from Division</button>');
@@ -1235,20 +1272,34 @@ function divisionPage(){
  const own=state.docs.some(d=>d.id===i.document_id&&d.created_by===state.profile.id);
  if(own&&i.division_status==='received_at_district')actions.push('<button class="btn tiny" data-a="division-act" data-act="sender_received" data-id="'+esc(i.id)+'">Mark Returned to Sender</button>');
  if(yesAdmin())actions.push('<button class="btn tiny alt" data-a="division-act" data-act="admin_received" data-id="'+esc(i.id)+'">Resolve Received</button><button class="btn tiny alt" data-a="division-act" data-act="lost" data-id="'+esc(i.id)+'">Lost</button><button class="btn tiny alt" data-a="division-act" data-act="not_for_return" data-id="'+esc(i.id)+'">Not for Return</button>'+(i.division_status==='lost'?'<button class="btn tiny alt" data-a="division-act" data-act="recovered" data-id="'+esc(i.id)+'">Recovered</button>':'')+(['lost','not_for_return','received_by_sender'].includes(i.division_status)?'<button class="btn tiny alt" data-a="division-act" data-act="correct" data-id="'+esc(i.id)+'">Correct</button>':''));
- if((t?.prepared_by===state.profile.id||yesAdmin())&&i.division_status==='in_transmittal')actions.unshift('<button class="btn tiny alt" data-a="transmittal-rename" data-id="'+esc(i.id)+'">Edit Name</button>');
+ if(canEditDraft&&state.transmittalEditing&&i.division_status==='in_transmittal')actions.unshift('<button class="btn tiny alt" data-a="transmittal-rename" data-id="'+esc(i.id)+'">Edit Name</button>');
+ if(canEditDraft&&state.transmittalEditing)actions.unshift('<button class="btn tiny danger" data-a="draft-remove-item" data-id="'+esc(i.id)+'">Remove</button>');
  return '<tr><td>'+esc(i.tracking_number)+'</td><td>'+esc(i.document_label)+'</td><td>'+pTag(i.division_status==='received_by_sender'&&i.retrieved_from_division_at?'completed':i.division_status)+'</td><td>'+actions.join(' ')+'</td></tr>';
  });
+ const draftControls=canEditDraft?
+  '<div class="draft-edit-bar"><button class="btn alt" data-a="draft-toggle-edit">'+(state.transmittalEditing?'Finish Editing':'Edit Transmittal')+'</button>'+
+   '<span class="small muted">Changes allowed only before the first physical Division submission.</span></div>'+
+  (state.transmittalEditing?'<div class="panel draft-transmittal-editor"><h4>Add Eligible Items</h4>'+
+   '<p class="note">Check the documents to add. Removed items return to these lists automatically.</p>'+
+   '<h5>Division Documents</h5><div class="division-eligible-list">'+
+    ((data.eligible||[]).map(d=>'<label class="division-choice"><input type="checkbox" class="draft-add-document" value="'+esc(d.id)+'"><span>'+esc(d.subject)+' <small>'+esc(d.tracking_number)+'</small></span></label>').join('')||'<p class="note">No eligible documents.</p>')+'</div>'+
+   '<h5>Verified Announcement Submissions</h5><div class="division-eligible-list">'+
+    ((data.eligible_compliances||[]).map(d=>'<label class="division-choice"><input type="checkbox" class="draft-add-compliance" value="'+esc(d.id)+'"><span>'+esc(d.school_name)+' · '+esc(d.subject)+' <small>'+esc(d.tracking_number)+'</small></span></label>').join('')||'<p class="note">No eligible submissions.</p>')+'</div>'+
+   '<button class="btn" data-a="draft-add-items">Add Selected Items</button></div>':'')
+  :t?'<p class="note"><strong>Transmittal locked.</strong> Its first document has been marked Submitted to Division. Document names, signer details, and items can no longer be changed.</p>':'';
+ const removedHistory=removedItems.length?'<details class="draft-removed-history"><summary>Removed before submission ('+removedItems.length+')</summary>'+
+   removedItems.map(i=>'<p class="small muted">'+esc(i.tracking_number)+' — '+esc(i.document_label)+' (removed; eligible to add again)</p>').join('')+'</details>':'';
  const adminPanel=yesAdmin()?'<div class="panel"><h3>Administrator Document Search & Resolution</h3><p class="note">Search any tracking number or document title. A written reason is required for manual changes.</p><div class="toolbar"><input id="division-admin-query" placeholder="Tracking number or document name" value="'+esc(state.divisionQuery||'')+'"><button class="btn alt" data-a="division-admin-search">Search</button></div>'+table(['Tracking #','Document','Status','Resolution'],(state.divisionSearchResults||[]).map(d=>'<tr><td>'+esc(d.tracking_number)+'</td><td>'+esc(d.subject)+'</td><td>'+esc(d.resolution||d.status)+'</td><td>'+(['received','lost','not_for_return','recovered','corrected'].map(a=>'<button class="btn tiny alt" data-a="division-admin-resolve" data-id="'+esc(d.id)+'" data-act="'+a+'">'+esc(label(a))+'</button>').join(' '))+'</td></tr>'))+'</div>':'';
  return '<div class="sectionhead"><div><div class="eyebrow">Physical document custody</div><h1>Division Transmittals</h1><p class="sub">Prepare, accept, submit, retrieve and return physical documents. Every action is audited.</p></div><button class="btn alt" data-a="division-refresh">Refresh</button></div>'+
  adminPanel+'<div class="panel"><h3>Division Retrieval Checklist</h3><p class="note">Status-only list of documents still physically at Division. Any approved user who actually collects an item can record retrieval.</p>'+table(['Tracking #','School','Document','Action'],(state.divisionRetrievable||[]).map(i=>'<tr><td>'+esc(i.tracking_number)+'</td><td>'+esc(i.school_name)+'</td><td>'+esc(i.document_label)+'</td><td><button class="btn tiny" data-a="division-act" data-act="retrieve" data-trans="'+esc(i.transmittal_id)+'" data-id="'+esc(i.item_id)+'">Mark as Retrieved from Division</button></td></tr>'))+'</div>'+
  '<div class="panel"><h3>Notifications</h3>'+(state.divisionNotices||[]).map(n=>'<p class="note">'+esc(date(n.created_at))+' — '+esc(n.message)+'</p>').join('')+'</div>'+
  '<div class="panel"><h3>Create Transmittal</h3><p class="note">Select Division documents and verified announcement submissions. Recipient approval is not needed.</p><div class="field"><label>Assigned submitter</label><select id="division-submitter">'+opts+'</select></div><h4>Division Documents</h4><div class="division-eligible-list">'+(eligible||'<p class="note">No eligible documents.</p>')+'</div><h4>Verified School Submissions</h4><div class="division-eligible-list">'+(compEligible||'<p class="note">No verified submissions.</p>')+'</div><button class="btn" data-a="division-create">Create Transmittal</button></div>'+
  '<div class="panel"><h3>Transmittal</h3><div class="field"><label>Select transmittal</label><select id="division-current">'+ts.map(x=>'<option value="'+esc(x.id)+'" '+(x.id===activeId?'selected':'')+'>'+esc(x.transmittal_number)+'</option>').join('')+'</select></div>'+
- (t?'<p><strong>'+esc(t.transmittal_number)+'</strong> · '+pTag(t.assignment_accepted_at?'accepted':'pending')+'</p>'+
- '<div class="division-print-config"><h4>Official Forms</h4><p class="note">Transmittal ID stays in the app; the AO may write it on the back of the paper. Individual IDs print lightly beside titles.</p><div class="field"><label>Signatory Name</label><input id="trans-signer-name" value="'+esc(t.signer_name||'SHERILL E. CORTEJO, PhD')+'"></div><div class="field"><label>Position</label><input id="trans-signer-position" value="'+esc(t.signer_position||'School Principal II')+'"></div><div class="field"><label>Designation</label><input id="trans-signer-office" value="'+esc(t.signer_office||'OIC, Office of the Public Schools District Supervisor')+'"></div><div class="field"><label>Authorized School (Endorsement)</label><input id="trans-authorized-school" value="'+esc(t.authorized_school_name||'')+'" placeholder="Submitting AO II school"></div><button class="btn tiny alt" data-a="transmittal-save-signer">Save Signatory</button><div class="field"><label>Choose forms to print</label><select id="division-print-kind"><option value="endorsement">Endorsement</option><option value="transmittal">Transmittal</option><option value="both" selected>Both</option></select></div><div class="toolbar"><button class="btn" data-a="division-print">Print / Save PDF</button><button class="btn alt" data-a="division-word">Editable Word</button></div></div><div class="toolbar">'+
+ (t?'<p><strong>'+esc(t.transmittal_number)+'</strong> · '+pTag(transmittalLocked?'dispatched':t.assignment_accepted_at?'accepted':'pending')+'</p>'+draftControls+
+ '<div class="division-print-config"><h4>Official Forms</h4><p class="note">Transmittal ID stays in the app; the AO may write it on the back of the paper. Individual IDs print lightly beside titles.</p><div class="field"><label>Signatory Name</label><input id="trans-signer-name" value="'+esc(t.signer_name||'SHERILL E. CORTEJO, PhD')+'"'+(transmittalLocked?' disabled':'')+'></div><div class="field"><label>Position</label><input id="trans-signer-position" value="'+esc(t.signer_position||'School Principal II')+'"'+(transmittalLocked?' disabled':'')+'></div><div class="field"><label>Designation</label><input id="trans-signer-office" value="'+esc(t.signer_office||'OIC, Office of the Public Schools District Supervisor')+'"'+(transmittalLocked?' disabled':'')+'></div><div class="field"><label>Authorized School (Endorsement)</label><input id="trans-authorized-school" value="'+esc(t.authorized_school_name||'')+'" placeholder="Submitting AO II school"'+(transmittalLocked?' disabled':'')+'></div><button class="btn tiny alt" data-a="transmittal-save-signer"'+(transmittalLocked?' disabled':'')+'>Save Signatory</button><div class="field"><label>Choose forms to print</label><select id="division-print-kind"><option value="endorsement">Endorsement</option><option value="transmittal">Transmittal</option><option value="both" selected>Both</option></select></div><div class="toolbar"><button class="btn" data-a="division-print">Print / Save PDF</button><button class="btn alt" data-a="division-word">Editable Word</button></div></div><div class="toolbar">'+
  (t.assigned_submitter===state.profile.id&&!t.assignment_accepted_at?'<button class="btn" data-a="division-act" data-act="accept">Accept Assignment</button>':'')+
- (t.prepared_by===state.profile.id?'<select id="division-reassign">'+opts+'</select><button class="btn alt" data-a="division-act" data-act="reassign">Reassign</button>':'')+'</div>'+
- table(['Tracking #','Document','Physical Status','Action'],rows):'<p class="note">No transmittal created yet.</p>')+'</div>';
+ (canEditDraft&&t.prepared_by===state.profile.id?'<select id="division-reassign">'+opts+'</select><button class="btn alt" data-a="division-act" data-act="reassign">Reassign</button>':'')+'</div>'+
+ table(['Tracking #','Document','Physical Status','Action'],rows)+removedHistory:'<p class="note">No transmittal created yet.</p>')+'</div>';
 }
 function divisionPrintHtml(t,items,qrImage=''){
  const sorted=[...items].sort((a,b)=>String(a.document_type||'').localeCompare(String(b.document_type||''))||String(state.schools.find(s=>s.id===a.school_id)?.name||'').localeCompare(String(state.schools.find(s=>s.id===b.school_id)?.name||''))||String(a.tracking_number).localeCompare(String(b.tracking_number)));let heading='';const rows=sorted.map((i,n)=>{const section=(i.document_type||'Document')+' — '+(state.schools.find(s=>s.id===i.school_id)?.name||'School');const head=section===heading?'':'<tr><th colspan="4" style="background:#eee;text-align:left">'+esc(section)+'</th></tr>';heading=section;return head+'<tr><td>'+(n+1)+'</td><td>'+esc(i.tracking_number)+'</td><td>'+esc(i.document_label)+'</td><td>'+esc(i.division_status)+'</td></tr>';}).join('');
@@ -1324,7 +1375,18 @@ function modalHtml(){
  if(m==='new-announcement'){
   title='Create Announcement';
   body=`<form id="form-ann">${field('Title','title')}<div class="field"><label>Description / Instructions</label><textarea name="description" placeholder="What should schools submit?"></textarea></div>${field('Deadline (Philippine time)','deadline','datetime-local')}<div class="field"><label>Required schools</label><label class="small"><input type="checkbox" id="all-schools" checked> Select all schools</label><div class="school-grid">${state.schools.filter(x=>x.is_active).map(x=>`<label><input class="school-checkbox" type="checkbox" value="${x.id}" checked> ${esc(x.name)}</label>`).join('')}</div></div></form>`;
+  body=body.replace('</form>','<div class="field"><label>Assigned Approvers (optional)</label>'+
+   '<p class="note">Any one assigned approver may approve or return a school submission. District administrators retain oversight.</p>'+
+   '<div class="approver-list">'+state.recipients.map(u=>'<label><input type="checkbox" class="announcement-approver-pick" value="'+esc(u.user_id)+'"> '+esc(u.display_name)+'</label>').join('')+'</div></div></form>');
   footer='<button class="btn alt" data-a="close">Cancel</button><button class="btn" type="submit" form="form-ann">Publish</button>';
+ }else if(m==='announcement-approvers'){
+  const ann=state.announcements.find(a=>a.id===state.announcementApproverEditing);
+  title='Manage Assigned Approvers';
+  const assigned=new Set(state.approverAssignments.filter(x=>x.announcement_id===ann?.id).map(x=>x.user_id));
+  body='<p class="note">Announcement: <strong>'+esc(ann?.title||'Selected announcement')+'</strong></p>'+
+   '<p class="note">Any one assigned approver may verify or return a pending response. Only email-verified, approved, active accounts are eligible. District administrators retain oversight.</p>'+
+   '<div class="approver-list">'+state.recipients.map(u=>'<label><input type="checkbox" class="announcement-approver-pick" value="'+esc(u.user_id)+'"'+(assigned.has(u.user_id)?' checked':'')+'> '+esc(u.display_name)+'</label>').join('')+'</div>';
+  footer='<button class="btn alt" data-a="close">Cancel</button><button class="btn" data-a="save-approvers">Save Approvers</button>';
  }else if(m==='send'){
   title='Route Document';
   const recipientOptions=state.recipients.map(x=>
@@ -1475,13 +1537,49 @@ async function click(e){
    const {error}=await db.rpc('i_track_edit_transmittal_item',{p_item:item.id,p_label:newName.trim()});if(error)throw error;
    await load();pop('Printed document name updated.');return;
   }
+  if(a==='draft-toggle-edit'){
+   state.transmittalEditing=!state.transmittalEditing;show();return;
+  }
+  if(a==='draft-remove-item'){
+   const trans=state.divisionData.transmittals.find(x=>x.id===state.divisionSelected)||state.divisionData.transmittals[0];
+   const item=state.divisionData.items.find(x=>x.id===t.dataset.id);
+   if(!trans||!item||item.transmittal_id!==trans.id)throw Error('Item not found in selected transmittal.');
+   if(!confirm('Remove '+item.document_label+' from this draft? It will become selectable in transmittals again.'))return;
+   const {error}=await db.rpc('i_track_edit_draft_transmittal',{p_transmittal:trans.id,p_action:'remove',p_item:item.id});
+   if(error)throw error;
+   await load();pop('Removed from draft. The original tracking ID is unchanged.');return;
+  }
+  if(a==='draft-add-items'){
+   const trans=state.divisionData.transmittals.find(x=>x.id===state.divisionSelected)||state.divisionData.transmittals[0];
+   if(!trans)throw Error('Select a transmittal.');
+   const docIds=[...document.querySelectorAll('.draft-add-document:checked')].map(x=>x.value);
+   const compIds=[...document.querySelectorAll('.draft-add-compliance:checked')].map(x=>x.value);
+   if(!docIds.length&&!compIds.length)throw Error('Select an eligible document or submission.');
+   if(!confirm('Add '+(docIds.length+compIds.length)+' selected item(s) to the draft?'))return;
+   state.busy=true;
+   let added=0;
+   try{
+    for(const id of docIds){
+     const {error}=await db.rpc('i_track_edit_draft_transmittal',{p_transmittal:trans.id,p_action:'add_document',p_document:id});
+     if(error)throw error;added++;
+    }
+    for(const id of compIds){
+     const {error}=await db.rpc('i_track_edit_draft_transmittal',{p_transmittal:trans.id,p_action:'add_compliance',p_compliance:id});
+     if(error)throw error;added++;
+    }
+   }catch(ex){
+    await load();throw Error(added+' item(s) added before an error: '+ex.message);
+   }finally{state.busy=false;}
+   await load();pop(added+' item(s) added to the draft.');return;
+  }
   if(a==='division-create'){
    const docs=[...document.querySelectorAll('.division-pick:checked')].map(x=>x.value),compliances=[...document.querySelectorAll('.division-compliance-pick:checked')].map(x=>x.value),submitter=document.getElementById('division-submitter')?.value;
    if(!docs.length&&!compliances.length)throw Error('Select a document or approved submission.');
-   state.busy=true;try{const {data,error}=await db.rpc('i_track_create_mixed_transmittal',{p_documents:docs,p_compliances:compliances,p_submitter:submitter});if(error)throw error;state.divisionSelected=data.id;await load();pop('Transmittal created.');}finally{state.busy=false;}return;
+   state.busy=true;try{const {data,error}=await db.rpc('i_track_create_mixed_transmittal',{p_documents:docs,p_compliances:compliances,p_submitter:submitter});if(error)throw error;state.divisionSelected=data.id;state.transmittalEditing=false;await load();pop('Transmittal created.');}finally{state.busy=false;}return;
   }
   if(a==='division-print'||a==='division-word'){
    const t=state.divisionData.transmittals.find(x=>x.id===state.divisionSelected)||state.divisionData.transmittals[0];if(!t)throw Error('Choose a transmittal.');
+   if(!state.divisionData.items.some(item=>item.transmittal_id===t.id&&item.division_status!=='cancelled'))throw Error('Add at least one document before printing the transmittal.');
    const edits={p_transmittal:t.id,p_name:document.getElementById('trans-signer-name')?.value?.trim()||t.signer_name,p_position:document.getElementById('trans-signer-position')?.value?.trim()||t.signer_position,p_office:document.getElementById('trans-signer-office')?.value?.trim()||t.signer_office,p_school:document.getElementById('trans-authorized-school')?.value?.trim()||null};
    if((edits.p_name!==t.signer_name||edits.p_position!==t.signer_position||edits.p_office!==t.signer_office||edits.p_school!==(t.authorized_school_name||null))&&!t.dispatched_at){
      const saved=await db.rpc('i_track_edit_transmittal_signer',edits);if(saved.error)throw saved.error;
@@ -1542,7 +1640,8 @@ async function click(e){
   if(a==='refresh'){await sync();return;}
   if(a==='export-district-report'){exportDistrictReport();pop('District compliance report prepared.');return;}
   if(a==='nav'){
-   if(['verification','school-files','approvals','archive'].includes(t.dataset.page)&&!yesAdmin())throw new Error('District administrator access required.');
+   if(['school-files','approvals','archive'].includes(t.dataset.page)&&!yesAdmin())throw new Error('District administrator access required.');
+   if(t.dataset.page==='verification'&&!yesAdmin()&&!state.approverAssignments.some(x=>x.user_id===state.session.user.id))throw new Error('Not an assigned approver.');
    if(t.dataset.page==='reports'&&!districtOversight())throw new Error('District oversight access required.');
    if(t.dataset.page==='settings'&&yesAdmin())throw new Error('Personal Settings in this redesign are for Normal User accounts.');
    if(isOic()&&!['dashboard','announcements','monitoring','reports','settings'].includes(t.dataset.page))throw new Error('This OIC-PSDS account is read-only.');
@@ -1554,7 +1653,7 @@ async function click(e){
    await loadSchoolFiles();show();pop('All school attachments refreshed.');return;
   }
   if(a==='refresh-verification'){
-   if(!yesAdmin()||state.view!=='verification')throw new Error('Administrator access required.');
+   if(!yesAdmin()&&!state.approverAssignments.some(x=>x.user_id===state.session.user.id))throw new Error('Assigned approver required.');
    await loadVerification();show();pop('Verification list refreshed.');return;
   }
   if(a==='verify-submission'||a==='reject-submission'){
@@ -1581,7 +1680,7 @@ async function click(e){
    state.modal=null;await loadMonitor();show();pop('Submission '+data+' recorded. Awaiting verification.');return;
   }
   if(a==='compliance-verify'||a==='compliance-return'){
-   if(!yesAdmin())throw Error('Administrator only');const reason=a==='compliance-return'?prompt('Reason for returning this submission:'):null;
+   if(!yesAdmin()&&!state.approverAssignments.some(x=>x.announcement_id===state.reviewSelectedId&&x.user_id===state.session.user.id))throw Error('Not an assigned approver');const reason=a==='compliance-return'?prompt('Reason for returning this submission:'):null;
    if(a==='compliance-return'&&!reason?.trim())return;
    if(a==='compliance-verify'&&!confirm('Approve school submission?'))return;
    const {error}=await db.rpc('i_track_verify_compliance',{p_compliance:t.dataset.id,p_approve:a==='compliance-verify',p_reason:reason||null});if(error)throw error;
@@ -1600,6 +1699,17 @@ async function click(e){
   }
   if(a==='close'){const refreshStatus=state.modal==='monitor-school';state.modal=null;state.monitorSchool=null;state.monitorSchoolFiles=[];state.monitorDetail=null;state.monitorFiles=[];if(refreshStatus&&state.view==='monitoring')await loadMonitor();show();return;}
   if(a==='new-announcement'){state.modal='new-announcement';show();return;}
+  if(a==='manage-approvers'){
+   if(!yesAdmin())throw Error('District administrator required');
+   state.announcementApproverEditing=t.dataset.id;state.modal='announcement-approvers';show();return;
+  }
+  if(a==='save-approvers'){
+   if(!yesAdmin())throw Error('District administrator required');
+   const chosen=[...document.querySelectorAll('.announcement-approver-pick:checked')].map(x=>x.value);
+   const {error}=await db.rpc('i_track_set_announcement_approvers',{p_announcement:state.announcementApproverEditing,p_user_ids:chosen});
+   if(error)throw error;state.modal=null;await load();pop('Assigned approvers updated.');return;
+  }
+
   if(a==='suggest-doc-type'){
    if(!active()||isOic())throw new Error('Only active routing users may suggest document types.');
    const name=clean(document.getElementById('suggested-doc-type')?.value);
@@ -1976,7 +2086,8 @@ async function submit(e){
    if(!selected.length)throw new Error('Select at least one school.');
    const raw=clean(fd.get('deadline'));if(!raw)throw new Error('Enter a deadline.');
    const localTime=new Date(raw+'+08:00');if(Number.isNaN(localTime.getTime()))throw new Error('Invalid deadline.');
-   const {error}=await db.rpc('i_track_create_announcement',{p_title:clean(fd.get('title')),p_description:clean(fd.get('description')),p_deadline_at:localTime.toISOString(),p_school_ids:selected});if(error)throw error;
+   const approvers=[...form.querySelectorAll('.announcement-approver-pick:checked')].map(x=>x.value);
+   const {error}=await db.rpc('i_track_create_announcement_with_approvers',{p_title:clean(fd.get('title')),p_description:clean(fd.get('description')),p_deadline_at:localTime.toISOString(),p_school_ids:selected,p_approver_ids:approvers});if(error)throw error;
    state.modal=null;rememberView('announcements');await load();pop('Announcement created.');return;
   }
   if(form.id==='form-doc'){
@@ -2047,7 +2158,7 @@ $.addEventListener('change',async e=>{
   if(message)message.textContent=files.length?files.map(f=>f.name+' ('+(f.size/1024/1024).toFixed(2)+' MB)').join(' · '):'No attachments selected.';
   return;
  }
- if(e.target.id==='division-current'){state.divisionSelected=e.target.value;show();return;}
+ if(e.target.id==='division-current'){state.divisionSelected=e.target.value;state.transmittalEditing=false;show();return;}
  if(e.target.id==='registration-type'){
   const oic=e.target.value==='oic_psds';
   const group=document.getElementById('register-school-field');
@@ -2071,7 +2182,7 @@ $.addEventListener('change',async e=>{
   if(e.target.id==='school-files-filter-versions')state.schoolFilesVersions=e.target.value;
   show();return;
  }
- if(e.target.id==='review-ann'&&yesAdmin()){state.reviewSelectedId=e.target.value;rememberAnnouncement(state.reviewSelectedId,true);try{await loadVerification();show();}catch(ex){err(ex);}}
+ if(e.target.id==='review-ann'&&(yesAdmin()||state.approverAssignments.some(x=>x.user_id===state.session.user.id))){state.reviewSelectedId=e.target.value;rememberAnnouncement(state.reviewSelectedId,true);try{await loadVerification();show();}catch(ex){err(ex);}}
  if(e.target.id==='image-file'){state.file=e.target.files?.[0]||null;state.compressed=null;state.fileNote=state.file?`Selected ${state.file.name} — ${(state.file.size/1024).toFixed(0)} KB`:'';const note=document.getElementById('file-status');if(note)note.textContent=state.fileNote;}
 });
 // A gentle live countdown works while the registration page is open.
