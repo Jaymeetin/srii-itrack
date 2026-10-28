@@ -70,7 +70,7 @@ window.ITRACK_DISTRICT_VIEW=function(state,{esc,date,label}){
    '<h4 style="margin-top:14px">Awaiting Physical Submission ('+draft.length+')</h4>'+
    listing(draft,'district-submit-pick',state.districtSubmitPicked)+
    '<div class="district-bottom"><label>Actual Submission Date <input id="district-actual-date" type="date" value="'+
-   new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Manila'})+'"></label>'+
+   new Date(Date.now()+8*60*60*1000).toISOString().slice(0,10)+'"></label>'+
    '<span class="small muted" id="district-submit-count">'+state.districtSubmitPicked.size+' selected</span>'+
    '<button class="btn" data-a="district-submit" id="district-submit-btn"'+(!draft.length?' disabled':'')+'>Confirm Submitted to District</button></div>'+
    '<p class="note">This is the preparer\'s recorded confirmation of actual physical submission. Each receiver signs beside the corresponding document on the printed slip.</p>'+
