@@ -34,7 +34,7 @@ const knownViews=new Set(['dashboard','announcements','monitoring','documents','
 const urlView=new URLSearchParams(location.search).get('view');
 const firstView=knownViews.has(urlView)?urlView:'dashboard';
 localStorage.removeItem('srii-current-view');
-const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:arrivedFromExpiredEmailLink?'resend':'login',emailHelpReason:arrivedFromExpiredEmailLink?'expired':'',queueTicket:localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],showRemovedAccounts:false,modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',privateDetails:null,profileRequests:[],userFeedback:[],issue:null,maintenance:{enabled:false,message:''}};
+const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:arrivedFromExpiredEmailLink?'resend':'login',emailHelpReason:arrivedFromExpiredEmailLink?'expired':'',queueTicket:localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],showRemovedAccounts:false,modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewCompliances:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',privateDetails:null,profileRequests:[],userFeedback:[],issue:null,maintenance:{enabled:false,message:''}};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=x=>x?new Date(x).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}):'—';
@@ -353,6 +353,8 @@ async function loadVerification(){
  state.reviewRequired=required;
  state.reviewVersions=versions;
  state.reviewRows=rows.sort((a,b)=>a.school_name.localeCompare(b.school_name));
+ const c=await db.rpc('i_track_compliance_list',{p_announcement:requestedId});if(c.error)throw c.error;
+ state.reviewCompliances=c.data||[];
 }
 function reviewFileActions(file,compact=false){
  const filename=String(file.original_filename||'Document');
@@ -485,6 +487,7 @@ function verificationPage(){
  const notices=state.announcements.filter(a=>['open','closed'].includes(a.status));
  const options=notices.map(a=>'<option value="'+esc(a.id)+'"'+(a.id===state.reviewSelectedId?' selected':'')+'>'+esc(announcementName(a))+'</option>').join('');
  const uploadedSchools=state.reviewRows.length;
+ const complianceRows=(state.reviewCompliances||[]).map(c=>'<tr><td>'+esc(c.school_name)+'<div class="small muted">'+esc(c.number)+'</div></td><td>'+esc(c.has_attachment?'With attachment':'No attachment')+'</td><td>'+pTag(c.status)+'</td><td>'+(c.status==='pending_verification'?'<button class="btn tiny" data-a="compliance-verify" data-id="'+esc(c.id)+'">Approve</button> <button class="btn tiny alt" data-a="compliance-return" data-id="'+esc(c.id)+'">Return</button>':'<span class="small muted">'+esc(date(c.verified_at||c.submitted_at))+'</span>')+'</td></tr>');
  const awaitingNow=state.reviewRows.filter(s=>s.verification_status==='pending').length;
  const oldPending=state.reviewRows.reduce((count,s)=>count+s.versions.slice(1).filter(f=>f.verification_status==='pending').length,0);
  const currentVerified=state.reviewRows.filter(s=>s.verification_status==='verified').length;
@@ -529,6 +532,7 @@ function verificationPage(){
   '<h1>Submission Verification</h1>'+
   '<p class="sub">Review the latest upload, compare it with the latest verified version, and inspect every earlier version.</p></div>'+
   '<button class="btn alt" data-a="refresh-verification">↻ Refresh</button></div>'+
+  '<section class="panel"><h3>School Compliance Verification</h3><p class="note">Verify school responses with or without uploaded files. Every response has a permanent ID.</p>'+table(['School / Submission ID','Evidence','Status','Action'],complianceRows)+'</section>'+ 
   '<section class="panel verify-panel"><div class="verify-picker"><div class="field">'+
   '<label for="review-ann">Announcement to review</label><select id="review-ann">'+options+'</select></div>'+
   '<div class="verify-summary"><strong>'+awaitingNow+'</strong><span>Latest uploads awaiting review</span>'+
@@ -981,6 +985,7 @@ function monitorSchoolModal(){
  const adminButton=yesAdmin()&&['Submitted','Late'].includes(item.status)?
   '<div class="toolbar"><button class="btn alt" data-a="monitor-submission" data-school-id="'+esc(item.schoolId)+'">View Uploaded Files (Admin)</button></div>':'';
  const action=item.canSubmit?
+  '<div class="panel"><h3>Submit Compliance</h3><p class="note">No attachment required. Administrator verification is still required.</p><button class="btn" data-a="mark-compliance" data-assignment="'+esc(item.assignmentId)+'">Mark as Submitted</button></div>'+ 
   '<div id="monitor-school-upload-host" data-announcement-id="'+esc(item.announcementId)+'" data-school-id="'+esc(item.schoolId)+'" data-assignment-id="'+esc(item.assignmentId)+'" data-school-name="'+esc(item.schoolName)+'"></div>'+
   '<p class="note">The actual uploader and represented school are recorded automatically. A submission requires district administrator verification; the represented school does not approve it.</p>':
   '<p class="note">'+(isOic()?'Oversight account: view status only.':
@@ -1528,6 +1533,18 @@ async function click(e){
     pop(approving?'Submission verified.':'Submission rejected. A corrected version can be uploaded.');
    }finally{state.busy=false;t.disabled=false;}
    return;
+  }
+  if(a==='mark-compliance'){
+   if(!confirm('Submit this school’s compliance? No attachment required.'))return;
+   const {data,error}=await db.rpc('i_track_mark_compliance_submitted',{p_assignment:t.dataset.assignment});if(error)throw error;
+   state.modal=null;await loadMonitor();show();pop('Submission '+data+' recorded. Awaiting verification.');return;
+  }
+  if(a==='compliance-verify'||a==='compliance-return'){
+   if(!yesAdmin())throw Error('Administrator only');const reason=a==='compliance-return'?prompt('Reason for returning this submission:'):null;
+   if(a==='compliance-return'&&!reason?.trim())return;
+   if(a==='compliance-verify'&&!confirm('Approve school submission?'))return;
+   const {error}=await db.rpc('i_track_verify_compliance',{p_compliance:t.dataset.id,p_approve:a==='compliance-verify',p_reason:reason||null});if(error)throw error;
+   await loadVerification();show();pop(a==='compliance-verify'?'Submission verified.':'Submission returned.');return;
   }
   if(a==='monitor'){state.selectedId=t.dataset.id;rememberAnnouncement(state.selectedId);rememberView('monitoring');await load();return;}
   if(a==='monitor-school'){await openMonitorSchool(t.dataset.schoolId);return;}
