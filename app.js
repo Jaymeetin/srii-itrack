@@ -1448,6 +1448,11 @@ async function click(e){
   if(state.maintenance.enabled&&!yesAdmin()&&a!=='logout'){await readMaintenance();show();return;}
   if(a==='division-admin-search'){if(!yesAdmin())throw Error('Admin only');const query=document.getElementById('division-admin-query')?.value?.trim()||'';if(query.length<2)throw Error('Enter at least two characters.');const {data,error}=await db.rpc('i_track_division_admin_find',{p_query:query});if(error)throw error;state.divisionQuery=query;state.divisionSearchResults=data||[];show();return;}
   if(a==='division-admin-resolve'){if(!yesAdmin())throw Error('Admin only');const d=state.divisionSearchResults.find(x=>x.id===t.dataset.id);if(!d)throw Error('Document not found');const reason=prompt('Reason for '+t.dataset.act+' (required)');if(!reason?.trim())return;if(!confirm('Apply '+t.dataset.act+' to '+d.tracking_number+'?'))return;const {error}=d.last_item_id?await db.rpc('i_track_division_action',{p_action:t.dataset.act==='received'?'admin_received':t.dataset.act==='corrected'?'correct':t.dataset.act,p_transmittal:d.last_transmittal_id,p_item:d.last_item_id,p_reason:reason.trim()}):await db.rpc('i_track_division_admin_resolve',{p_document:d.id,p_resolution:t.dataset.act,p_reason:reason.trim()});if(error)throw error;state.divisionSearchResults=[];await load();pop('Resolution recorded.');return;}
+  if(a==='direct-division'){
+   if(!confirm('Forward this document to Division transmittals? The tracking number will remain unchanged.'))return;
+   const {error}=await db.rpc('i_track_change_document_destination',{p_document:t.dataset.id,p_destination:'division'});
+   if(error)throw error;state.modal=null;await load();pop('Document is ready for any authorized Division transmittal.');return;
+  }
   if(a==='document-change-destination'){
    const dest=document.getElementById('document-destination')?.value;
    const {error}=await db.rpc('i_track_change_document_destination',{p_document:t.dataset.id,p_destination:dest});
