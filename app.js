@@ -1379,6 +1379,14 @@ function modalHtml(){
    '<p class="note">Any one assigned approver may approve or return a school submission. District administrators retain oversight.</p>'+
    '<div class="approver-list">'+state.recipients.map(u=>'<label><input type="checkbox" class="announcement-approver-pick" value="'+esc(u.user_id)+'"> '+esc(u.display_name)+'</label>').join('')+'</div></div></form>');
   footer='<button class="btn alt" data-a="close">Cancel</button><button class="btn" type="submit" form="form-ann">Publish</button>';
+ }else if(m==='announcement-approvers'){
+  const ann=state.announcements.find(a=>a.id===state.announcementApproverEditing);
+  title='Manage Assigned Approvers';
+  const assigned=new Set(state.approverAssignments.filter(x=>x.announcement_id===ann?.id).map(x=>x.user_id));
+  body='<p class="note">Announcement: <strong>'+esc(ann?.title||'Selected announcement')+'</strong></p>'+
+   '<p class="note">Any one assigned approver may verify or return a pending response. Only email-verified, approved, active accounts are eligible. District administrators retain oversight.</p>'+
+   '<div class="approver-list">'+state.recipients.map(u=>'<label><input type="checkbox" class="announcement-approver-pick" value="'+esc(u.user_id)+'"'+(assigned.has(u.user_id)?' checked':'')+'> '+esc(u.display_name)+'</label>').join('')+'</div>';
+  footer='<button class="btn alt" data-a="close">Cancel</button><button class="btn" data-a="save-approvers">Save Approvers</button>';
  }else if(m==='send'){
   title='Route Document';
   const recipientOptions=state.recipients.map(x=>
