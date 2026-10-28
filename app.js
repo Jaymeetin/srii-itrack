@@ -315,6 +315,20 @@ async function loadDocumentTypes(){
  state.docTypeRequests=suggestions.data||[];
 }
 async function loadRecipients(){const {data,error}=await db.rpc('i_track_recipient_directory');if(error)throw error;state.recipients=data||[];}
+async function openAnnouncementEditor(id){
+ if(!yesAdmin()||!active())throw Error('District administrator required');
+ const ann=state.announcements.find(x=>x.id===id);
+ if(!ann)throw Error('Announcement not found');
+ if(ann.status==='cancelled')throw Error('Cancelled announcements are retained as read-only records');
+ await loadRecipients();
+ const {data,error}=await db.rpc('i_track_announcement_editor_data',{p_announcement:id});
+ if(error)throw error;
+ if(!data||data.announcement_id!==id)throw Error('Unable to load announcement schools');
+ state.announcementEditId=id;
+ state.announcementEditorData=data;
+ state.modal='edit-announcement';
+ show();
+}
 async function loadMonitor(){if(!state.selectedId){state.monitor=[];return;}const {data,error}=await db.rpc('i_track_monitor',{p_announcement_id:state.selectedId});if(error)throw error;state.monitor=data||[];}
 async function loadVerification(){
  if(!active()||(!yesAdmin()&&!state.approverAssignments.some(x=>x.user_id===state.session.user.id)))throw new Error('Assigned approver or administrator access required.');
@@ -1774,6 +1788,29 @@ async function click(e){
   }
   if(a==='close'){const refreshStatus=state.modal==='monitor-school';state.modal=null;state.monitorSchool=null;state.monitorSchoolFiles=[];state.monitorDetail=null;state.monitorFiles=[];if(refreshStatus&&state.view==='monitoring')await loadMonitor();show();return;}
   if(a==='new-announcement'){state.modal='new-announcement';show();return;}
+  if(a==='edit-announcement'){
+   await openAnnouncementEditor(t.dataset.id);return;
+  }
+  if(a==='cancel-announcement'){
+   if(!yesAdmin())throw Error('District administrator required');
+   const ann=state.announcements.find(x=>x.id===t.dataset.id);
+   if(!ann||ann.status==='cancelled')throw Error('Announcement is already cancelled or unavailable');
+   state.announcementCancelId=ann.id;
+   state.modal='cancel-announcement';show();return;
+  }
+  if(a==='confirm-cancel-announcement'){
+   if(!yesAdmin())throw Error('District administrator required');
+   const reason=clean(document.getElementById('cancel-ann-reason')?.value);
+   if(reason.length<5||reason.length>1000)throw Error('Provide a cancellation reason between 5 and 1,000 characters.');
+   const ann=state.announcements.find(x=>x.id===state.announcementCancelId);
+   if(!ann||ann.status==='cancelled')throw Error('Announcement unavailable');
+   if(!confirm('Cancel '+ann.title+'? New submissions will stop. Existing submissions and files will remain saved.'))return;
+   const {data,error}=await db.rpc('i_track_cancel_announcement',{p_announcement:ann.id,p_reason:reason});
+   if(error)throw error;
+   state.modal=null;state.announcementCancelId=null;
+   await load();pop('Announcement cancelled; '+(data?.preserved_responses||0)+' existing compliance record(s) preserved.');return;
+  }
+
   if(a==='manage-approvers'){
    if(!yesAdmin())throw Error('District administrator required');
    state.announcementApproverEditing=t.dataset.id;state.modal='announcement-approvers';show();return;
@@ -1979,7 +2016,7 @@ async function uploadNewDocumentAttachment(documentId,file){
  }finally{clearTimeout(timeout);}
 }
 async function submit(e){
- const form=e.target;if(!['queue-join','queue-complete','login','resend-email','forgot-password','set-password','form-ann','form-doc','settings-email-form','settings-password-form','settings-profile-form','settings-private-form','settings-feedback-form'].includes(form.id))return;
+ const form=e.target;if(!['queue-join','queue-complete','login','resend-email','forgot-password','set-password','form-ann','form-ann-edit','form-doc','settings-email-form','settings-password-form','settings-profile-form','settings-private-form','settings-feedback-form'].includes(form.id))return;
  e.preventDefault();if(state.maintenance.enabled&&!yesAdmin()&&state.session){await readMaintenance();show();return;}if(state.busy)return;state.busy=true;form.querySelectorAll('button[type=submit]').forEach(x=>x.disabled=true);
  try{
   const fd=new FormData(form);
@@ -2249,7 +2286,7 @@ $.addEventListener('change',async e=>{
   }
   if(info)info.hidden=!oic;
  }
- if(e.target.id==='all-schools')document.querySelectorAll('.school-checkbox').forEach(c=>c.checked=e.target.checked);
+ if(e.target.id==='all-schools')document.querySelectorAll('.school-checkbox:not(:disabled)').forEach(c=>c.checked=e.target.checked);
  if(e.target.id==='pick-ann'){state.selectedId=e.target.value;rememberAnnouncement(state.selectedId);try{await loadMonitor();show();}catch(ex){err(ex);}}
  if(['school-files-filter-school','school-files-filter-ann','school-files-filter-versions'].includes(e.target.id)&&yesAdmin()&&state.view==='school-files'){
   if(e.target.id==='school-files-filter-school')state.schoolFilesSchool=e.target.value;
