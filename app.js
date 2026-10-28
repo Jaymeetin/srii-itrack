@@ -1324,10 +1324,13 @@ function divisionPage(){
  const rows=activeItems.map(i=>{
  const actions=[];
  if(t?.assigned_submitter===state.profile.id&&t.assignment_accepted_at&&i.division_status==='in_transmittal')actions.push('<button class="btn tiny" data-a="division-act" data-act="submit" data-id="'+esc(i.id)+'">Mark as Submitted to Division</button>');
+ if(i.division_status==='in_transmittal'&&(t?.prepared_by===state.profile.id||t?.assigned_submitter===state.profile.id||yesAdmin()))
+  actions.push('<button class="btn tiny alt" data-a="division-item-rule" data-id="'+esc(i.id)+'" data-return="'+
+   (i.effective_return_required?'no':'yes')+'">'+(i.effective_return_required?'Set No Return':'Set For Return')+'</button>');
  if(yesAdmin())actions.push('<button class="btn tiny alt" data-a="division-act" data-act="admin_received" data-id="'+esc(i.id)+'">Resolve Received</button><button class="btn tiny alt" data-a="division-act" data-act="lost" data-id="'+esc(i.id)+'">Lost</button><button class="btn tiny alt" data-a="division-act" data-act="not_for_return" data-id="'+esc(i.id)+'">Not for Return</button>'+(i.division_status==='lost'?'<button class="btn tiny alt" data-a="division-act" data-act="recovered" data-id="'+esc(i.id)+'">Recovered</button>':'')+(['lost','not_for_return','received_by_sender'].includes(i.division_status)?'<button class="btn tiny alt" data-a="division-act" data-act="correct" data-id="'+esc(i.id)+'">Correct</button>':''));
  if(canEditDraft&&state.transmittalEditing&&i.division_status==='in_transmittal')actions.unshift('<button class="btn tiny alt" data-a="transmittal-rename" data-id="'+esc(i.id)+'">Edit Name</button>');
  if(canEditDraft&&state.transmittalEditing)actions.unshift('<button class="btn tiny danger" data-a="draft-remove-item" data-id="'+esc(i.id)+'">Remove</button>');
- return '<tr><td>'+esc(i.tracking_number)+'</td><td>'+esc(i.document_label)+'</td><td>'+pTag(i.division_status==='received_by_sender'&&i.retrieved_from_division_at?'completed':i.division_status)+'</td><td>'+actions.join(' ')+'</td></tr>';
+ return '<tr><td>'+esc(i.tracking_number)+'</td><td>'+esc(i.document_label)+'<div class="small muted">'+(i.effective_return_required?'For Return':'No Return')+'</div></td><td>'+pTag(i.division_status==='received_by_sender'&&i.retrieved_from_division_at?'completed':i.division_status)+'</td><td>'+actions.join(' ')+'</td></tr>';
  });
  const draftControls=canEditDraft?
   '<div class="draft-edit-bar"><button class="btn alt" data-a="draft-toggle-edit">'+(state.transmittalEditing?'Finish Editing':'Edit Transmittal')+'</button>'+
@@ -1906,6 +1909,16 @@ async function click(e){
      p_document:d.id,p_destination:destination,p_recipient_id:recipient,p_return_required:returns});
     if(error)throw error;
     state.modal=null;await load();pop('Personal document forwarded. Continue in '+(destination==='district'?'District Transmittals':destination==='division'?'Division Transmittals':'My Documents')+'.');
+   }finally{state.busy=false;}return;
+  }
+  if(a==='division-item-rule'){
+   const i=state.divisionData.items?.find(x=>x.id===t.dataset.id);
+   if(!i||i.division_status!=='in_transmittal')throw Error('Return rule cannot change after physical submission.');
+   const required=t.dataset.return==='yes';
+   if(!confirm('Set '+i.tracking_number+' to '+(required?'For Return':'No Return')+'? This choice determines its completion at actual Division submission.'))return;
+   state.busy=true;try{
+    const {error}=await db.rpc('i_track_division_item_rule',{p_item:i.id,p_return_required:required});
+    if(error)throw error;await load();pop('Division transmittal item return rule saved.');
    }finally{state.busy=false;}return;
   }
   if(a==='division-admin-search'){if(!yesAdmin())throw Error('Admin only');const query=document.getElementById('division-admin-query')?.value?.trim()||'';if(query.length<2)throw Error('Enter at least two characters.');const {data,error}=await db.rpc('i_track_division_admin_find',{p_query:query});if(error)throw error;state.divisionQuery=query;state.divisionSearchResults=data||[];show();return;}
