@@ -1750,6 +1750,115 @@ async function click(e){
    })));
    win.focus();win.print();return;
   }
+  if(a==='types-refresh'){if(!yesAdmin())throw Error('Administrator required');await load();return;}
+  if(a==='types-review'){
+   if(!yesAdmin())throw Error('Administrator required');
+   const id=Number(t.dataset.id),approved=t.dataset.decision==='approve';
+   const entry=state.adminDocumentTypes.requests?.find(x=>Number(x.id)===id);
+   if(!entry)throw Error('This suggestion is no longer pending. Refresh.');
+   const reason=approved?null:prompt('Reason for rejecting '+entry.name+' (optional)');
+   if(reason===null&&!approved)return;
+   if(!confirm((approved?'Approve':'Reject')+' the document type "'+entry.name+'"?'))return;
+   state.busy=true;try{
+    const {error}=await db.rpc('i_track_review_document_type_request',{p_request_id:id,p_approve:approved,p_note:reason||null});
+    if(error)throw error;await load();pop('Document type '+(approved?'approved':'rejected')+'.');
+   }finally{state.busy=false;}return;
+  }
+  if(a==='types-add'||a==='types-toggle'){
+   if(!yesAdmin())throw Error('Administrator required');
+   const action=a==='types-add'?'add':t.dataset.act;
+   const name=a==='types-add'?clean(document.getElementById('types-new-name')?.value):t.dataset.name;
+   if(name.length<2)throw Error('Enter a document type with at least two characters.');
+   if(!confirm((action==='add'?'Add':action==='deactivate'?'Deactivate':'Reactivate')+' document type "'+name+'"?'))return;
+   state.busy=true;try{
+    const {error}=await db.rpc('i_track_document_type_manage',{p_action:action,p_name:name});
+    if(error)throw error;await load();pop('Document type '+(action==='add'?'added':action==='deactivate'?'deactivated':'reactivated')+'.');
+   }finally{state.busy=false;}return;
+  }
+  if(a==='district-refresh'){await load();return;}
+  if(a==='district-create'){
+   const school=state.schools.find(x=>x.id===state.districtSchoolId);
+   if(!school||!school.is_active)throw Error('Choose an active school.');
+   const eligible=state.districtData.eligible||[];
+   const checked=[...state.districtPicked].filter(id=>eligible.some(x=>x.id===id&&x.school_id===school.id));
+   if(!checked.length)throw Error('Check District-bound documents belonging to the selected school.');
+   const addr=clean(document.getElementById('district-address')?.value);
+   if(!confirm('Create a School-to-District transmittal for '+school.name+' with '+checked.length+' document(s)? Your registered name will be the signer.'))return;
+   state.busy=true;try{
+    const {data,error}=await db.rpc('i_track_district_action',{p_action:'create',p_school:school.id,
+     p_address:addr,p_document_ids:checked});
+    if(error)throw error;
+    state.districtPicked.clear();state.districtSelected=data.id;
+    await load();pop('District transmittal '+data.number+' created. Print the slip before submission.');
+   }finally{state.busy=false;}return;
+  }
+  if(a==='district-submit'){
+   const trans=state.districtData.transmittals?.find(x=>x.id===state.districtSelected)||
+    state.districtData.transmittals?.[0];
+   if(!trans||trans.prepared_by!==state.session.user.id)throw Error('Only the preparer may submit this transmittal.');
+   const items=state.districtData.items||[];
+   const checked=[...state.districtSubmitPicked].filter(id=>items.some(i=>i.id===id&&i.transmittal_id===trans.id&&i.item_status==='in_transmittal'));
+   if(!checked.length)throw Error('Check the documents actually submitted to the District Office.');
+   const day=document.getElementById('district-actual-date')?.value;
+   if(!day)throw Error('Enter actual physical submission date.');
+   const noReturn=items.filter(i=>checked.includes(i.id)&&!i.return_required).length;
+   if(!confirm('Confirm you physically submitted '+checked.length+' selected document(s) on '+day+
+      '? '+noReturn+' No Return document(s) will become Completed immediately. This action is audited.'))return;
+   state.busy=true;try{
+    const {error}=await db.rpc('i_track_district_action',{p_action:'submit',p_transmittal:trans.id,
+     p_item_ids:checked,p_actual_date:day});
+    if(error)throw error;state.districtSubmitPicked.clear();await load();
+    pop('Actual District submission recorded. '+noReturn+' No Return document(s) completed.');
+   }finally{state.busy=false;}return;
+  }
+  if(a==='district-cancel-item'){
+   const it=state.districtData.items?.find(x=>x.id===t.dataset.id);
+   if(!it||it.item_status!=='in_transmittal')throw Error('Only draft items can be removed.');
+   if(!confirm('Remove '+it.tracking_number+' from this draft transmittal? It remains in My Documents.'))return;
+   state.busy=true;try{
+    const {error}=await db.rpc('i_track_district_action',{p_action:'cancel',p_transmittal:it.transmittal_id,p_item:it.id});
+    if(error)throw error;await load();pop('Draft item removed.');
+   }finally{state.busy=false;}return;
+  }
+  if(a==='district-ready'||a==='district-claim'){
+   const it=(a==='district-ready'?state.districtData.items:state.districtData.claimable)?.find(x=>x.id===t.dataset.id);
+   if(!it)throw Error('Document not found in your District queue.');
+   if(!confirm(a==='district-ready'?'Confirm the physical document '+it.tracking_number+' has returned from District and is now ready for its rightful owner?':
+    'Confirm you personally received '+it.tracking_number+' from District? This completes its routing.'))return;
+   state.busy=true;try{
+    const {error}=await db.rpc('i_track_district_action',{p_action:a==='district-ready'?'ready':'claim',p_item:it.id});
+    if(error)throw error;await load();pop(a==='district-ready'?'Ready for rightful owner confirmation.':'Final District document receipt confirmed.');
+   }finally{state.busy=false;}return;
+  }
+  if(a==='district-assign-owner'){
+   const it=state.districtData.items?.find(x=>x.id===t.dataset.id);
+   if(!it)throw Error('District document not available.');
+   const people=state.districtData.people||[];
+   const chosen=prompt('Choose rightful owner for '+it.tracking_number+' (enter number):\\n'+
+    people.map((p,i)=>(i+1)+'. '+p.name+' — '+(p.position||'')).join('\\n'));
+   if(!chosen)return;
+   const person=people[Number(chosen)-1];
+   if(!person)throw Error('Choose a valid registered user number.');
+   if(!confirm('Set '+person.name+' as the rightful owner of '+it.tracking_number+'?'))return;
+   state.busy=true;try{
+    const {error}=await db.rpc('i_track_district_action',{p_action:'set_owner',p_item:it.id,p_owner:person.id});
+    if(error)throw error;await load();pop('Rightful owner assigned; document history preserved.');
+   }finally{state.busy=false;}return;
+  }
+  if(a==='district-print'){
+   const trans=state.districtData.transmittals?.find(x=>x.id===t.dataset.id);
+   if(!trans)throw Error('Choose District transmittal to print.');
+   const docs=(state.districtData.items||[]).filter(x=>x.transmittal_id===trans.id&&x.item_status!=='cancelled');
+   if(!docs.length)throw Error('No active documents on the slip.');
+   if(!window.ITRACK_DISTRICT_PRINT?.render)throw Error('District printable form not loaded. Refresh.');
+   const html=window.ITRACK_DISTRICT_PRINT.render(trans,docs);
+   const win=window.open('','_blank');if(!win)throw Error('Allow popups to print your transmittal.');
+   win.document.write(html);win.document.close();
+   await Promise.all([...win.document.images].map(img=>img.complete?Promise.resolve():new Promise(resolve=>{
+     img.onload=resolve;img.onerror=resolve;setTimeout(resolve,4000);
+   })));
+   win.focus();win.print();return;
+  }
   if(a==='personal-save'){
    const d=state.docs.find(x=>x.id===t.dataset.id);
    if(!d||d.destination!=='personal'||d.completion_kind!=='personal_record'||d.created_by!==state.session.user.id)
@@ -2500,6 +2609,26 @@ $.addEventListener('input',e=>{
  if(e.target.id==='retrieval-search')filterRetrievalAvailable();
 });
 $.addEventListener('change',async e=>{
+ if(e.target.id==='district-school'&&state.view==='district'){
+  state.districtSchoolId=e.target.value;state.districtPicked.clear();show();return;
+ }
+ if(e.target.id==='district-current'&&state.view==='district'){
+  state.districtSelected=e.target.value;state.districtSubmitPicked.clear();show();return;
+ }
+ if(state.view==='district'&&e.target.matches('input[type="checkbox"].district-eligible-pick')){
+  if(e.target.checked)state.districtPicked.add(e.target.value);else state.districtPicked.delete(e.target.value);
+  const count=document.getElementById('district-pick-count'),btn=document.getElementById('district-create-btn');
+  if(count)count.textContent=state.districtPicked.size+' selected';
+  if(btn)btn.disabled=!state.districtPicked.size;
+  return;
+ }
+ if(state.view==='district'&&e.target.matches('input[type="checkbox"].district-submit-pick')){
+  if(e.target.checked)state.districtSubmitPicked.add(e.target.value);else state.districtSubmitPicked.delete(e.target.value);
+  const count=document.getElementById('district-submit-count'),btn=document.getElementById('district-submit-btn');
+  if(count)count.textContent=state.districtSubmitPicked.size+' selected';
+  if(btn)btn.disabled=!state.districtSubmitPicked.size;
+  return;
+ }
  if(e.target.matches('input[name="destination"]')&&e.target.closest('#form-doc')){
    const dest=e.target.value,ret=document.getElementById('doc-return-field');
    const who=document.querySelector('#form-doc .route-recipient-field');
