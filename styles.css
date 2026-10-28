@@ -656,3 +656,14 @@ tr[hidden]{display:none!important}
  .route-document-dialog .route-destination-choice small{margin:0;font-size:11px}
  .route-document-dialog>footer .btn{padding:11px 10px;font-size:13px}
 }
+
+/* Unified compliance and Division transmittal preparation */
+.division-eligible-list{max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:5px;margin:7px 0 16px}
+.division-eligible-list>label{display:flex;gap:9px;padding:10px;border:1px solid var(--line);border-radius:9px;align-items:start;cursor:pointer}
+.division-eligible-list input[type="checkbox"]{width:17px;min-width:17px;height:17px;margin:2px 0 0;accent-color:#1e509c}
+.division-choice small{display:block;color:var(--muted);font-size:11px}
+.division-print-config{margin:13px 0 15px;padding:15px;border:1px solid var(--line);border-radius:12px;background:var(--bg)}
+.division-print-config .field{max-width:540px}
+.division-print-config .toolbar{margin-top:12px;display:flex;flex-wrap:wrap;gap:9px}
+.division-print-config .note{max-width:640px}
+@media(max-width:600px){.division-print-config{padding:12px}.division-print-config .toolbar .btn{flex:1 1 130px}}
