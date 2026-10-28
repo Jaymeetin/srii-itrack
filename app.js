@@ -999,6 +999,8 @@ function announcementPage(){
   '<div class="panel"><h3>Announcement Board</h3>'+table(['Announcement','Status','Deadline','Actions'],rows)+'</div>';
 }
 function monitorPage(){
+ const currentAnnouncement=state.announcements.find(a=>a.id===state.selectedId);
+ const isCancelledAnnouncement=currentAnnouncement?.status==='cancelled';
  const opts=state.announcements.filter(a=>a.status!=='draft').map(a=>
   '<option value="'+esc(a.id)+'"'+(a.id===state.selectedId?' selected':'')+'>'+esc(announcementName(a))+'</option>').join('');
  const n=x=>state.monitor.filter(s=>s.submission_status===x).length;
@@ -1014,15 +1016,15 @@ function monitorPage(){
  return '<div class="eyebrow">District-wide visibility</div><h1>Submission Monitoring</h1>'+
   '<p class="sub">Tap any school to view its submission status.'+
    (isAoII()?' As an approved AO II, you may submit for another school when its AO II is unavailable.':'')+
-   ' Only district administrators verify submissions and access other schools\' uploaded files.</p>'+
+   ' Only district administrators and assigned approvers can verify submissions. File access remains restricted.</p>'+
   (yesAdmin()?'<div class="school-files-monitor-link"><button type="button" class="btn alt" data-a="nav" data-page="school-files">▣ View All School Attachments</button></div>':'')+
   '<div class="panel"><div class="field"><label for="pick-ann">Announcement</label><select id="pick-ann"><option value="">Choose an announcement</option>'+opts+'</select></div></div>'+
-  (state.selectedId?'<div class="stats">'+stat('Required Schools',state.monitor.length,'For selected announcement')+
+  (state.selectedId?(isCancelledAnnouncement?'<div class="notice warn"><strong>Cancelled announcement.</strong> '+esc(currentAnnouncement?.cancellation_reason||'This announcement was cancelled by the district administrator.')+' New submissions are disabled; existing records are retained.</div>':'')+'<div class="stats">'+(isCancelledAnnouncement?stat('Status','Cancelled','No pending compliance required')+stat('Previously assigned schools',state.monitor.length,'Historical record'):stat('Required Schools',state.monitor.length,'For selected announcement')+
    stat('Verified',n('Submitted')+n('Late'),'Admin approved')+stat('Awaiting Review',n('Pending Verification'),'Pending approval')+stat('Returned',n('Returned for Correction'),'Needs correction')+
-   stat('Pending',n('Pending'),'Not yet submitted')+'</div>'+
+   stat('Pending',n('Pending'),'Not yet submitted'))+'</div>'+
    '<div class="panel"><h3>School Status</h3><div class="status-school-list">'+(rows||'<p class="empty">No required schools found.</p>')+'</div></div>':
    '<div class="panel empty">Choose an announcement to view status.</div>')+
-  '<div class="notice">Privacy: Everyone can see submission completion, but school files remain private. The uploading AO II is recorded; only district administrators can verify submissions.</div>';
+  '<div class="notice">Privacy: Everyone can see submission completion; file access remains restricted. Only district administrators and assigned approvers can verify submissions.</div>';
 }
 function monitorSchoolVisibleFilesHtml(){
  const files=state.monitorSchoolFiles||[];
@@ -1050,7 +1052,7 @@ function monitorSchoolModal(){
   '<p class="note">The actual uploader and represented school are recorded automatically. A submission requires district administrator verification; the represented school does not approve it.</p>':
   '<p class="note">'+(isOic()?'Oversight account: view status only.':
     item.announcementOpen?'Only approved AO II accounts and district administrators can submit for another school.':
-    'This announcement is closed; new submissions are unavailable.')+'</p>';
+    'This announcement is closed or cancelled; new submissions are unavailable.')+'</p>';
  const existing=!isOic()&&!yesAdmin()?'<section class="monitor-visible-files"><h4>Files You Can Access</h4>'+ 
   '<div id="monitor-visible-school-uploads">'+monitorSchoolVisibleFilesHtml()+'</div></section>':'';
  return info+adminButton+existing+action;
