@@ -1698,6 +1698,17 @@ async function click(e){
   }
   if(a==='close'){const refreshStatus=state.modal==='monitor-school';state.modal=null;state.monitorSchool=null;state.monitorSchoolFiles=[];state.monitorDetail=null;state.monitorFiles=[];if(refreshStatus&&state.view==='monitoring')await loadMonitor();show();return;}
   if(a==='new-announcement'){state.modal='new-announcement';show();return;}
+  if(a==='manage-approvers'){
+   if(!yesAdmin())throw Error('District administrator required');
+   state.announcementApproverEditing=t.dataset.id;state.modal='announcement-approvers';show();return;
+  }
+  if(a==='save-approvers'){
+   if(!yesAdmin())throw Error('District administrator required');
+   const chosen=[...document.querySelectorAll('.announcement-approver-pick:checked')].map(x=>x.value);
+   const {error}=await db.rpc('i_track_set_announcement_approvers',{p_announcement:state.announcementApproverEditing,p_user_ids:chosen});
+   if(error)throw error;state.modal=null;await load();pop('Assigned approvers updated.');return;
+  }
+
   if(a==='suggest-doc-type'){
    if(!active()||isOic())throw new Error('Only active routing users may suggest document types.');
    const name=clean(document.getElementById('suggested-doc-type')?.value);
@@ -2074,7 +2085,8 @@ async function submit(e){
    if(!selected.length)throw new Error('Select at least one school.');
    const raw=clean(fd.get('deadline'));if(!raw)throw new Error('Enter a deadline.');
    const localTime=new Date(raw+'+08:00');if(Number.isNaN(localTime.getTime()))throw new Error('Invalid deadline.');
-   const {error}=await db.rpc('i_track_create_announcement',{p_title:clean(fd.get('title')),p_description:clean(fd.get('description')),p_deadline_at:localTime.toISOString(),p_school_ids:selected});if(error)throw error;
+   const approvers=[...form.querySelectorAll('.announcement-approver-pick:checked')].map(x=>x.value);
+   const {error}=await db.rpc('i_track_create_announcement_with_approvers',{p_title:clean(fd.get('title')),p_description:clean(fd.get('description')),p_deadline_at:localTime.toISOString(),p_school_ids:selected,p_approver_ids:approvers});if(error)throw error;
    state.modal=null;rememberView('announcements');await load();pop('Announcement created.');return;
   }
   if(form.id==='form-doc'){
