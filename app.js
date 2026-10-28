@@ -1310,13 +1310,12 @@ function modalHtml(){
   footer='<button class="btn alt" data-a="close">Cancel</button><button class="btn" type="submit" form="form-ann">Publish</button>';
  }else if(m==='send'){
   title='Route Document';
-  const recipientOptions=state.recipients.filter(x=>x.user_id!==state.session.user.id)
-   .map(x=>'<option value="'+esc(x.user_id)+'">'+esc(x.display_name)+'</option>').join('');
+  const recipientOptions=state.recipients.map(x=>'<option value="'+esc(x.user_id)+'">'+esc(x.display_name)+'</option>').join('');
   body='<form id="form-doc">'+field('Document Title','subject')+
    '<div class="field"><label for="doc-type">Document Type (approved)</label><select name="type" id="doc-type" required><option value="">Choose document type</option>'+
     state.docTypes.map(x=>'<option value="'+esc(x.name)+'">'+esc(x.name)+'</option>').join('')+'</select></div>'+
-   '<div class="field"><label for="doc-recipient">Recipient (optional)</label><select name="recipient" id="doc-recipient"><option value="">No recipient — Save In School</option>'+
-    recipientOptions+'</select><p class="small muted">Only verified and approved users appear here. Leave empty to save in My Documents.</p></div>'+
+   '<div class="field"><label for="doc-recipient">Recipient (optional)</label><select name="recipient" id="doc-recipient"><option value="">Choose recipient (optional)</option>'+
+    recipientOptions+'</select><p class="small muted">Only verified and approved users appear here. Choose your own name or leave blank to save In School.</p></div>'+
    '<fieldset class="field"><legend><strong>Destination</strong></legend>'+
     '<label style="display:inline-flex;gap:6px;align-items:center;margin-right:12px"><input type="radio" name="destination" value="school" checked> School Only</label>'+
     '<label style="display:inline-flex;gap:6px;align-items:center;margin-right:12px"><input type="radio" name="destination" value="district"> District</label>'+
@@ -1898,6 +1897,7 @@ async function submit(e){
   if(form.id==='form-doc'){
    const params={p_subject:clean(fd.get('subject')),p_document_type:clean(fd.get('type')),
     p_recipient_id:clean(fd.get('recipient'))||null,p_destination:clean(fd.get('destination'))||'school',p_notes:clean(fd.get('notes'))};
+   if(params.p_recipient_id===state.session.user.id)params.p_recipient_id=null; // Choosing your own name saves In School, without a self-directed route.
    if(!params.p_subject||!params.p_document_type)throw Error('Enter the document title and type.');
    if(!state.docTypes.some(x=>x.name===params.p_document_type))throw Error('Choose an approved document type.');
    if(!['school','district','division'].includes(params.p_destination))throw Error('Choose a destination.');
