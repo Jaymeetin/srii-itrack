@@ -1585,6 +1585,35 @@ async function compress(){
  state.fileNote=use?`Reduced from ${(f.size/1024).toFixed(0)} KB to ${(blob.size/1024).toFixed(0)} KB. Download and check text readability.`:'Original image is already smaller; keeping the original file.';
  show();pop('Compression complete. No file was uploaded.');
 }
+async function executeRetrievalAction(action,args,message){
+ state.busy=true;
+ try{
+  const {data,error}=await db.rpc('i_track_retrieval_action',{p_action:action,...args});
+  if(error)throw error;
+  await load();
+  pop(message||'Document custody updated.');
+  return data;
+ }finally{state.busy=false;}
+}
+function refreshRetrievalCheckboxCounters(){
+ const pairs=[
+  ['retrieval-pick-count','retrieval-pickup-btn',state.retrievalPicked],
+  ['retrieval-turnover-count','retrieval-prepare-btn',state.retrievalTurnoverPicked],
+  ['retrieval-district-count','retrieval-district-btn',state.retrievalDistrictPicked]
+ ];
+ for(const [textId,btnId,chosen] of pairs){
+  const el=document.getElementById(textId),btn=document.getElementById(btnId);
+  if(el)el.textContent=chosen.size+' checked';
+  if(btn)btn.disabled=!chosen.size;
+ }
+}
+function filterRetrievalAvailable(){
+ const q=document.getElementById('retrieval-search')?.value.trim().toLowerCase()||'';
+ state.retrievalSearch=q;
+ document.querySelectorAll('#retrieval-available-list [data-retrieval-search]').forEach(el=>{
+  el.hidden=!!q&&!el.dataset.retrievalSearch.includes(q);
+ });
+}
 async function click(e){
  const t=e.target.closest('[data-a]');if(!t||state.busy)return;
  const a=t.dataset.a;
@@ -1592,6 +1621,95 @@ async function click(e){
   if(a==='maintenance-refresh'){await readMaintenance();show();return;}
   if(a==='maintenance-toggle'){if(!yesAdmin())throw Error('Admin only');const next=!state.maintenance.enabled;if(!confirm(next?'Turn ON Maintenance Mode? Regular users will see a maintenance notice.':'Turn OFF Maintenance Mode and reopen the app for regular users?'))return;const {error}=await db.rpc('i_track_set_maintenance',{p_enabled:next});if(error)throw error;await readMaintenance();show();pop(next?'Maintenance Mode enabled.':'Maintenance Mode disabled.');return;}
   if(state.maintenance.enabled&&!yesAdmin()&&a!=='logout'){await readMaintenance();show();return;}
+  if(a==='retrieval-refresh'){await load();return;}
+  if(a==='retrieval-clear'){
+   state.retrievalPicked.clear();state.retrievalSearch='';
+   show();return;
+  }
+  if(a==='retrieval-check-visible'){
+   document.querySelectorAll('#retrieval-available-list .retrieval-pick:not(:disabled)').forEach(c=>{
+    if(!c.closest('tr')?.hidden){c.checked=true;state.retrievalPicked.add(c.value);}
+   });
+   refreshRetrievalCheckboxCounters();return;
+  }
+  if(a==='retrieval-pickup'){
+   const items=state.retrievalData.available||[];
+   const checked=[...state.retrievalPicked].filter(id=>items.some(x=>x.item_id===id));
+   if(!checked.length)throw Error('Check at least one document currently submitted to Division.');
+   if(!confirm('Confirm you physically collected '+checked.length+' document(s) from the Division Office? This cannot be undone by clicking Back.'))return;
+   state.retrievalPicked.clear();
+   await executeRetrievalAction('pickup',{p_item_ids:checked},'Retrieved '+checked.length+' document(s); a numbered retrieval batch was created.');
+   return;
+  }
+  if(a==='retrieval-prepare'){
+   const candidate=state.retrievalData.my_batch_items||[];
+   const activeTurnover=new Set((state.retrievalData.turnover_items||[]).map(x=>x.item_id));
+   const checked=[...state.retrievalTurnoverPicked].filter(id=>candidate.some(x=>x.item_id===id&&x.division_status==='retrieved_from_division'&&!activeTurnover.has(id)));
+   if(!checked.length)throw Error('Check one or more documents in your retrieval batches.');
+   const recipient=document.getElementById('retrieval-district-recipient')?.value;
+   const district=state.retrievalData.district_recipients?.find(x=>x.id===recipient);
+   if(!district)throw Error('Select an approved District receiving person.');
+   if(!confirm('Prepare one turnover slip for '+checked.length+' selected document(s) addressed to '+district.name+'? No physical handoff is recorded yet.'))return;
+   state.retrievalTurnoverPicked.clear();
+   await executeRetrievalAction('prepare',{p_item_ids:checked,p_recipient:recipient},'Turnover slip prepared. Print it before confirming physical handoff.');
+   return;
+  }
+  if(a==='retrieval-handoff'){
+   const turnover=state.retrievalData.turnovers?.find(x=>x.id===t.dataset.id);
+   if(!turnover||turnover.retriever_id!==state.session.user.id||turnover.status!=='prepared')throw Error('Only your prepared turnover can be handed over.');
+   if(!confirm('Have you physically handed the documents on '+turnover.number+' to '+turnover.recipient_name+'? The District must acknowledge them separately.'))return;
+   await executeRetrievalAction('handoff',{p_turnover:turnover.id},'Physical handoff recorded. Waiting for District acknowledgment.');
+   return;
+  }
+  if(a==='retrieval-discard'){
+   const turnover=state.retrievalData.turnovers?.find(x=>x.id===t.dataset.id);
+   if(!turnover||turnover.retriever_id!==state.session.user.id||turnover.status!=='prepared')throw Error('Only your prepared slip can be discarded.');
+   if(!confirm('Discard draft turnover slip '+turnover.number+'? Its documents remain with the retriever and can be selected again.'))return;
+   await executeRetrievalAction('discard',{p_turnover:turnover.id},'Prepared slip discarded. Documents remain available for another slip.');
+   return;
+  }
+  if(a==='retrieval-district-ack'){
+   const current=state.retrievalData.district_queue||[];
+   const checked=[...state.retrievalDistrictPicked].filter(id=>current.some(x=>x.item_id===id));
+   if(!checked.length)throw Error('Check documents physically received at District.');
+   if(!confirm('Acknowledge actual District custody of '+checked.length+' selected document(s)? They will still require rightful-owner receipt.'))return;
+   state.retrievalDistrictPicked.clear();
+   await executeRetrievalAction('district_ack',{p_item_ids:checked},'District receipt recorded for '+checked.length+' document(s).');
+   return;
+  }
+  if(a==='retrieval-claim'){
+   const item=state.retrievalData.claimable?.find(x=>x.item_id===t.dataset.id);
+   if(!item)throw Error('Only your own claimable document can be confirmed.');
+   if(!confirm('Confirm you personally received '+item.document_label+' ('+item.tracking_number+')? This completes the physical document routing.'))return;
+   await executeRetrievalAction('claim',{p_item:item.item_id},'Final receipt confirmed. Document routing completed.');
+   return;
+  }
+  if(a==='retrieval-set-owner'){
+   const item=state.retrievalData.manageable_owners?.find(x=>x.item_id===t.dataset.id);
+   if(!item)throw Error('You are not authorized to designate this document owner.');
+   const ownerId=document.getElementById('retrieval-owner-'+item.item_id)?.value;
+   const owner=state.retrievalData.claimant_accounts?.find(x=>x.id===ownerId);
+   if(!owner)throw Error('Choose an approved registered rightful owner.');
+   if(ownerId===item.owner_id)throw Error('That person is already the rightful owner.');
+   if(!confirm('Designate '+owner.name+' as the rightful owner of '+item.tracking_number+'? They alone can confirm final receipt.'))return;
+   await executeRetrievalAction('set_owner',{p_item:item.item_id,p_owner:ownerId},'Rightful owner updated; original sender and history remain unchanged.');
+   return;
+  }
+  if(a==='retrieval-print'){
+   const turnover=state.retrievalData.turnovers?.find(x=>x.id===t.dataset.id);
+   if(!turnover)throw Error('Turnover slip not found. Refresh the list.');
+   const list=(state.retrievalData.turnover_items||[]).filter(x=>x.turnover_id===turnover.id);
+   if(!list.length)throw Error('No documents on this turnover slip.');
+   if(!window.ITRACK_PRINT?.renderRetrievalSlip)throw Error('Retrieval print template not loaded. Refresh the app.');
+   const html=window.ITRACK_PRINT.renderRetrievalSlip(turnover,list);
+   const win=window.open('','_blank');
+   if(!win)throw Error('Allow popups to print the turnover slip.');
+   win.document.write(html);win.document.close();
+   await Promise.all([...win.document.images].map(img=>img.complete?Promise.resolve():new Promise(resolve=>{
+    img.onload=resolve;img.onerror=resolve;setTimeout(resolve,3500);
+   })));
+   win.focus();win.print();return;
+  }
   if(a==='division-admin-search'){if(!yesAdmin())throw Error('Admin only');const query=document.getElementById('division-admin-query')?.value?.trim()||'';if(query.length<2)throw Error('Enter at least two characters.');const {data,error}=await db.rpc('i_track_division_admin_find',{p_query:query});if(error)throw error;state.divisionQuery=query;state.divisionSearchResults=data||[];show();return;}
   if(a==='division-admin-resolve'){if(!yesAdmin())throw Error('Admin only');const d=state.divisionSearchResults.find(x=>x.id===t.dataset.id);if(!d)throw Error('Document not found');const reason=prompt('Reason for '+t.dataset.act+' (required)');if(!reason?.trim())return;if(!confirm('Apply '+t.dataset.act+' to '+d.tracking_number+'?'))return;const {error}=d.last_item_id?await db.rpc('i_track_division_action',{p_action:t.dataset.act==='received'?'admin_received':t.dataset.act==='corrected'?'correct':t.dataset.act,p_transmittal:d.last_transmittal_id,p_item:d.last_item_id,p_reason:reason.trim()}):await db.rpc('i_track_division_admin_resolve',{p_document:d.id,p_resolution:t.dataset.act,p_reason:reason.trim()});if(error)throw error;state.divisionSearchResults=[];await load();pop('Resolution recorded.');return;}
   if(a==='direct-division'){
