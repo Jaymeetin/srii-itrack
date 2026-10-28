@@ -316,14 +316,20 @@ async function loadDocumentTypes(){
 async function loadRecipients(){const {data,error}=await db.rpc('i_track_recipient_directory');if(error)throw error;state.recipients=data||[];}
 async function loadMonitor(){if(!state.selectedId){state.monitor=[];return;}const {data,error}=await db.rpc('i_track_monitor',{p_announcement_id:state.selectedId});if(error)throw error;state.monitor=data||[];}
 async function loadVerification(){
- if(!yesAdmin()||!active())throw new Error('Administrator access required.');
- const announcements=state.announcements.filter(a=>['open','closed'].includes(a.status));
+ if(!active()||(!yesAdmin()&&!state.approverAssignments.some(x=>x.user_id===state.session.user.id)))throw new Error('Assigned approver or administrator access required.');
+ const announcements=state.announcements.filter(a=>['open','closed'].includes(a.status)&&
+  (yesAdmin()||state.approverAssignments.some(x=>x.announcement_id===a.id&&x.user_id===state.session.user.id)));
  if(!state.reviewSelectedId||!announcements.some(a=>a.id===state.reviewSelectedId))
   state.reviewSelectedId=announcements[0]?.id||'';
  const requestedId=state.reviewSelectedId;
  if(!requestedId){
   state.reviewRows=[];state.reviewVersions=[];state.reviewRequired=0;
   return;
+ }
+ if(!yesAdmin()){
+  state.reviewRows=[];state.reviewVersions=[];state.reviewRequired=0;
+  const {data,error}=await db.rpc('i_track_compliance_list',{p_announcement:requestedId});
+  if(error)throw error;state.reviewCompliances=data||[];return;
  }
  const {data:assignments,error:assignmentError}=await db.from('announcement_assignments')
   .select('id,school_id,assigned_user_id').eq('announcement_id',requestedId).eq('obligation_status','required');
@@ -502,8 +508,8 @@ function schoolAttachmentsPage(){
 }
 
 function verificationPage(){
- if(!yesAdmin())return '<div class="notice danger">Administrator access required.</div>';
- const notices=state.announcements.filter(a=>['open','closed'].includes(a.status));
+ if(!yesAdmin()&&!state.approverAssignments.some(x=>x.user_id===state.session.user.id))return '<div class="notice danger">Assigned approver or district administrator access required.</div>';
+ const notices=state.announcements.filter(a=>['open','closed'].includes(a.status)&&(yesAdmin()||state.approverAssignments.some(x=>x.announcement_id===a.id&&x.user_id===state.session.user.id)));
  const options=notices.map(a=>'<option value="'+esc(a.id)+'"'+(a.id===state.reviewSelectedId?' selected':'')+'>'+esc(announcementName(a))+'</option>').join('');
  const uploadedSchools=state.reviewRows.length;
  const complianceRows=(state.reviewCompliances||[]).map(c=>'<tr><td>'+esc(c.school_name)+'<div class="small muted">'+esc(c.number)+'</div></td><td>'+esc(c.has_attachment?'With attachment':'No attachment')+'</td><td>'+pTag(c.status)+'</td><td>'+(c.status==='pending_verification'?'<button class="btn tiny" data-a="compliance-verify" data-id="'+esc(c.id)+'">Approve</button> <button class="btn tiny alt" data-a="compliance-return" data-id="'+esc(c.id)+'">Return</button>':'<span class="small muted">'+esc(date(c.verified_at||c.submitted_at))+'</span>')+'</td></tr>');
@@ -547,6 +553,12 @@ function verificationPage(){
    '<td><span class="verify-status verify-status-'+currentStatus+'">'+esc(label(currentStatus))+'</span></td>'+
    '<td class="verify-review-cell">'+decision+historyControl+'</td></tr>';
  });
+ if(!yesAdmin())return '<div class="sectionhead"><div><div class="eyebrow">Assigned Approver</div><h1>Submission Verification</h1>'+
+  '<p class="sub">Any one assigned approver may approve or return a pending school response. The other assigned approvers will see the outcome.</p></div>'+
+  '<button class="btn alt" data-a="refresh-verification">↻ Refresh</button></div>'+
+  '<section class="panel"><div class="field"><label>Announcement</label><select id="review-ann">'+options+'</select></div>'+
+  '<p class="note">Only submissions for your assigned announcements are shown. Attachments are not required.</p>'+
+  table(['School / Submission ID','Evidence','Status','Review'],complianceRows)+'</section>';
  return '<div class="sectionhead"><div><div class="eyebrow">District administrator</div>'+
   '<h1>Submission Verification</h1>'+
   '<p class="sub">Review the latest upload, compare it with the latest verified version, and inspect every earlier version.</p></div>'+
@@ -736,7 +748,7 @@ function pendingPage(){
 }
 const menu=[['dashboard','⌂ Home'],['announcements','▤ Announcements'],['monitoring','▥ Submission Status']];
 function appPage(){
- const nav=[...menu,...(!isOic()?[['documents','▣ My Documents'],['division','▤ Division Transmittals']]:[]),...(districtOversight()?[['reports','▥ District Reports']]:[]),...(!yesAdmin()?[['settings','⚙ Personal Settings']]:[]),...(yesAdmin()?[['school-files','▣ School Attachments'],['verification','✓ Submission Verification'],['approvals','♙ Account Approvals'],['archive','▤ Archive Documents']]:[])].map(([id,title])=>`<button class="${state.view===id?'active':''}" data-a="nav" data-page="${id}">${title}</button>`).join('');
+ const nav=[...menu,...(!isOic()?[['documents','▣ My Documents'],['division','▤ Division Transmittals']]:[]),...(districtOversight()?[['reports','▥ District Reports']]:[]),...(!yesAdmin()?[['settings','⚙ Personal Settings']]:[]),...((yesAdmin()||state.approverAssignments.some(x=>x.user_id===state.session.user.id))?[['verification','✓ Submission Verification']]:[]),...(yesAdmin()?[['school-files','▣ School Attachments'],['approvals','♙ Account Approvals'],['archive','▤ Archive Documents']]:[])].map(([id,title])=>`<button class="${state.view===id?'active':''}" data-a="nav" data-page="${id}">${title}</button>`).join('');
  const title={dashboard:'Home',announcements:'Announcements',monitoring:'Submission Monitoring',documents:'My Documents',division:'Division Transmittals',settings:'Personal Settings',reports:'District Reports','school-files':'School Attachments',verification:'Submission Verification',approvals:'Account Management',archive:'Document Archiving'}[state.view]||'Overview';
  const school=state.schools.find(x=>x.id===state.profile.school_id)?.name||'District Office';
  const name=state.profile.display_name||(isOic()?'OIC-PSDS':'District Administrator');
@@ -1616,7 +1628,8 @@ async function click(e){
   if(a==='refresh'){await sync();return;}
   if(a==='export-district-report'){exportDistrictReport();pop('District compliance report prepared.');return;}
   if(a==='nav'){
-   if(['verification','school-files','approvals','archive'].includes(t.dataset.page)&&!yesAdmin())throw new Error('District administrator access required.');
+   if(['school-files','approvals','archive'].includes(t.dataset.page)&&!yesAdmin())throw new Error('District administrator access required.');
+   if(t.dataset.page==='verification'&&!yesAdmin()&&!state.approverAssignments.some(x=>x.user_id===state.session.user.id))throw new Error('Not an assigned approver.');
    if(t.dataset.page==='reports'&&!districtOversight())throw new Error('District oversight access required.');
    if(t.dataset.page==='settings'&&yesAdmin())throw new Error('Personal Settings in this redesign are for Normal User accounts.');
    if(isOic()&&!['dashboard','announcements','monitoring','reports','settings'].includes(t.dataset.page))throw new Error('This OIC-PSDS account is read-only.');
@@ -1655,7 +1668,7 @@ async function click(e){
    state.modal=null;await loadMonitor();show();pop('Submission '+data+' recorded. Awaiting verification.');return;
   }
   if(a==='compliance-verify'||a==='compliance-return'){
-   if(!yesAdmin())throw Error('Administrator only');const reason=a==='compliance-return'?prompt('Reason for returning this submission:'):null;
+   if(!yesAdmin()&&!state.approverAssignments.some(x=>x.announcement_id===state.reviewSelectedId&&x.user_id===state.session.user.id))throw Error('Not an assigned approver');const reason=a==='compliance-return'?prompt('Reason for returning this submission:'):null;
    if(a==='compliance-return'&&!reason?.trim())return;
    if(a==='compliance-verify'&&!confirm('Approve school submission?'))return;
    const {error}=await db.rpc('i_track_verify_compliance',{p_compliance:t.dataset.id,p_approve:a==='compliance-verify',p_reason:reason||null});if(error)throw error;
