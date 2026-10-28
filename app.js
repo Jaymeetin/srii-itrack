@@ -34,11 +34,12 @@ const knownViews=new Set(['dashboard','announcements','monitoring','documents','
 const urlView=new URLSearchParams(location.search).get('view');
 const firstView=knownViews.has(urlView)?urlView:'dashboard';
 localStorage.removeItem('srii-current-view');
-const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:arrivedFromExpiredEmailLink?'resend':'login',emailHelpReason:arrivedFromExpiredEmailLink?'expired':'',queueTicket:localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],showRemovedAccounts:false,modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],compliances:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewCompliances:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',documentDivisionStatuses:[],approverAssignments:[],announcementApproverEditing:null,transmittalEditing:false,privateDetails:null,profileRequests:[],userFeedback:[],issue:null,maintenance:{enabled:false,message:''}};
+const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:arrivedFromExpiredEmailLink?'resend':'login',emailHelpReason:arrivedFromExpiredEmailLink?'expired':'',queueTicket:localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],showRemovedAccounts:false,modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],compliances:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewCompliances:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',documentDivisionStatuses:[],approverAssignments:[],announcementApproverEditing:null,announcementEditId:null,announcementEditorData:null,announcementCancelId:null,transmittalEditing:false,privateDetails:null,profileRequests:[],userFeedback:[],issue:null,maintenance:{enabled:false,message:''}};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=x=>x?new Date(x).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}):'—';
 const short=x=>x?new Date(x).toLocaleDateString('en-PH',{dateStyle:'medium',timeZone:'Asia/Manila'}):'—';
+const phtDatetimeLocal=x=>x?new Date(new Date(x).getTime()+8*60*60*1000).toISOString().slice(0,16):'';
 const announcementName=a=>(a?.announcement_code?a.announcement_code+' — ':'')+(a?.title||'Announcement');
 const clean=x=>String(x||'').trim();
 const yesAdmin=()=>['main_admin','backup_admin'].includes(state.profile?.role);
@@ -132,7 +133,7 @@ async function load(){
   const tasks=[];
   tasks.push((async()=>{const {data,error}=await db.rpc('i_track_approver_assignments');if(error)throw error;state.approverAssignments=data||[];})());
   if(['dashboard','announcements','monitoring','verification','reports','school-files'].includes(state.view)){
-   tasks.push((async()=>{const {data,error}=await db.from('announcements').select('id,announcement_code,title,description,status,deadline_at,original_deadline_at,created_at').order('created_at',{ascending:false});if(error)throw error;state.announcements=data||[];if(!state.selectedId||!state.announcements.some(x=>x.id===state.selectedId))state.selectedId=state.announcements.find(x=>x.status!=='draft')?.id||'';})());
+   tasks.push((async()=>{const {data,error}=await db.from('announcements').select('id,announcement_code,title,description,status,deadline_at,original_deadline_at,created_at,cancelled_at,cancellation_reason').order('created_at',{ascending:false});if(error)throw error;state.announcements=data||[];if(!state.selectedId||!state.announcements.some(x=>x.id===state.selectedId))state.selectedId=state.announcements.find(x=>x.status!=='draft')?.id||'';})());
   }
   if(!isOic()&&['dashboard','documents','division'].includes(state.view)){
    tasks.push((async()=>{const {data,error}=await db.from('documents').select('id,tracking_number,subject,document_type,status,destination,created_by,origin_school_id,created_at').order('created_at',{ascending:false}).limit(200);if(error)throw error;state.docs=data||[];if(state.view==='documents')await Promise.all([loadDocumentAttachments(),loadRoutingHistory(),loadDocumentTypes(),loadSchoolSubmissionDocuments(),loadCompliances()]);
@@ -832,7 +833,7 @@ function dashboardPage(){
  if(!admin&&!oversight){
   for(const a of assigned){
    const ann=state.announcements.find(n=>n.id===a.announcement_id);
-   if(ann&&ann.status!=="draft")byAnn.set(ann.id,{...ann,assignmentId:a.id});
+   if(ann&&ann.status!=="draft"&&ann.status!=="cancelled")byAnn.set(ann.id,{...ann,assignmentId:a.id});
   }
  }
  const mine=[...byAnn.values()];
@@ -878,7 +879,7 @@ function dashboardPage(){
  }).join("")||'<div class="empty">No assigned announcements yet.</div>';
  const actionNeeded=!admin&&!oversight?state.docs.filter(d=>{const routes=documentRoutes(d.id),last=routes.at(-1);return last?.to_user_id===state.session.user.id&&(last.route_status==='awaiting_ack'||(last.route_status==='received'&&!last.processed_at));}).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,3):[];
  const actionNeededHtml=actionNeeded.map(d=>'<div class="v2-notice-item"><div class="v2-notice-copy"><strong>'+esc(d.subject)+'</strong><small>'+esc(d.tracking_number)+'</small></div><button class="btn tiny alt" data-a="detail" data-id="'+esc(d.id)+'">Review</button></div>').join('')||'<p class="note">No documents currently need your action.</p>';
- const upcoming=latest.filter(a=>a.deadline_at&&new Date(a.deadline_at)>new Date()&&a.status!=="closed")
+ const upcoming=latest.filter(a=>a.deadline_at&&new Date(a.deadline_at)>new Date()&&a.status==="open")
   .sort((a,b)=>new Date(a.deadline_at)-new Date(b.deadline_at)).slice(0,3);
  const reminders=upcoming.map(a=>'<div class="v2-reminder"><span class="v2-dot"></span><span>'+esc(short(a.deadline_at))+'</span><strong>'+esc(announcementName(a))+'</strong></div>').join("")||
   '<p class="note">No upcoming deadlines.</p>';
