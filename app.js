@@ -1441,6 +1441,20 @@ async function click(e){
   if(a==='division-forward'){if(!confirm('Forward this acknowledged document to the Division transmittal queue? Only its current recipient may do this.'))return;const {error}=await db.rpc('i_track_division_forward',{p_document:t.dataset.id});if(error)throw error;pop('Document forwarded to Division queue. Open Division Transmittals to prepare it.');return;}
   if(a==='open-self-division'){state.modal=null;rememberView('division');await load();return;}
   if(a==='division-refresh'){await load();return;}
+  if(a==='transmittal-save-signer'){
+   const t=state.divisionData.transmittals.find(x=>x.id===state.divisionSelected)||state.divisionData.transmittals[0];
+   if(!t)throw Error('Select a transmittal.');
+   const args={p_transmittal:t.id,p_name:document.getElementById('trans-signer-name')?.value.trim(),p_position:document.getElementById('trans-signer-position')?.value.trim(),p_office:document.getElementById('trans-signer-office')?.value.trim(),p_school:document.getElementById('trans-authorized-school')?.value.trim()||null};
+   const {error}=await db.rpc('i_track_edit_transmittal_signer',args);if(error)throw error;
+   await load();pop('Signer information saved.');return;
+  }
+  if(a==='transmittal-rename'){
+   const item=state.divisionData.items.find(x=>x.id===t.dataset.id);if(!item)throw Error('Transmittal item not found.');
+   const newName=prompt('Edit the printed document name (tracking ID stays unchanged):',item.document_label);
+   if(!newName||newName.trim()===item.document_label)return;
+   const {error}=await db.rpc('i_track_edit_transmittal_item',{p_item:item.id,p_label:newName.trim()});if(error)throw error;
+   await load();pop('Printed document name updated.');return;
+  }
   if(a==='division-create'){
    const docs=[...document.querySelectorAll('.division-pick:checked')].map(x=>x.value),compliances=[...document.querySelectorAll('.division-compliance-pick:checked')].map(x=>x.value),submitter=document.getElementById('division-submitter')?.value;
    if(!docs.length&&!compliances.length)throw Error('Select a document or approved submission.');
