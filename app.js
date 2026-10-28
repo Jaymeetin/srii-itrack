@@ -1652,7 +1652,7 @@ async function click(e){
    await loadSchoolFiles();show();pop('All school attachments refreshed.');return;
   }
   if(a==='refresh-verification'){
-   if(!yesAdmin()||state.view!=='verification')throw new Error('Administrator access required.');
+   if(!yesAdmin()&&!state.approverAssignments.some(x=>x.user_id===state.session.user.id))throw new Error('Assigned approver required.');
    await loadVerification();show();pop('Verification list refreshed.');return;
   }
   if(a==='verify-submission'||a==='reject-submission'){
@@ -2181,7 +2181,7 @@ $.addEventListener('change',async e=>{
   if(e.target.id==='school-files-filter-versions')state.schoolFilesVersions=e.target.value;
   show();return;
  }
- if(e.target.id==='review-ann'&&yesAdmin()){state.reviewSelectedId=e.target.value;rememberAnnouncement(state.reviewSelectedId,true);try{await loadVerification();show();}catch(ex){err(ex);}}
+ if(e.target.id==='review-ann'&&(yesAdmin()||state.approverAssignments.some(x=>x.user_id===state.session.user.id))){state.reviewSelectedId=e.target.value;rememberAnnouncement(state.reviewSelectedId,true);try{await loadVerification();show();}catch(ex){err(ex);}}
  if(e.target.id==='image-file'){state.file=e.target.files?.[0]||null;state.compressed=null;state.fileNote=state.file?`Selected ${state.file.name} — ${(state.file.size/1024).toFixed(0)} KB`:'';const note=document.getElementById('file-status');if(note)note.textContent=state.fileNote;}
 });
 // A gentle live countdown works while the registration page is open.
