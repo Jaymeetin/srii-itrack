@@ -1539,8 +1539,8 @@ function modalHtml(){
      '<p class="route-field-note">Division documents can appear in any authorized user’s transmittal immediately—no recipient approval needed.</p>'+
     '</div>'+
     '<div id="doc-return-field" class="field" style="display:none"><label>Is this document expected to return?</label>'+
-     '<label class="small"><input type="radio" name="return_required" value="no" checked> No — complete when physical submission is confirmed</label>'+
-     '<label class="small"><input type="radio" name="return_required" value="yes"> Yes — require rightful-owner final receipt</label>'+
+     '<label class="small"><input type="radio" name="return_required" value="no"> No — complete when physical submission is confirmed</label>'+
+     '<label class="small"><input type="radio" name="return_required" value="yes" checked> Yes — require rightful-owner final receipt</label>'+
      '<p class="route-field-note">No Return documents complete automatically on confirmed physical submission.</p></div>'+
     '<div class="field route-instructions-field"><label for="doc-notes">Instructions / Remarks <span class="route-optional">(optional)</span></label>'+
      '<textarea name="notes" id="doc-notes" rows="3" placeholder="Type your instructions or other details here…"></textarea></div>'+
@@ -1598,8 +1598,8 @@ function modalHtml(){
      '<option value="district">District Office</option><option value="division">Division Office</option>'+
      '<option value="school">School Only</option></select></div>'+
     '<div class="field"><label>Return Rule</label><select id="personal-forward-return">'+
-     '<option value="no">No Return — complete on confirmed submission</option>'+
-     '<option value="yes">For Return — owner confirms final receipt</option></select></div>'+
+     '<option value="yes">For Return — owner confirms final receipt</option>'+
+     '<option value="no">No Return — complete on confirmed submission</option></select></div>'+
     '<div class="field"><label>Recipient (optional)</label><select id="personal-forward-recipient">'+
      '<option value="">No recipient — use transmittal when applicable</option>'+
      state.recipients.filter(x=>x.user_id!==state.session.user.id).map(x=>
