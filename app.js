@@ -1404,6 +1404,37 @@ function modalHtml(){
    '<p class="note">Any one assigned approver may approve or return a school submission. District administrators retain oversight.</p>'+
    '<div class="approver-list">'+state.recipients.map(u=>'<label><input type="checkbox" class="announcement-approver-pick" value="'+esc(u.user_id)+'"> '+esc(u.display_name)+'</label>').join('')+'</div></div></form>');
   footer='<button class="btn alt" data-a="close">Cancel</button><button class="btn" type="submit" form="form-ann">Publish</button>';
+ }else if(m==='edit-announcement'){
+  const ann=state.announcements.find(x=>x.id===state.announcementEditId);
+  const editor=state.announcementEditorData||{};
+  const selected=new Set(editor.school_ids||[]);
+  const protectedIds=new Set(editor.protected_school_ids||[]);
+  const schools=state.schools.filter(x=>x.is_active);
+  const allSelected=schools.length>0&&schools.every(x=>selected.has(x.id));
+  title='Edit Announcement';
+  body='<form id="form-ann-edit">'+
+   '<p class="note"><strong>'+esc(ann?.announcement_code||'Announcement')+'</strong> · '+esc(ann?.status||'')+
+   '. Editing preserves existing submission IDs, uploaded files, and the original publication history.</p>'+
+   '<div class="field"><label for="edit-ann-title">Announcement Title</label><input id="edit-ann-title" name="title" type="text" maxlength="180" required value="'+esc(ann?.title||'')+'"></div>'+
+   '<div class="field"><label for="edit-ann-description">Description / Instructions</label><textarea id="edit-ann-description" name="description" rows="4" maxlength="5000">'+esc(ann?.description||'')+'</textarea></div>'+
+   '<div class="field"><label for="edit-ann-deadline">Submission Deadline (Philippine time)</label><input id="edit-ann-deadline" name="deadline" type="datetime-local" required value="'+esc(phtDatetimeLocal(ann?.deadline_at))+'"></div>'+
+   '<p class="note">Original deadline: '+esc(date(ann?.original_deadline_at))+' (kept in the audit record). The announcement remains '+esc(ann?.status||'open')+' after editing.</p>'+
+   '<div class="field"><label>Required Schools</label><label class="small"><input id="all-schools" type="checkbox"'+(allSelected?' checked':'')+'> Select all available schools</label>'+
+   '<p class="note">Schools that already submitted are locked to protect their compliance. To stop an entire announcement, use Cancel Announcement instead.</p>'+
+   '<div class="school-grid">'+schools.map(sc=>'<label><input type="checkbox" class="school-checkbox" value="'+esc(sc.id)+'"'+(selected.has(sc.id)?' checked':'')+(protectedIds.has(sc.id)?' disabled':'')+'> '+esc(sc.name)+(protectedIds.has(sc.id)?' <span class="small muted">(submitted — cannot remove)</span>':'')+'</label>').join('')+'</div></div>'+
+   '<div class="field"><label>Assigned Approvers (optional)</label><p class="note">Any one assigned approver may approve a school submission. Administrators retain verification rights.</p>'+
+   '<div class="approver-list">'+state.recipients.map(u=>'<label><input type="checkbox" class="announcement-approver-pick" value="'+esc(u.user_id)+'"'+((editor.approver_ids||[]).includes(u.user_id)?' checked':'')+'> '+esc(u.display_name)+'</label>').join('')+'</div></div>'+
+   '</form>';
+  footer='<button class="btn alt" data-a="close">Cancel</button><button class="btn" type="submit" form="form-ann-edit">Save Announcement Changes</button>';
+ }else if(m==='cancel-announcement'){
+  const ann=state.announcements.find(x=>x.id===state.announcementCancelId);
+  title='Cancel Announcement';
+  body='<div class="notice warn"><strong>Cancel '+esc(ann?.announcement_code||'this announcement')+'?</strong>'+
+   '<p>School submissions will stop. The announcement, existing attachments, tracking IDs, and verification history will be preserved. Cancellation cannot be reversed here.</p></div>'+
+   '<p><strong>'+esc(ann?.title||'Announcement')+'</strong></p>'+
+   '<div class="field"><label for="cancel-ann-reason">Reason for Cancellation (required)</label>'+
+   '<textarea id="cancel-ann-reason" rows="4" minlength="5" maxlength="1000" placeholder="State why this announcement is being cancelled"></textarea></div>';
+  footer='<button class="btn alt" data-a="close">Keep Announcement</button><button class="btn danger" data-a="confirm-cancel-announcement">Confirm Cancellation</button>';
  }else if(m==='announcement-approvers'){
   const ann=state.announcements.find(a=>a.id===state.announcementApproverEditing);
   title='Manage Assigned Approvers';
