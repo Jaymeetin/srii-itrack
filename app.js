@@ -1375,6 +1375,9 @@ function modalHtml(){
  if(m==='new-announcement'){
   title='Create Announcement';
   body=`<form id="form-ann">${field('Title','title')}<div class="field"><label>Description / Instructions</label><textarea name="description" placeholder="What should schools submit?"></textarea></div>${field('Deadline (Philippine time)','deadline','datetime-local')}<div class="field"><label>Required schools</label><label class="small"><input type="checkbox" id="all-schools" checked> Select all schools</label><div class="school-grid">${state.schools.filter(x=>x.is_active).map(x=>`<label><input class="school-checkbox" type="checkbox" value="${x.id}" checked> ${esc(x.name)}</label>`).join('')}</div></div></form>`;
+  body=body.replace('</form>','<div class="field"><label>Assigned Approvers (optional)</label>'+
+   '<p class="note">Any one assigned approver may approve or return a school submission. District administrators retain oversight.</p>'+
+   '<div class="approver-list">'+state.recipients.map(u=>'<label><input type="checkbox" class="announcement-approver-pick" value="'+esc(u.user_id)+'"> '+esc(u.display_name)+'</label>').join('')+'</div></div></form>');
   footer='<button class="btn alt" data-a="close">Cancel</button><button class="btn" type="submit" form="form-ann">Publish</button>';
  }else if(m==='send'){
   title='Route Document';
