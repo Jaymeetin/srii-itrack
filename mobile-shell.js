@@ -97,16 +97,26 @@ function openMore(){
  const schoolFiles=app.querySelector('.sidebar nav button[data-page="school-files"]');
  const verification=app.querySelector('.sidebar nav button[data-page="verification"]');
  const archive=app.querySelector('.sidebar nav button[data-page="archive"]');
- const division=app.querySelector('.sidebar nav button[data-page="division"]');
- const accountActions=[
-  division?'<button type="button" class="mobile-menu-button" data-mobile="navigate" data-page="division">▤ Division Transmittals <small>›</small></button>':"",
-  schoolFiles?'<button type="button" class="mobile-menu-button" data-mobile="navigate" data-page="school-files">All School Attachments <small>›</small></button>':"",
-  verification?'<button type="button" class="mobile-menu-button" data-mobile="navigate" data-page="verification">Submission Verification <small>›</small></button>':"",
-  reports?'<button type="button" class="mobile-menu-button" data-mobile="navigate" data-page="reports">District Reports <small>›</small></button>':"",
-  admin?'<button type="button" class="mobile-menu-button" data-mobile="navigate" data-page="approvals">Account Management <small>›</small></button>':"",
-  archive?'<button type="button" class="mobile-menu-button" data-mobile="navigate" data-page="archive">Document Archiving <small>›</small></button>':""
+ // Mirror the authorized sidebar: hiding a page in the sidebar must also hide
+ // it on mobile. Newly released modules should not be omitted from More.
+ const available=page=>!!app.querySelector('.sidebar nav button[data-page="'+page+'"]');
+ const link=(page,title)=>available(page)?
+  '<button type="button" class="mobile-menu-button" data-mobile="navigate" data-page="'+page+'">'+title+' <small>›</small></button>':"";
+ const workplace=[
+  link('division','▤ Division Transmittals'),
+  link('district','▤ District Transmittals'),
+  link('retrieval','✓ Division Retrieval')
  ].join("");
- const section=accountActions?'<span class="mobile-sheet-label">DISTRICT ADMINISTRATION</span>'+accountActions:"";
+ const administrative=[
+  link('document-types','▦ Document Types'),
+  link('school-files','All School Attachments'),
+  link('verification','Submission Verification'),
+  link('reports','District Reports'),
+  link('approvals','Account Management'),
+  link('archive','Document Archiving')
+ ].join("");
+ const workplaceSection=workplace?'<span class="mobile-sheet-label">DOCUMENT ROUTING</span>'+workplace:"";
+ const administrationSection=administrative?'<span class="mobile-sheet-label">DISTRICT ADMINISTRATION</span>'+administrative:"";
  const sheet=document.createElement("div");
  sheet.className="mobile-more-overlay";
  sheet.setAttribute("role","presentation");
@@ -117,7 +127,7 @@ function openMore(){
   '<div class="mobile-identity"><span class="mobile-avatar" aria-hidden="true">'+safe(user.initials)+'</span><div><strong>'+safe(user.name)+'</strong><small>'+safe(user.detail)+'</small></div></div>'+
   '<span class="mobile-sheet-label">WORKSPACE</span>'+
   '<button type="button" class="mobile-menu-button" data-mobile="navigate" data-page="notifications">◉ &nbsp; Notifications <small>›</small></button>'+
-  section+
+  workplaceSection+administrationSection+
   (admin||app.querySelector('.sidebar nav button[data-page="documents"]')?
    '<span class="mobile-sheet-label">SYSTEM TEST TOOLS</span>'+
    '<button type="button" class="mobile-menu-button" data-mobile="link" data-href="./upload-test.html">Test Google Drive Upload <small>›</small></button>':'')+
