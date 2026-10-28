@@ -1120,6 +1120,10 @@ function routePerson(name,office){
 }
 function routingOverview(d){
  const steps=documentRoutes(d.id),last=steps.at(-1);
+ const division=divisionStatusForDocument(d.id);
+ if(division&&division.division_status!=='received_by_sender'&&d.status!=='completed')
+  return '<div class="routing-overview"><span class="routing-status routing-status-received">'+esc(divisionStageLabel(division.division_status))+'</span>'+
+   '<span class="small muted">Transmittal '+esc(division.transmittal_number)+' · Routing history remains available below.</span></div>';
  if(d.status==='completed')return '<div class="routing-overview"><span class="routing-status routing-status-received">Completed</span><span class="small muted">Document processing is complete. See history for previous routing and Division activity.</span></div>';
  if(d.status==='in_school')return '<div class="routing-overview"><span class="routing-status routing-status-received">In School</span><span class="small muted">Saved in My Documents. No recipient acknowledgment or transmittal is required. You may forward it later.</span></div>';
  if(!last)return '<div class="routing-overview"><span class="routing-status routing-status-received">No Recipient</span><span class="small muted">Use the Division Transmittals page if this document is intended for Division.</span></div>';
@@ -1190,12 +1194,13 @@ function schoolSubmissionDetailModal(){
 function documentPage(){
  const routed=[...state.docs].map(d=>{
   const last=documentRoutes(d.id).at(-1);
-  const filterStatus=d.status==='in_school'?'in_school':last?.processed_at?'processed':last?.route_status||'none';
+  const division=divisionStatusForDocument(d.id);
+  const filterStatus=division?.division_status==='in_transmittal'?'in_transmittal':d.status==='in_school'?'in_school':last?.processed_at?'processed':last?.route_status||'none';
   return {when:d.created_at,markup:'<button type="button" class="compact-doc-row" data-document-row data-a="detail" data-id="'+esc(d.id)+'" '+
    'data-route-status="'+esc(filterStatus)+'" data-created="'+esc((d.created_at||'').slice(0,10))+'" '+
    'aria-label="Open files and routing history for '+esc(d.tracking_number)+' · '+esc(d.subject)+'">'+
    '<span class="compact-doc-id">'+esc(d.tracking_number)+'</span>'+
-   '<span class="compact-doc-name" title="'+esc(d.subject)+'">'+esc(d.subject)+'</span>'+
+   '<span class="compact-doc-name" title="'+esc(d.subject)+'">'+esc(d.subject)+(division?'<span class="small muted doc-division-tag">'+esc(divisionStageLabel(division.division_status))+'</span>':'')+'</span>'+
    '<span class="compact-doc-arrow" aria-hidden="true">›</span></button>'};
  });
  const newestSchoolFiles=new Map();
@@ -1227,7 +1232,7 @@ function documentPage(){
   '<select id="document-status-filter"><option value="">All statuses</option><option value="submission">School submissions</option>'+
   '<option value="awaiting_ack">Awaiting acknowledgment</option>'+
   '<option value="received">Acknowledged · Awaiting action</option><option value="processed">Processed</option>'+
-  '<option value="in_school">In School</option><option value="none">No route</option></select></div>'+
+  '<option value="in_transmittal">In Transmittal to Division</option><option value="in_school">In School</option><option value="none">No route</option></select></div>'+
   '<div class="field"><label for="document-date-filter">Created on or after</label><input id="document-date-filter" type="date"></div>'+
   '<button type="button" class="btn alt tiny" data-a="clear-document-filters">Clear Filters</button></div>'+
   '<div id="document-search-count" class="small muted" aria-live="polite"></div>'+
