@@ -680,3 +680,16 @@ tr[hidden]{display:none!important}
 .draft-removed-history summary{cursor:pointer;font-weight:650;color:var(--text)}
 .doc-division-tag{display:block;font-size:11px;margin-top:3px;color:var(--blue);font-weight:600}
 @media(max-width:620px){.approver-list{grid-template-columns:1fr}.draft-edit-bar .btn{flex:1 1 auto}}
+
+/* Draft transmittal editor v45: current attachments before new-item candidates */
+.draft-transmittal-editor .draft-included-header h4{margin:0 0 7px;font-size:16px}
+.draft-current-list{display:flex;flex-direction:column;gap:8px;margin:14px 0 12px;max-height:390px;overflow-y:auto}
+.draft-current-item{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--paper)}
+.draft-current-item>label{display:flex;gap:12px;align-items:center;min-width:0;flex:1;cursor:pointer}
+.draft-current-item input[type="checkbox"]{width:19px;height:19px;min-width:19px;margin:0;accent-color:#1d4b8c}
+.draft-current-description{min-width:0;overflow-wrap:anywhere}
+.draft-current-description strong{display:block;font-size:14px;line-height:1.35}
+.draft-current-description small{display:block;font-size:11px;color:var(--muted);margin-top:4px}
+.draft-current-item .btn{flex-shrink:0}
+.draft-add-divider{border-top:1px solid var(--line);margin:23px 0 19px}
+@media(max-width:600px){.draft-current-item{padding:10px;gap:7px}.draft-current-item>label{gap:9px}.draft-current-description strong{font-size:13px}}
