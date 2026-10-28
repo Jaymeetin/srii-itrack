@@ -1505,9 +1505,15 @@ function modalHtml(){
        '<span><strong>District</strong><small>For district processing</small></span></label>'+
       '<label class="route-destination-choice"><input type="radio" name="destination" value="division">'+
        '<span><strong>Division</strong><small>Eligible for transmittal</small></span></label>'+
+      '<label class="route-destination-choice"><input type="radio" name="destination" value="personal">'+
+       '<span><strong>Personal Record</strong><small>Complete on save; edit or forward later</small></span></label>'+
      '</div>'+
      '<p class="route-field-note">Division documents can appear in any authorized user’s transmittal immediately—no recipient approval needed.</p>'+
     '</div>'+
+    '<div id="doc-return-field" class="field" style="display:none"><label>Is this document expected to return?</label>'+
+     '<label class="small"><input type="radio" name="return_required" value="no" checked> No — complete when physical submission is confirmed</label>'+
+     '<label class="small"><input type="radio" name="return_required" value="yes"> Yes — require rightful-owner final receipt</label>'+
+     '<p class="route-field-note">No Return documents complete automatically on confirmed physical submission.</p></div>'+
     '<div class="field route-instructions-field"><label for="doc-notes">Instructions / Remarks <span class="route-optional">(optional)</span></label>'+
      '<textarea name="notes" id="doc-notes" rows="3" placeholder="Type your instructions or other details here…"></textarea></div>'+
     '<div class="field route-attachment-field"><label for="doc-attachments">Attachments <span class="route-optional">(optional)</span></label>'+
@@ -2372,11 +2378,13 @@ async function submit(e){
   }
   if(form.id==='form-doc'){
    const params={p_subject:clean(fd.get('subject')),p_document_type:clean(fd.get('type')),
-    p_recipient_id:clean(fd.get('recipient'))||null,p_destination:clean(fd.get('destination'))||'school',p_notes:clean(fd.get('notes'))};
+    p_recipient_id:clean(fd.get('recipient'))||null,p_destination:clean(fd.get('destination'))||'school',
+    p_return_required:clean(fd.get('return_required'))==='yes',p_notes:clean(fd.get('notes'))};
+   if(params.p_destination==='personal')params.p_recipient_id=null;
    if(params.p_recipient_id===state.session.user.id)params.p_recipient_id=null; // Choosing your own name saves In School, without a self-directed route.
    if(!params.p_subject||!params.p_document_type)throw Error('Enter the document title and type.');
    if(!state.docTypes.some(x=>x.name===params.p_document_type))throw Error('Choose an approved document type.');
-   if(!['school','district','division'].includes(params.p_destination))throw Error('Choose a destination.');
+   if(!['school','district','division','personal'].includes(params.p_destination))throw Error('Choose a destination.');
    const files=[...(form.querySelector('#doc-attachments')?.files||[])];
    const allowed=/\.(pdf|doc|docx|jpg|jpeg|png|webp)$/i;
    if(files.length>5)throw Error('Select no more than 5 attachments.');
@@ -2385,7 +2393,9 @@ async function submit(e){
    const report=form.querySelector('#doc-save-message');
    if(!tracking){
     const recipientName=state.recipients.find(x=>x.user_id===params.p_recipient_id)?.display_name;
-    if(!confirm(params.p_recipient_id?'Route this document to '+recipientName+'?':'Save this document In School with no recipient?'))return;
+    if(!confirm(params.p_destination==='personal'?'Save this document as a Completed Personal Record? It can be edited or forwarded later.':
+     params.p_recipient_id?'Route this document to '+recipientName+'?':
+     'Save this document '+(params.p_destination==='district'?'for District transmittal':params.p_destination==='division'?'for Division transmittal':'In School')+' with no recipient?'))return;
     if(report)report.textContent='Saving document and tracking number…';
     const {data,error}=await db.rpc('i_track_create_document',params);
     if(error)throw error;
@@ -2435,6 +2445,14 @@ $.addEventListener('input',e=>{
  if(e.target.id==='retrieval-search')filterRetrievalAvailable();
 });
 $.addEventListener('change',async e=>{
+ if(e.target.matches('input[name="destination"]')&&e.target.closest('#form-doc')){
+   const dest=e.target.value,ret=document.getElementById('doc-return-field');
+   const who=document.querySelector('#form-doc .route-recipient-field');
+   if(ret)ret.style.display=['district','division'].includes(dest)?'block':'none';
+   if(who)who.style.display=dest==='personal'?'none':'';
+   if(dest==='personal'){const r=document.getElementById('doc-recipient');if(r)r.value='';}
+   return;
+ }
  if(state.view==='retrieval'&&e.target.matches('input[type="checkbox"].retrieval-check')){
   const cls=e.target.classList;
   const store=cls.contains('retrieval-pick')?state.retrievalPicked:
