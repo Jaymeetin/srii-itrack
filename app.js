@@ -1217,6 +1217,7 @@ function divisionPage(){
  const t=ts.find(x=>x.id===activeId);
  const opts=people.map(p=>'<option value="'+esc(p.id)+'" '+(p.id===state.session?.user?.id?'selected':'')+'>'+esc(p.name)+' — '+esc(p.position||'')+'</option>').join('');
  const eligible=(data.eligible||[]).map(d=>'<label style="display:block;padding:8px;border-bottom:1px solid #ddd"><input type="checkbox" class="division-pick" value="'+esc(d.id)+'"> '+esc(d.tracking_number)+' — '+esc(d.subject)+' ('+esc(d.document_type)+')</label>').join('');
+ const compEligible=(data.eligible_compliances||[]).map(d=>'<label class="division-choice"><input type="checkbox" class="division-compliance-pick" value="'+esc(d.id)+'"><span><strong>'+esc(d.school_name)+'</strong> · '+esc(d.subject)+' <small>'+esc(d.tracking_number)+'</small></span></label>').join('');
  const rows=(items.filter(i=>i.transmittal_id===activeId)).map(i=>{
  const actions=[];
  if(t?.assigned_submitter===state.profile.id&&t.assignment_accepted_at&&i.division_status==='in_transmittal')actions.push('<button class="btn tiny" data-a="division-act" data-act="submit" data-id="'+esc(i.id)+'">Mark as Submitted to Division</button>');
