@@ -1,5 +1,5 @@
 /* SRII i-TRACK app shell cache v2: assets only, always prefer the network. */
-const CACHE_NAME="srii-itrack-unified-forms-v43";
+const CACHE_NAME="srii-itrack-draft-edit-v44";
 const CORE_ASSETS=[
  "./","./index.html","./styles.css","./mobile.css",
  "./app.js","./official-print.js","./mobile-shell.js","./upload-ui.css","./upload-ui.js","./download-ui.js","./config.js",
