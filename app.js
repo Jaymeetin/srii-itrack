@@ -1579,7 +1579,14 @@ function modalHtml(){
     '<button class="btn" data-a="personal-forward" data-id="'+esc(d.id)+'">Forward and Reopen Routing</button></details>';
   }
     if(d.status!=='completed'&&(d.created_by===state.session.user.id || (last?.to_user_id===state.session.user.id&&last.acknowledged_at)))body+='<div class="field"><label for="document-destination">Document Destination</label><select id="document-destination"><option value="school"'+(d.destination==='school'?' selected':'')+'>School Only</option><option value="district"'+(d.destination==='district'?' selected':'')+'>District</option><option value="division"'+(d.destination==='division'?' selected':'')+'>Division</option></select><button class="btn tiny alt" data-a="document-change-destination" data-id="'+esc(d.id)+'">Save Destination</button><p class="small muted">Forward to Division by selecting Division here. No recipient approval is required for transmittal eligibility.</p></div>';
-  if(canAck)body+='<p class="notice">Acknowledging confirms that you received this document. It does not mean the document has been approved. Review the attachment and sender details before acknowledging.</p>';
+  const maySetReturn=d.status!=='completed'&&['district','division'].includes(d.destination)&&
+    (d.created_by===state.session.user.id||yesAdmin()||(last?.to_user_id===state.session.user.id&&last?.acknowledged_at));
+  if(maySetReturn)body+='<div class="field"><label>Document Return Rule (until physical submission)</label>'+
+    '<select id="document-return-rule"><option value="no"'+(!d.return_required?' selected':'')+'>No Return — Complete upon confirmed physical submission</option>'+
+    '<option value="yes"'+(d.return_required?' selected':'')+'>For Return — Owner confirms final receipt</option></select>'+
+    '<button class="btn tiny alt" data-a="document-save-return-rule" data-id="'+esc(d.id)+'">Save Return Rule</button>'+
+    '<p class="small muted">The rule is locked once actually submitted to District or Division. Each change is audited.</p></div>';
+    if(canAck)body+='<p class="notice">Acknowledging confirms that you received this document. It does not mean the document has been approved. Review the attachment and sender details before acknowledging.</p>';
   if(awaitingDecision)body+='<p class="notice">Receipt acknowledged. You may approve, forward, or return this document. Approval is recorded separately.</p>';
   if(canForward)body+='<div class="field"><label>Recipient for forwarding or return</label><p class="small muted">For Return for Correction, select the person who must correct the document (normally its original sender). For Forward, select the next handler.</p><select id="next-person"><option value="">Choose recipient</option>'+
     state.recipients.filter(x=>x.user_id!==state.session.user.id).map(x=>
@@ -1859,7 +1866,18 @@ async function click(e){
    })));
    win.focus();win.print();return;
   }
-  if(a==='personal-save'){
+  if(a==='document-save-return-rule'){
+   const d=state.docs.find(x=>x.id===t.dataset.id);
+   if(!d||d.status==='completed'||!['district','division'].includes(d.destination))
+    throw Error('Only unfinished District/Division documents may change their return rule.');
+   const required=document.getElementById('document-return-rule')?.value==='yes';
+   if(!confirm('Set '+d.tracking_number+' to '+(required?'For Return':'No Return')+'? This affects when routing becomes Completed.'))return;
+   state.busy=true;try{
+    const {error}=await db.rpc('i_track_set_document_return_rule',{p_document:d.id,p_return_required:required});
+    if(error)throw error;await load();await openDetail(d.id);pop('Return rule saved for '+d.tracking_number+'.');
+   }finally{state.busy=false;}return;
+  }
+    if(a==='personal-save'){
    const d=state.docs.find(x=>x.id===t.dataset.id);
    if(!d||d.destination!=='personal'||d.completion_kind!=='personal_record'||d.created_by!==state.session.user.id)
     throw Error('Only your completed personal record can be edited.');
@@ -2543,7 +2561,7 @@ async function submit(e){
   if(form.id==='form-doc'){
    const params={p_subject:clean(fd.get('subject')),p_document_type:clean(fd.get('type')),
     p_recipient_id:clean(fd.get('recipient'))||null,p_destination:clean(fd.get('destination'))||'school',
-    p_return_required:clean(fd.get('return_required'))==='yes',p_notes:clean(fd.get('notes'))};
+    p_return_required:['district','division'].includes(clean(fd.get('destination')))?clean(fd.get('return_required'))==='yes':true,p_notes:clean(fd.get('notes'))};
    if(params.p_destination==='personal')params.p_recipient_id=null;
    if(params.p_recipient_id===state.session.user.id)params.p_recipient_id=null; // Choosing your own name saves In School, without a self-directed route.
    if(!params.p_subject||!params.p_document_type)throw Error('Enter the document title and type.');
