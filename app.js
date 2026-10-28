@@ -34,7 +34,7 @@ const knownViews=new Set(['dashboard','announcements','monitoring','documents','
 const urlView=new URLSearchParams(location.search).get('view');
 const firstView=knownViews.has(urlView)?urlView:'dashboard';
 localStorage.removeItem('srii-current-view');
-const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:arrivedFromExpiredEmailLink?'resend':'login',emailHelpReason:arrivedFromExpiredEmailLink?'expired':'',queueTicket:localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],showRemovedAccounts:false,modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],compliances:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewCompliances:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',districtData:{eligible:[],transmittals:[],items:[],claimable:[],people:[]},districtPicked:new Set(),districtSubmitPicked:new Set(),districtSelected:'',districtSchoolId:'',adminDocumentTypes:{types:[],requests:[]},documentDivisionStatuses:[],approverAssignments:[],announcementApproverEditing:null,announcementEditId:null,announcementEditorData:null,announcementCancelId:null,transmittalEditing:false,retrievalData:{},retrievalPicked:new Set(),retrievalTurnoverPicked:new Set(),retrievalDistrictPicked:new Set(),retrievalSearch:'',privateDetails:null,profileRequests:[],userFeedback:[],issue:null,maintenance:{enabled:false,message:''}};
+const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:arrivedFromExpiredEmailLink?'resend':'login',emailHelpReason:arrivedFromExpiredEmailLink?'expired':'',queueTicket:localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],showRemovedAccounts:false,modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],districtHistory:[],documentDistrictStatuses:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],compliances:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewCompliances:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',districtData:{eligible:[],transmittals:[],items:[],claimable:[],people:[]},districtPicked:new Set(),districtSubmitPicked:new Set(),districtSelected:'',districtSchoolId:'',adminDocumentTypes:{types:[],requests:[]},documentDivisionStatuses:[],approverAssignments:[],announcementApproverEditing:null,announcementEditId:null,announcementEditorData:null,announcementCancelId:null,transmittalEditing:false,retrievalData:{},retrievalPicked:new Set(),retrievalTurnoverPicked:new Set(),retrievalDistrictPicked:new Set(),retrievalSearch:'',privateDetails:null,profileRequests:[],userFeedback:[],issue:null,maintenance:{enabled:false,message:''}};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=x=>x?new Date(x).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}):'—';
@@ -138,7 +138,7 @@ async function load(){
   if(!isOic()&&['dashboard','documents','division'].includes(state.view)){
    tasks.push((async()=>{const {data,error}=await db.from('documents').select('id,tracking_number,subject,document_type,status,destination,return_required,completion_kind,rightful_owner_id,notes,created_by,origin_school_id,created_at').order('created_at',{ascending:false}).limit(200);if(error)throw error;state.docs=data||[];if(state.view==='documents')await Promise.all([loadDocumentAttachments(),loadRoutingHistory(),loadDocumentTypes(),loadSchoolSubmissionDocuments(),loadCompliances()]);
     else if(state.view==='dashboard')await loadRoutingHistory();
-    await loadDocumentDivisionStatuses();})());
+    await Promise.all([loadDocumentDivisionStatuses(),loadDocumentDistrictStatuses()]);})());
   }
   if(yesAdmin()&&['dashboard','approvals'].includes(state.view)){
    tasks.push((async()=>{const {data,error}=await db.from('profiles').select('id,display_name,school_id,requested_school_id,position_title,role,account_status,created_at').order('created_at',{ascending:false});if(error)throw error;state.profiles=data||[];})());
@@ -228,6 +228,18 @@ async function load(){
   if(state.view==='documents'||(yesAdmin()&&['announcements','verification'].includes(state.view)))await loadRecipients();
   show();
  }catch(e){err(e);show();}
+}
+async function loadDocumentDistrictStatuses(){
+ const {data,error}=await db.rpc('i_track_document_district_summary');
+ if(error)throw error;state.documentDistrictStatuses=data||[];
+}
+function districtStatusForDocument(id){
+ return (state.documentDistrictStatuses||[]).find(x=>x.document_id===id)||null;
+}
+function districtStageLabel(s){
+ return {in_transmittal:'In District Transmittal',submitted_for_return:'Submitted to District · For Return',
+  ready_for_owner:'Returned from District · Ready for Owner',filed_at_district:'Completed · Filed at District',
+  received_by_owner:'Completed · Returned to Owner'}[s]||label(s);
 }
 async function loadDocumentDivisionStatuses(){
  const {data,error}=await db.rpc('i_track_document_division_summary');
@@ -1191,6 +1203,11 @@ function routingOverview(d){
  if(division&&division.division_status!=='received_by_sender'&&d.status!=='completed')
   return '<div class="routing-overview"><span class="routing-status routing-status-received">'+esc(divisionStageLabel(division.division_status))+'</span>'+
    '<span class="small muted">Transmittal '+esc(division.transmittal_number)+' · Routing history remains available below.</span></div>';
+ const district=districtStatusForDocument(d.id);
+ if(district&&d.status!=='completed')
+  return '<div class="routing-overview"><span class="routing-status routing-status-received">'+
+   esc(districtStageLabel(district.item_status))+'</span><span class="small muted">Transmittal '+
+   esc(district.transmittal_number)+' · Full District history appears below.</span></div>';
  if(d.status==='completed')return '<div class="routing-overview"><span class="routing-status routing-status-received">Completed'+(d.completion_kind==='personal_record'?' · Personal Record':d.completion_kind==='filed_district'?' · Filed at District':d.completion_kind==='filed_division'?' · Filed at Division':d.completion_kind==='returned_owner'?' · Returned to Owner':'')+'</span><span class="small muted">Document purpose completed. Previous route cycles remain in History.</span></div>';
  if(d.status==='in_school')return '<div class="routing-overview"><span class="routing-status routing-status-received">In School</span><span class="small muted">Saved in My Documents. No recipient acknowledgment or transmittal is required. You may forward it later.</span></div>';
  if(!last)return '<div class="routing-overview"><span class="routing-status routing-status-received">No Recipient</span><span class="small muted">Use the Division Transmittals page if this document is intended for Division.</span></div>';
@@ -1202,8 +1219,8 @@ function routingOverview(d){
   '<div><small>Recipient</small>'+routePerson(last.recipient_name,last.recipient_office)+'</div></div>'+
   (last.acknowledged_at?'<span class="small muted">Acknowledged '+esc(date(last.acknowledged_at))+'</span>':'')+'</div>';
 }
-function routingTimeline(routes,approvals=[],divisionEvents=[]){
- if(!routes.length&&!approvals.length&&!divisionEvents.length)return '<p class="note">No routing events recorded yet.</p>';
+function routingTimeline(routes,approvals=[],divisionEvents=[],districtEvents=[]){
+ if(!routes.length&&!approvals.length&&!divisionEvents.length&&!districtEvents.length)return '<p class="note">No routing events recorded yet.</p>';
  const events=[];
  routes.forEach((r,i)=>{
   const sender=r.sender_name||'Unknown sender',recipient=r.recipient_name||'Unknown recipient';
@@ -1215,6 +1232,13 @@ function routingTimeline(routes,approvals=[],divisionEvents=[]){
  approvals.forEach(a=>{const route=routes.find(r=>r.route_id===a.route_id);events.push({when:a.approved_at,title:'Document approved',who:route?.recipient_name||'Assigned recipient',detail:'Approval recorded and current route closed',note:a.remarks||''});});
  const divisionTitles={created:'Division transmittal prepared',accept:'Division assignment accepted',submit:'Submitted to Division',retrieve:'Retrieved from Division',forward:'Forwarded within district',district_ack:'District receipt acknowledged',district_receive:'Received by district',final_receive:'Received by sender',lost:'Document reported lost',recover:'Document recovered',not_for_return:'Marked not for return'};
  divisionEvents.forEach(e=>{if(e.happened_at)events.push({when:e.happened_at,title:divisionTitles[e.event_type]||('Division: '+label(e.event_type)),who:e.actor_name||'District personnel',detail:'Transmittal '+(e.transmittal_number||''),note:''});});
+ const districtTitles={created:'School-to-District transmittal prepared',
+  submitted_for_return:'Submitted to District · For Return',filed_at_district:'Completed · Filed at District',
+  ready_for_owner:'Returned from District · Ready for Owner',received_by_owner:'Final receipt confirmed',
+  draft_item_removed:'Removed from draft District transmittal',rightful_owner_assigned:'Rightful owner assigned'};
+ districtEvents.forEach(e=>{if(e.happened_at)events.push({when:e.happened_at,
+  title:districtTitles[e.event_type]||('District: '+label(e.event_type)),
+  who:e.actor_name||'School personnel',detail:'District transmittal '+(e.transmittal_number||''),note:''});});
  events.sort((a,b)=>new Date(a.when).getTime()-new Date(b.when).getTime());
  return '<ol class="routing-timeline">'+events.map((e,i)=>
   '<li class="routing-step'+(i===events.length-1?' routing-step-current':'')+'">'+
@@ -1262,12 +1286,13 @@ function documentPage(){
  const routed=[...state.docs].map(d=>{
   const last=documentRoutes(d.id).at(-1);
   const division=divisionStatusForDocument(d.id);
-  const filterStatus=division?.division_status==='in_transmittal'?'in_transmittal':d.status==='in_school'?'in_school':last?.processed_at?'processed':last?.route_status||'none';
+  const district=districtStatusForDocument(d.id);
+  const filterStatus=division?.division_status==='in_transmittal'?'in_transmittal':district?.item_status==='in_transmittal'?'district_draft':district?.item_status==='submitted_for_return'?'district_submitted':d.status==='in_school'?'in_school':last?.processed_at?'processed':last?.route_status||'none';
   return {when:d.created_at,markup:'<button type="button" class="compact-doc-row" data-document-row data-a="detail" data-id="'+esc(d.id)+'" '+
    'data-route-status="'+esc(filterStatus)+'" data-created="'+esc((d.created_at||'').slice(0,10))+'" '+
    'aria-label="Open files and routing history for '+esc(d.tracking_number)+' · '+esc(d.subject)+'">'+
    '<span class="compact-doc-id">'+esc(d.tracking_number)+'</span>'+
-   '<span class="compact-doc-name" title="'+esc(d.subject)+'">'+esc(d.subject)+(division?'<span class="small muted doc-division-tag">'+esc(divisionStageLabel(division.division_status))+'</span>':'')+'</span>'+
+   '<span class="compact-doc-name" title="'+esc(d.subject)+'">'+esc(d.subject)+(division?'<span class="small muted doc-division-tag">'+esc(divisionStageLabel(division.division_status))+'</span>':district?'<span class="small muted doc-division-tag">'+esc(districtStageLabel(district.item_status))+'</span>':'')+'</span>'+
    '<span class="compact-doc-arrow" aria-hidden="true">›</span></button>'};
  });
  const newestSchoolFiles=new Map();
@@ -1299,7 +1324,7 @@ function documentPage(){
   '<select id="document-status-filter"><option value="">All statuses</option><option value="submission">School submissions</option>'+
   '<option value="awaiting_ack">Awaiting acknowledgment</option>'+
   '<option value="received">Acknowledged · Awaiting action</option><option value="processed">Processed</option>'+
-  '<option value="in_transmittal">In Transmittal to Division</option><option value="in_school">In School</option><option value="none">No route</option></select></div>'+
+  '<option value="in_transmittal">In Transmittal to Division</option><option value="district_draft">In District Transmittal</option><option value="district_submitted">Submitted to District</option><option value="in_school">In School</option><option value="none">No route</option></select></div>'+
   '<div class="field"><label for="document-date-filter">Created on or after</label><input id="document-date-filter" type="date"></div>'+
   '<button type="button" class="btn alt tiny" data-a="clear-document-filters">Clear Filters</button></div>'+
   '<div id="document-search-count" class="small muted" aria-live="polite"></div>'+
@@ -1556,7 +1581,7 @@ function modalHtml(){
   body='<h3>'+esc(d.subject)+'</h3><p class="sub">'+esc(d.document_type)+' · Created '+esc(date(d.created_at))+'</p>'+
    '<section class="routing-current-panel"><h3>Current Whereabouts / Responsible Handler</h3>'+routingOverview(d)+'</section>'+
    '<section class="doc-detail-attachments"><h3>Attached Files</h3><div data-doc-files="'+esc(d.id)+'">'+attachmentListHtml(d.id)+'</div></section>'+
-   '<details class="routing-history-collapse" open><summary><strong>Routing History</strong><span class="small muted"> Routing, approval and Division events · Tap to view complete journey</span></summary>'+routingTimeline(routes,state.approvals,state.divisionHistory)+'</details>';
+   '<details class="routing-history-collapse" open><summary><strong>Routing History</strong><span class="small muted"> Routing, approval and Division events · Tap to view complete journey</span></summary>'+routingTimeline(routes,state.approvals,state.divisionHistory,state.districtHistory)+'</details>';
   const editablePersonal=d.destination==='personal'&&d.completion_kind==='personal_record'&&
    d.status==='completed'&&d.created_by===state.session.user.id;
   if(editablePersonal){
@@ -1610,15 +1635,17 @@ function modalHtml(){
 }
 async function openDetail(id){
  const d=state.docs.find(x=>x.id===id);if(!d)return;
- const [routes,approvals,division]=await Promise.all([
+ const [routes,approvals,division,district]=await Promise.all([
   db.rpc('i_track_document_route_history',{p_document_id:id}),
   db.rpc('i_track_document_approvals',{p_document_id:id}),
-  db.rpc('i_track_document_division_events',{p_document_id:id})
+  db.rpc('i_track_document_division_events',{p_document_id:id}),
+  db.rpc('i_track_document_district_events',{p_document_id:id})
  ]);
  if(routes.error)throw routes.error;
  if(approvals.error)throw approvals.error;
  if(division.error)throw division.error;
- state.detail=d;state.routes=routes.data||[];state.approvals=approvals.data||[];state.divisionHistory=division.data||[];
+ if(district.error)throw district.error;
+ state.detail=d;state.routes=routes.data||[];state.approvals=approvals.data||[];state.divisionHistory=division.data||[];state.districtHistory=district.data||[];
  await loadRecipients();state.modal='detail';show();
 }
 async function compress(){
