@@ -531,3 +531,128 @@ tr[hidden]{display:none!important}
 
 /* Self-tracking is recipient-free; the existing .field flex rule must not override hidden. */
 #doc-recipient-field[hidden],#self-track-note[hidden]{display:none!important}
+
+
+/* Route Document dialog — clean, accessible destination selector and in-form attachments */
+.route-document-dialog{
+ width:min(740px,calc(100vw - 32px));max-height:min(90vh,860px);
+ display:flex;flex-direction:column;padding:0;overflow:hidden;
+}
+.route-document-dialog>header{
+ flex:0 0 auto;padding:20px 24px 14px;border-bottom:1px solid var(--line);
+ background:var(--paper);align-items:flex-start;
+}
+.route-document-dialog>header h2{font-size:23px;line-height:1.25;margin:0 0 3px}
+.route-document-dialog .route-dialog-subtitle{font-size:12px;color:var(--muted);margin:0}
+.route-document-dialog .route-dialog-content{
+ min-height:0;flex:1 1 auto;overflow-y:auto;overscroll-behavior:contain;
+ padding:18px 24px 18px;scrollbar-gutter:stable;
+}
+.route-document-dialog .route-form-intro{
+ font-size:13px;color:var(--muted);margin:0 0 19px;line-height:1.55;
+}
+.route-document-dialog .route-form-grid{
+ display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:15px;
+}
+.route-document-dialog .route-form-grid>.field{min-width:0;margin-bottom:0}
+.route-document-dialog .field{min-width:0;gap:7px;margin-bottom:16px}
+.route-document-dialog .field>label,.route-document-dialog .route-section-label{
+ font-size:13px;font-weight:750;line-height:1.35;color:var(--text);
+}
+.route-document-dialog .route-optional{color:var(--muted);font-size:12px;font-weight:500}
+.route-document-dialog .route-recipient-field{margin-top:16px}
+.route-document-dialog .route-recipient-field select{min-width:0}
+.route-document-dialog .route-field-note{
+ font-size:11.5px;font-weight:400;color:var(--muted);line-height:1.48;margin:2px 0 0;
+}
+.route-document-dialog .route-destination{margin:3px 0 19px;min-width:0}
+.route-document-dialog .route-section-label{margin-bottom:9px}
+.route-document-dialog .route-destination-grid{
+ display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;
+}
+.route-document-dialog .route-destination-choice{
+ display:flex;align-items:center;justify-content:flex-start;gap:10px;
+ min-width:0;min-height:68px;padding:12px 11px;cursor:pointer;
+ border:1.5px solid var(--line);border-radius:12px;background:var(--paper);
+ color:var(--text);text-align:left;transition:border-color .15s,background .15s,box-shadow .15s;
+}
+.route-document-dialog .route-destination-choice:hover{border-color:var(--blue)}
+.route-document-dialog .route-destination-choice:has(input:checked){
+ border-color:var(--blue);background:var(--light);box-shadow:0 0 0 1px var(--blue);
+}
+.route-document-dialog .route-destination-choice:focus-within{
+ outline:2px solid var(--blue);outline-offset:2px;
+}
+.route-document-dialog .route-destination-choice input[type="radio"]{
+ width:18px!important;height:18px!important;min-width:18px!important;
+ flex:0 0 18px!important;margin:0!important;padding:0!important;
+ border:0!important;border-radius:50%;background:transparent;
+ accent-color:#2055a2;
+}
+.route-document-dialog .route-destination-choice>span{display:block;min-width:0;line-height:1.2}
+.route-document-dialog .route-destination-choice strong{
+ display:block;font-size:13px;font-weight:750;color:var(--text);
+}
+.route-document-dialog .route-destination-choice small{
+ display:block;font-size:10.5px;font-weight:450;color:var(--muted);margin-top:5px;
+}
+.route-document-dialog .route-destination>.route-field-note{margin-top:10px}
+.route-document-dialog .route-instructions-field textarea{
+ min-height:94px;resize:vertical;line-height:1.45;
+}
+.route-document-dialog .route-attachment-picker{
+ border:1.5px dashed var(--line);border-radius:12px;
+ padding:13px;background:var(--bg);min-width:0;
+}
+.route-document-dialog .route-attachment-picker:focus-within{
+ outline:2px solid var(--blue);outline-offset:2px;
+}
+.route-document-dialog .route-attachment-picker input[type="file"]{
+ display:block;min-width:0;width:100%;padding:0;border:0;border-radius:0;
+ background:transparent;color:var(--text);font-size:12px;
+}
+.route-document-dialog .route-attachment-picker input[type="file"]::file-selector-button{
+ background:var(--light);color:var(--text);font:inherit;font-weight:700;
+ border:1px solid var(--line);padding:10px 13px;border-radius:9px;margin-right:13px;
+ cursor:pointer;
+}
+.route-document-dialog .route-attachment-picker .route-field-note{
+ margin:9px 0 0;overflow-wrap:anywhere;
+}
+.route-document-dialog .route-save-message{font-size:12px;color:var(--blue);margin:0}
+.route-document-dialog .route-save-message:empty{display:none}
+.route-document-dialog .route-type-suggestion{
+ border-top:1px solid var(--line);margin-top:4px;padding-top:15px;
+ font-size:12px;color:var(--muted);
+}
+.route-document-dialog .route-type-suggestion summary{
+ cursor:pointer;font-weight:650;color:var(--blue);margin-bottom:9px;
+}
+.route-document-dialog .route-type-suggestion .field{margin-top:10px}
+.route-document-dialog .route-type-suggestion p{margin:8px 0 0}
+.route-document-dialog>footer{
+ flex:0 0 auto;display:flex;justify-content:flex-end;gap:10px;
+ margin:0;padding:14px 24px 17px;border-top:1px solid var(--line);
+ background:var(--paper);
+}
+.route-document-dialog>footer .btn{min-height:42px}
+@media(max-width:820px){
+ .route-document-dialog{width:100%;max-height:calc(100dvh - 24px - env(safe-area-inset-top,0px))}
+ .route-document-dialog>header{position:relative;top:auto;padding:17px 18px 12px}
+ .route-document-dialog .route-dialog-content{padding:14px 18px 19px;scrollbar-gutter:auto}
+ .route-document-dialog>footer{
+  position:relative;bottom:auto;padding:13px 18px calc(13px + env(safe-area-inset-bottom,0px));
+  margin:0;flex-wrap:nowrap;
+ }
+ .route-document-dialog>footer .btn{flex:1 1 auto}
+}
+@media(max-width:600px){
+ .route-document-dialog .route-form-grid{grid-template-columns:minmax(0,1fr);gap:0}
+ .route-document-dialog .route-form-grid>.field{margin-bottom:15px}
+ .route-document-dialog .route-recipient-field{margin-top:0}
+ .route-document-dialog .route-destination-grid{grid-template-columns:1fr;gap:8px}
+ .route-document-dialog .route-destination-choice{min-height:54px;padding:10px 13px}
+ .route-document-dialog .route-destination-choice>span{display:flex;flex-wrap:wrap;align-items:baseline;gap:7px}
+ .route-document-dialog .route-destination-choice small{margin:0;font-size:11px}
+ .route-document-dialog>footer .btn{padding:11px 10px;font-size:13px}
+}
