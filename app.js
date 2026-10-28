@@ -28,13 +28,13 @@ const db=window.supabase?.createClient(C.url,C.publishableKey,{auth:{persistSess
 // Reuse one authenticated client across tracking, upload and download screens.
 // Multiple clients refreshing the same mobile session can reset upload forms.
 window.ITRACK_DB=db;
-const knownViews=new Set(['dashboard','announcements','monitoring','documents','reports','school-files','verification','approvals','archive','division','settings']);
+const knownViews=new Set(['dashboard','announcements','monitoring','documents','reports','school-files','verification','approvals','archive','division','retrieval','settings']);
 // The manifest launches at ./ (Home). Navigation keeps the page in the URL,
 // so a real refresh returns to that page without persistent cross-launch state.
 const urlView=new URLSearchParams(location.search).get('view');
 const firstView=knownViews.has(urlView)?urlView:'dashboard';
 localStorage.removeItem('srii-current-view');
-const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:arrivedFromExpiredEmailLink?'resend':'login',emailHelpReason:arrivedFromExpiredEmailLink?'expired':'',queueTicket:localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],showRemovedAccounts:false,modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],compliances:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewCompliances:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',documentDivisionStatuses:[],approverAssignments:[],announcementApproverEditing:null,announcementEditId:null,announcementEditorData:null,announcementCancelId:null,transmittalEditing:false,privateDetails:null,profileRequests:[],userFeedback:[],issue:null,maintenance:{enabled:false,message:''}};
+const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:arrivedFromExpiredEmailLink?'resend':'login',emailHelpReason:arrivedFromExpiredEmailLink?'expired':'',queueTicket:localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],showRemovedAccounts:false,modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],compliances:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewCompliances:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',documentDivisionStatuses:[],approverAssignments:[],announcementApproverEditing:null,announcementEditId:null,announcementEditorData:null,announcementCancelId:null,transmittalEditing:false,retrievalData:{},retrievalPicked:new Set(),retrievalTurnoverPicked:new Set(),retrievalDistrictPicked:new Set(),retrievalSearch:'',privateDetails:null,profileRequests:[],userFeedback:[],issue:null,maintenance:{enabled:false,message:''}};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=x=>x?new Date(x).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}):'—';
@@ -153,7 +153,18 @@ async function load(){
     state.adminRegistrationQueue=waiting.data||[];
    })());
   }
-  if(state.view==='division')tasks.push((async()=>{const {data,error}=await db.rpc('i_track_division_list');if(error)throw error;state.divisionData=data||{transmittals:[],items:[],eligible:[],people:[]};const deepLink=new URLSearchParams(location.search).get('transmittal');if(deepLink&&state.divisionData.transmittals.some(t=>t.id===deepLink))state.divisionSelected=deepLink;const notice=await db.from('division_notifications').select('id,message,created_at').order('created_at',{ascending:false}).limit(12);state.divisionNotices=notice.data||[];const retrieval=await db.rpc('i_track_division_retrievable');if(retrieval.error)throw retrieval.error;state.divisionRetrievable=retrieval.data||[];})());
+  if(state.view==='retrieval')tasks.push((async()=>{
+    const {data,error}=await db.rpc('i_track_retrieval_board');
+    if(error)throw error;
+    state.retrievalData=data||{};
+    const validAvailable=new Set((data?.available||[]).map(x=>x.item_id));
+    const validTurnover=new Set((data?.my_batch_items||[]).filter(x=>x.division_status==='retrieved_from_division').map(x=>x.item_id));
+    const validDistrict=new Set((data?.district_queue||[]).map(x=>x.item_id));
+    state.retrievalPicked=new Set([...state.retrievalPicked].filter(id=>validAvailable.has(id)));
+    state.retrievalTurnoverPicked=new Set([...state.retrievalTurnoverPicked].filter(id=>validTurnover.has(id)));
+    state.retrievalDistrictPicked=new Set([...state.retrievalDistrictPicked].filter(id=>validDistrict.has(id)));
+   })());
+   if(state.view==='division')tasks.push((async()=>{const {data,error}=await db.rpc('i_track_division_list');if(error)throw error;state.divisionData=data||{transmittals:[],items:[],eligible:[],people:[]};const deepLink=new URLSearchParams(location.search).get('transmittal');if(deepLink&&state.divisionData.transmittals.some(t=>t.id===deepLink))state.divisionSelected=deepLink;const notice=await db.from('division_notifications').select('id,message,created_at').order('created_at',{ascending:false}).limit(12);state.divisionNotices=notice.data||[];const retrieval=await db.rpc('i_track_division_retrievable');if(retrieval.error)throw retrieval.error;state.divisionRetrievable=retrieval.data||[];})());
   if(!yesAdmin()&&!isOic()&&['dashboard','documents'].includes(state.view))tasks.push((async()=>{
    const [routing,division]=await Promise.all([
     db.from('document_notifications').select('id,document_id,message,created_at,read_at').order('created_at',{ascending:false}).limit(12),
@@ -763,11 +774,11 @@ function pendingPage(){
 }
 const menu=[['dashboard','⌂ Home'],['announcements','▤ Announcements'],['monitoring','▥ Submission Status']];
 function appPage(){
- const nav=[...menu,...(!isOic()?[['documents','▣ My Documents'],['division','▤ Division Transmittals']]:[]),...(districtOversight()?[['reports','▥ District Reports']]:[]),...(!yesAdmin()?[['settings','⚙ Personal Settings']]:[]),...((yesAdmin()||state.approverAssignments.some(x=>x.user_id===state.session.user.id))?[['verification','✓ Submission Verification']]:[]),...(yesAdmin()?[['school-files','▣ School Attachments'],['approvals','♙ Account Approvals'],['archive','▤ Archive Documents']]:[])].map(([id,title])=>`<button class="${state.view===id?'active':''}" data-a="nav" data-page="${id}">${title}</button>`).join('');
- const title={dashboard:'Home',announcements:'Announcements',monitoring:'Submission Monitoring',documents:'My Documents',division:'Division Transmittals',settings:'Personal Settings',reports:'District Reports','school-files':'School Attachments',verification:'Submission Verification',approvals:'Account Management',archive:'Document Archiving'}[state.view]||'Overview';
+ const nav=[...menu,...(!isOic()?[['documents','▣ My Documents'],['division','▤ Division Transmittals'],['retrieval','✓ Division Retrieval']]:[]),...(districtOversight()?[['reports','▥ District Reports']]:[]),...(!yesAdmin()?[['settings','⚙ Personal Settings']]:[]),...((yesAdmin()||state.approverAssignments.some(x=>x.user_id===state.session.user.id))?[['verification','✓ Submission Verification']]:[]),...(yesAdmin()?[['school-files','▣ School Attachments'],['approvals','♙ Account Approvals'],['archive','▤ Archive Documents']]:[])].map(([id,title])=>`<button class="${state.view===id?'active':''}" data-a="nav" data-page="${id}">${title}</button>`).join('');
+ const title={dashboard:'Home',announcements:'Announcements',monitoring:'Submission Monitoring',documents:'My Documents',division:'Division Transmittals',retrieval:'Division Retrieval',settings:'Personal Settings',reports:'District Reports','school-files':'School Attachments',verification:'Submission Verification',approvals:'Account Management',archive:'Document Archiving'}[state.view]||'Overview';
  const school=state.schools.find(x=>x.id===state.profile.school_id)?.name||'District Office';
  const name=state.profile.display_name||(isOic()?'OIC-PSDS':'District Administrator');
- let body={dashboard:dashboardPage,announcements:announcementPage,monitoring:monitorPage,documents:documentPage,division:divisionPage,settings:settingsPage,reports:districtReportPage,'school-files':schoolAttachmentsPage,verification:verificationPage,approvals:approvalPage,archive:archivePage}[state.view]?.()||dashboardPage();
+ let body={dashboard:dashboardPage,announcements:announcementPage,monitoring:monitorPage,documents:documentPage,division:divisionPage,retrieval:retrievalPage,settings:settingsPage,reports:districtReportPage,'school-files':schoolAttachmentsPage,verification:verificationPage,approvals:approvalPage,archive:archivePage}[state.view]?.()||dashboardPage();
  if(state.view==='dashboard'&&yesAdmin())body='<section class="panel" style="padding:20px;margin:16px 0;border:2px solid #d7bd6b"><h3>🔧 System Maintenance</h3><p class="note">Pause access for regular users while admins continue working.</p><p><strong>Status: '+(state.maintenance.enabled?'MAINTENANCE ON':'Running normally')+'</strong></p><button class="btn" data-a="maintenance-toggle">'+(state.maintenance.enabled?'Turn OFF Maintenance — Reopen App':'Turn ON Maintenance — Pause Users')+'</button></section>'+body;
  // Read-only presentation context for the upload panel. Not an authorization
  // mechanism: Supabase RLS and the Edge Function enforce permissions.
@@ -1282,6 +1293,7 @@ function documentPage(){
   '<div class="compact-doc-list">'+(rows.join('')||'<p class="empty">No documents or school submissions found.</p>')+'</div></div>';
 }
 
+function retrievalPage(){return window.ITRACK_RETRIEVAL_VIEW?.(state,{esc,date,label,divisionStageLabel})||'<p class="note">Retrieval module did not load. Refresh the application.</p>';}
 function divisionPage(){
  const data=state.divisionData||{},ts=data.transmittals||[],items=data.items||[],people=data.people||[];
  const activeId=state.divisionSelected&&ts.some(t=>t.id===state.divisionSelected)?state.divisionSelected:ts[0]?.id;
@@ -1297,11 +1309,6 @@ function divisionPage(){
  const rows=activeItems.map(i=>{
  const actions=[];
  if(t?.assigned_submitter===state.profile.id&&t.assignment_accepted_at&&i.division_status==='in_transmittal')actions.push('<button class="btn tiny" data-a="division-act" data-act="submit" data-id="'+esc(i.id)+'">Mark as Submitted to Division</button>');
- if(i.division_status==='submitted_to_division')actions.push('<button class="btn tiny alt" data-a="division-act" data-act="retrieve" data-id="'+esc(i.id)+'">Mark as Retrieved from Division</button>');
- if(i.division_status==='retrieved_from_division'&&i.retrieved_from_division_by===state.profile.id)actions.push('<button class="btn tiny alt" data-a="division-act" data-act="forward" data-id="'+esc(i.id)+'">Forward to District</button>');
- if(i.division_status==='forwarded_to_district'&&i.district_recipient_id===state.profile.id)actions.push('<button class="btn tiny" data-a="division-act" data-act="district_ack" data-id="'+esc(i.id)+'">Acknowledge</button>');
- const own=state.docs.some(d=>d.id===i.document_id&&d.created_by===state.profile.id);
- if(own&&i.division_status==='received_at_district')actions.push('<button class="btn tiny" data-a="division-act" data-act="sender_received" data-id="'+esc(i.id)+'">Mark Returned to Sender</button>');
  if(yesAdmin())actions.push('<button class="btn tiny alt" data-a="division-act" data-act="admin_received" data-id="'+esc(i.id)+'">Resolve Received</button><button class="btn tiny alt" data-a="division-act" data-act="lost" data-id="'+esc(i.id)+'">Lost</button><button class="btn tiny alt" data-a="division-act" data-act="not_for_return" data-id="'+esc(i.id)+'">Not for Return</button>'+(i.division_status==='lost'?'<button class="btn tiny alt" data-a="division-act" data-act="recovered" data-id="'+esc(i.id)+'">Recovered</button>':'')+(['lost','not_for_return','received_by_sender'].includes(i.division_status)?'<button class="btn tiny alt" data-a="division-act" data-act="correct" data-id="'+esc(i.id)+'">Correct</button>':''));
  if(canEditDraft&&state.transmittalEditing&&i.division_status==='in_transmittal')actions.unshift('<button class="btn tiny alt" data-a="transmittal-rename" data-id="'+esc(i.id)+'">Edit Name</button>');
  if(canEditDraft&&state.transmittalEditing)actions.unshift('<button class="btn tiny danger" data-a="draft-remove-item" data-id="'+esc(i.id)+'">Remove</button>');
@@ -1331,8 +1338,8 @@ function divisionPage(){
  const removedHistory=removedItems.length?'<details class="draft-removed-history"><summary>Removed before submission ('+removedItems.length+')</summary>'+
    removedItems.map(i=>'<p class="small muted">'+esc(i.tracking_number)+' — '+esc(i.document_label)+' (removed; eligible to add again)</p>').join('')+'</details>':'';
  const adminPanel=yesAdmin()?'<div class="panel"><h3>Administrator Document Search & Resolution</h3><p class="note">Search any tracking number or document title. A written reason is required for manual changes.</p><div class="toolbar"><input id="division-admin-query" placeholder="Tracking number or document name" value="'+esc(state.divisionQuery||'')+'"><button class="btn alt" data-a="division-admin-search">Search</button></div>'+table(['Tracking #','Document','Status','Resolution'],(state.divisionSearchResults||[]).map(d=>'<tr><td>'+esc(d.tracking_number)+'</td><td>'+esc(d.subject)+'</td><td>'+esc(d.resolution||d.status)+'</td><td>'+(['received','lost','not_for_return','recovered','corrected'].map(a=>'<button class="btn tiny alt" data-a="division-admin-resolve" data-id="'+esc(d.id)+'" data-act="'+a+'">'+esc(label(a))+'</button>').join(' '))+'</td></tr>'))+'</div>':'';
- return '<div class="sectionhead"><div><div class="eyebrow">Physical document custody</div><h1>Division Transmittals</h1><p class="sub">Prepare, accept, submit, retrieve and return physical documents. Every action is audited.</p></div><button class="btn alt" data-a="division-refresh">Refresh</button></div>'+
- adminPanel+'<div class="panel"><h3>Division Retrieval Checklist</h3><p class="note">Status-only list of documents still physically at Division. Any approved user who actually collects an item can record retrieval.</p>'+table(['Tracking #','School','Document','Action'],(state.divisionRetrievable||[]).map(i=>'<tr><td>'+esc(i.tracking_number)+'</td><td>'+esc(i.school_name)+'</td><td>'+esc(i.document_label)+'</td><td><button class="btn tiny" data-a="division-act" data-act="retrieve" data-trans="'+esc(i.transmittal_id)+'" data-id="'+esc(i.item_id)+'">Mark as Retrieved from Division</button></td></tr>'))+'</div>'+
+ return '<div class="sectionhead"><div><div class="eyebrow">Physical document custody</div><h1>Division Transmittals</h1><p class="sub">Prepare and submit documents to Division. Retrieval and final receipt are managed separately, with every tracking ID preserved.</p></div><button class="btn alt" data-a="division-refresh">Refresh</button></div>'+
+ adminPanel+'<div class="panel"><h3>Division Retrieval</h3><p class="note">Physical pickup, turnover slips, District acknowledgment and final owner receipt are recorded in the separate Division Retrieval page. The original transmittal below remains the official outgoing record.</p><button class="btn alt" data-a="nav" data-page="retrieval">Open Division Retrieval</button></div>'+
  '<div class="panel"><h3>Notifications</h3>'+(state.divisionNotices||[]).map(n=>'<p class="note">'+esc(date(n.created_at))+' — '+esc(n.message)+'</p>').join('')+'</div>'+
  '<div class="panel"><h3>Create Transmittal</h3><p class="note">Select Division documents and verified announcement submissions. Recipient approval is not needed.</p><div class="field"><label>Assigned submitter</label><select id="division-submitter">'+opts+'</select></div><h4>Division Documents</h4><div class="division-eligible-list">'+(eligible||'<p class="note">No eligible documents.</p>')+'</div><h4>Verified School Submissions</h4><div class="division-eligible-list">'+(compEligible||'<p class="note">No verified submissions.</p>')+'</div><button class="btn" data-a="division-create">Create Transmittal</button></div>'+
  '<div class="panel"><h3>Transmittal</h3><div class="field"><label>Select transmittal</label><select id="division-current">'+ts.map(x=>'<option value="'+esc(x.id)+'" '+(x.id===activeId?'selected':'')+'>'+esc(x.transmittal_number)+'</option>').join('')+'</select></div>'+
@@ -1573,6 +1580,35 @@ async function compress(){
  state.fileNote=use?`Reduced from ${(f.size/1024).toFixed(0)} KB to ${(blob.size/1024).toFixed(0)} KB. Download and check text readability.`:'Original image is already smaller; keeping the original file.';
  show();pop('Compression complete. No file was uploaded.');
 }
+async function executeRetrievalAction(action,args,message){
+ state.busy=true;
+ try{
+  const {data,error}=await db.rpc('i_track_retrieval_action',{p_action:action,...args});
+  if(error)throw error;
+  await load();
+  pop(message||'Document custody updated.');
+  return data;
+ }finally{state.busy=false;}
+}
+function refreshRetrievalCheckboxCounters(){
+ const pairs=[
+  ['retrieval-pick-count','retrieval-pickup-btn',state.retrievalPicked],
+  ['retrieval-turnover-count','retrieval-prepare-btn',state.retrievalTurnoverPicked],
+  ['retrieval-district-count','retrieval-district-btn',state.retrievalDistrictPicked]
+ ];
+ for(const [textId,btnId,chosen] of pairs){
+  const el=document.getElementById(textId),btn=document.getElementById(btnId);
+  if(el)el.textContent=chosen.size+' checked';
+  if(btn)btn.disabled=!chosen.size;
+ }
+}
+function filterRetrievalAvailable(){
+ const q=document.getElementById('retrieval-search')?.value.trim().toLowerCase()||'';
+ state.retrievalSearch=q;
+ document.querySelectorAll('#retrieval-available-list [data-retrieval-search]').forEach(el=>{
+  el.hidden=!!q&&!el.dataset.retrievalSearch.includes(q);
+ });
+}
 async function click(e){
  const t=e.target.closest('[data-a]');if(!t||state.busy)return;
  const a=t.dataset.a;
@@ -1580,6 +1616,95 @@ async function click(e){
   if(a==='maintenance-refresh'){await readMaintenance();show();return;}
   if(a==='maintenance-toggle'){if(!yesAdmin())throw Error('Admin only');const next=!state.maintenance.enabled;if(!confirm(next?'Turn ON Maintenance Mode? Regular users will see a maintenance notice.':'Turn OFF Maintenance Mode and reopen the app for regular users?'))return;const {error}=await db.rpc('i_track_set_maintenance',{p_enabled:next});if(error)throw error;await readMaintenance();show();pop(next?'Maintenance Mode enabled.':'Maintenance Mode disabled.');return;}
   if(state.maintenance.enabled&&!yesAdmin()&&a!=='logout'){await readMaintenance();show();return;}
+  if(a==='retrieval-refresh'){await load();return;}
+  if(a==='retrieval-clear'){
+   state.retrievalPicked.clear();state.retrievalSearch='';
+   show();return;
+  }
+  if(a==='retrieval-check-visible'){
+   document.querySelectorAll('#retrieval-available-list .retrieval-pick:not(:disabled)').forEach(c=>{
+    if(!c.closest('tr')?.hidden){c.checked=true;state.retrievalPicked.add(c.value);}
+   });
+   refreshRetrievalCheckboxCounters();return;
+  }
+  if(a==='retrieval-pickup'){
+   const items=state.retrievalData.available||[];
+   const checked=[...state.retrievalPicked].filter(id=>items.some(x=>x.item_id===id));
+   if(!checked.length)throw Error('Check at least one document currently submitted to Division.');
+   if(!confirm('Confirm you physically collected '+checked.length+' document(s) from the Division Office? This cannot be undone by clicking Back.'))return;
+   state.retrievalPicked.clear();
+   await executeRetrievalAction('pickup',{p_item_ids:checked},'Retrieved '+checked.length+' document(s); a numbered retrieval batch was created.');
+   return;
+  }
+  if(a==='retrieval-prepare'){
+   const candidate=state.retrievalData.my_batch_items||[];
+   const activeTurnover=new Set((state.retrievalData.turnover_items||[]).map(x=>x.item_id));
+   const checked=[...state.retrievalTurnoverPicked].filter(id=>candidate.some(x=>x.item_id===id&&x.division_status==='retrieved_from_division'&&!activeTurnover.has(id)));
+   if(!checked.length)throw Error('Check one or more documents in your retrieval batches.');
+   const recipient=document.getElementById('retrieval-district-recipient')?.value;
+   const district=state.retrievalData.district_recipients?.find(x=>x.id===recipient);
+   if(!district)throw Error('Select an approved District receiving person.');
+   if(!confirm('Prepare one turnover slip for '+checked.length+' selected document(s) addressed to '+district.name+'? No physical handoff is recorded yet.'))return;
+   state.retrievalTurnoverPicked.clear();
+   await executeRetrievalAction('prepare',{p_item_ids:checked,p_recipient:recipient},'Turnover slip prepared. Print it before confirming physical handoff.');
+   return;
+  }
+  if(a==='retrieval-handoff'){
+   const turnover=state.retrievalData.turnovers?.find(x=>x.id===t.dataset.id);
+   if(!turnover||turnover.retriever_id!==state.session.user.id||turnover.status!=='prepared')throw Error('Only your prepared turnover can be handed over.');
+   if(!confirm('Have you physically handed the documents on '+turnover.number+' to '+turnover.recipient_name+'? The District must acknowledge them separately.'))return;
+   await executeRetrievalAction('handoff',{p_turnover:turnover.id},'Physical handoff recorded. Waiting for District acknowledgment.');
+   return;
+  }
+  if(a==='retrieval-discard'){
+   const turnover=state.retrievalData.turnovers?.find(x=>x.id===t.dataset.id);
+   if(!turnover||turnover.retriever_id!==state.session.user.id||turnover.status!=='prepared')throw Error('Only your prepared slip can be discarded.');
+   if(!confirm('Discard draft turnover slip '+turnover.number+'? Its documents remain with the retriever and can be selected again.'))return;
+   await executeRetrievalAction('discard',{p_turnover:turnover.id},'Prepared slip discarded. Documents remain available for another slip.');
+   return;
+  }
+  if(a==='retrieval-district-ack'){
+   const current=state.retrievalData.district_queue||[];
+   const checked=[...state.retrievalDistrictPicked].filter(id=>current.some(x=>x.item_id===id));
+   if(!checked.length)throw Error('Check documents physically received at District.');
+   if(!confirm('Acknowledge actual District custody of '+checked.length+' selected document(s)? They will still require rightful-owner receipt.'))return;
+   state.retrievalDistrictPicked.clear();
+   await executeRetrievalAction('district_ack',{p_item_ids:checked},'District receipt recorded for '+checked.length+' document(s).');
+   return;
+  }
+  if(a==='retrieval-claim'){
+   const item=state.retrievalData.claimable?.find(x=>x.item_id===t.dataset.id);
+   if(!item)throw Error('Only your own claimable document can be confirmed.');
+   if(!confirm('Confirm you personally received '+item.document_label+' ('+item.tracking_number+')? This completes the physical document routing.'))return;
+   await executeRetrievalAction('claim',{p_item:item.item_id},'Final receipt confirmed. Document routing completed.');
+   return;
+  }
+  if(a==='retrieval-set-owner'){
+   const item=state.retrievalData.manageable_owners?.find(x=>x.item_id===t.dataset.id);
+   if(!item)throw Error('You are not authorized to designate this document owner.');
+   const ownerId=document.getElementById('retrieval-owner-'+item.item_id)?.value;
+   const owner=state.retrievalData.claimant_accounts?.find(x=>x.id===ownerId);
+   if(!owner)throw Error('Choose an approved registered rightful owner.');
+   if(ownerId===item.owner_id)throw Error('That person is already the rightful owner.');
+   if(!confirm('Designate '+owner.name+' as the rightful owner of '+item.tracking_number+'? They alone can confirm final receipt.'))return;
+   await executeRetrievalAction('set_owner',{p_item:item.item_id,p_owner:ownerId},'Rightful owner updated; original sender and history remain unchanged.');
+   return;
+  }
+  if(a==='retrieval-print'){
+   const turnover=state.retrievalData.turnovers?.find(x=>x.id===t.dataset.id);
+   if(!turnover)throw Error('Turnover slip not found. Refresh the list.');
+   const list=(state.retrievalData.turnover_items||[]).filter(x=>x.turnover_id===turnover.id);
+   if(!list.length)throw Error('No documents on this turnover slip.');
+   if(!window.ITRACK_PRINT?.renderRetrievalSlip)throw Error('Retrieval print template not loaded. Refresh the app.');
+   const html=window.ITRACK_PRINT.renderRetrievalSlip(turnover,list);
+   const win=window.open('','_blank');
+   if(!win)throw Error('Allow popups to print the turnover slip.');
+   win.document.write(html);win.document.close();
+   await Promise.all([...win.document.images].map(img=>img.complete?Promise.resolve():new Promise(resolve=>{
+    img.onload=resolve;img.onerror=resolve;setTimeout(resolve,3500);
+   })));
+   win.focus();win.print();return;
+  }
   if(a==='division-admin-search'){if(!yesAdmin())throw Error('Admin only');const query=document.getElementById('division-admin-query')?.value?.trim()||'';if(query.length<2)throw Error('Enter at least two characters.');const {data,error}=await db.rpc('i_track_division_admin_find',{p_query:query});if(error)throw error;state.divisionQuery=query;state.divisionSearchResults=data||[];show();return;}
   if(a==='division-admin-resolve'){if(!yesAdmin())throw Error('Admin only');const d=state.divisionSearchResults.find(x=>x.id===t.dataset.id);if(!d)throw Error('Document not found');const reason=prompt('Reason for '+t.dataset.act+' (required)');if(!reason?.trim())return;if(!confirm('Apply '+t.dataset.act+' to '+d.tracking_number+'?'))return;const {error}=d.last_item_id?await db.rpc('i_track_division_action',{p_action:t.dataset.act==='received'?'admin_received':t.dataset.act==='corrected'?'correct':t.dataset.act,p_transmittal:d.last_transmittal_id,p_item:d.last_item_id,p_reason:reason.trim()}):await db.rpc('i_track_division_admin_resolve',{p_document:d.id,p_resolution:t.dataset.act,p_reason:reason.trim()});if(error)throw error;state.divisionSearchResults=[];await load();pop('Resolution recorded.');return;}
   if(a==='direct-division'){
@@ -2290,8 +2415,21 @@ function filterDocumentRegistry(){
  const count=document.getElementById('document-search-count');
  if(count)count.textContent=visible+' matching document(s)';
 }
-$.addEventListener('input',e=>{if(['document-search','document-date-filter'].includes(e.target.id))filterDocumentRegistry();});
+$.addEventListener('input',e=>{
+ if(['document-search','document-date-filter'].includes(e.target.id))filterDocumentRegistry();
+ if(e.target.id==='retrieval-search')filterRetrievalAvailable();
+});
 $.addEventListener('change',async e=>{
+ if(state.view==='retrieval'&&e.target.matches('input[type="checkbox"].retrieval-check')){
+  const cls=e.target.classList;
+  const store=cls.contains('retrieval-pick')?state.retrievalPicked:
+              cls.contains('retrieval-turnover-pick')?state.retrievalTurnoverPicked:
+              cls.contains('retrieval-district-pick')?state.retrievalDistrictPicked:null;
+  if(store){
+   if(e.target.checked)store.add(e.target.value);else store.delete(e.target.value);
+   refreshRetrievalCheckboxCounters();return;
+  }
+ }
  if(['document-status-filter','document-date-filter'].includes(e.target.id)){filterDocumentRegistry();return;}
  if(e.target.id==='doc-attachments'){
   const files=[...(e.target.files||[])],message=document.getElementById('doc-attachment-selection');

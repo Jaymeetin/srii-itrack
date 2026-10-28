@@ -69,5 +69,61 @@ function render(t,items,kind,people=[],schools=[]){
  }
  return '<!doctype html><html><head><meta charset="utf-8"><title>Official Forms — SRII i-TRACK</title><style>'+CSS+'</style></head><body>'+pages.join('')+'</body></html>';
 }
-window.ITRACK_PRINT={render};
+// Retrieval slip mirrors the existing official form's exact logos, heading
+// structure and Bugo footer; physical receivers sign separately per document.
+const RETRIEVAL_CSS=`
+.rslip-head{margin-bottom:9px}
+.rslip-title{text-align:center;font-size:12pt;font-weight:700;margin:8px 0 7px}
+.rslip-subtitle{text-align:center;font-size:8pt;margin:0 0 11px;color:#444}
+.rslip-meta{display:flex;justify-content:space-between;gap:10px;font-size:8pt;margin:7px 0 10px}
+.rslip-intro{font-size:8.2pt;line-height:1.2;margin:0 0 10px;text-align:justify}
+.rslip-list{border-collapse:collapse;width:100%;table-layout:fixed}
+.rslip-list th,.rslip-list td{border:1px solid #666;padding:2px 6px}
+.rslip-list th{font-size:8.2pt;background:#f1f1f1;height:7mm}
+.rslip-list td{height:7.3mm;vertical-align:middle;font-size:8.2pt;line-height:1.14}
+.rslip-list td:first-child{width:69%}
+.rslip-list td:last-child,.rslip-list th:last-child{width:31%;text-align:center}
+.rslip-item-line{display:flex;align-items:baseline;gap:7px;min-width:0;overflow:hidden}
+.rslip-item-title{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rslip-item-id{font-size:7pt;color:#555;white-space:nowrap;flex-shrink:0}
+.rslip-sigline{border-top:1px solid #555;margin:3mm 7px 0}
+.rslip-retriever{position:absolute;bottom:23mm;left:50%;transform:translateX(-50%);width:61%;text-align:center;font-size:8.4pt}
+.rslip-retriever .line{border-top:1px solid #222;margin:9mm 0 4px}
+.rslip-retriever strong{display:block;font-size:9pt}
+.rslip-retriever .tiny{font-size:7.4pt;margin-top:3px}
+.rslip-pages{font-size:7.5pt;color:#666;text-align:center;position:absolute;right:0;bottom:20mm}
+@media screen{.rslip-retriever{left:50%;transform:translateX(-50%)}.rslip-pages{right:16mm;bottom:32mm}}
+`;
+function renderRetrievalSlip(turnover,items){
+ if(!turnover||!Array.isArray(items)||!items.length)throw Error('A turnover slip needs at least one document.');
+ const picked=items.filter(i=>i.division_status!=='cancelled');
+ if(!picked.length)throw Error('No active documents are on this turnover slip.');
+ const pages=[];
+ for(let start=0;start<picked.length;start+=20){
+  const group=picked.slice(start,start+20);
+  const pageIndex=Math.floor(start/20)+1,totalPages=Math.ceil(picked.length/20);
+  const docRows=group.map((i,idx)=>
+   '<tr><td><div class="rslip-item-line"><span>'+(start+idx+1)+'.</span>'+
+   '<span class="rslip-item-title">'+esc(i.document_label||'Document')+'</span>'+
+   '<span class="rslip-item-id">'+esc(i.tracking_number||'')+'</span></div></td>'+
+   '<td><div class="rslip-sigline"></div></td></tr>').join('');
+  const retriever='<div class="rslip-retriever"><div>Retrieved / Handed Over By:</div>'+
+   '<div class="line"></div><strong>'+esc(turnover.retriever_name||'________________________')+'</strong>'+
+   '<div>'+esc(turnover.retriever_position||'Retriever')+'</div>'+
+   '<div class="tiny">Signature over Printed Name</div><div class="tiny">Date: ___________________</div></div>';
+  pages.push('<section class="sheet">'+header(true)+
+   '<h1 class="rslip-title">DOCUMENT TURNOVER AND RELEASE SLIP</h1>'+
+   '<p class="rslip-subtitle">San Remigio II District · Schools Division of Antique</p>'+
+   '<div class="rslip-meta"><span><b>Turnover No.:</b> '+esc(turnover.number||turnover.turnover_number||'—')+'</span>'+
+   '<span><b>Date:</b> '+dt(turnover.created_at)+'</span></div>'+
+   '<p class="rslip-intro">The following documents were retrieved from the Division Office and recorded for turnover and release. Each person receiving a document signs beside the corresponding entry.</p>'+
+   '<table class="rslip-list"><thead><tr><th>DOCUMENT / TRACKING ID</th>'+
+   '<th>RECEIVER\'S SIGNATURE</th></tr></thead><tbody>'+docRows+'</tbody></table>'+
+   retriever+(totalPages>1?'<div class="rslip-pages">Page '+pageIndex+' of '+totalPages+'</div>':'')+
+   footer('endorsement')+'</section>');
+ }
+ return '<!doctype html><html><head><meta charset="utf-8"><title>District Document Turnover and Release Slip</title>'+
+  '<style>'+CSS+RETRIEVAL_CSS+'</style></head><body>'+pages.join('')+'</body></html>';
+}
+window.ITRACK_PRINT={render,renderRetrievalSlip};
 })();
