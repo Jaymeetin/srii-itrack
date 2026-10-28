@@ -1312,25 +1312,45 @@ function modalHtml(){
   footer='<button class="btn alt" data-a="close">Cancel</button><button class="btn" type="submit" form="form-ann">Publish</button>';
  }else if(m==='send'){
   title='Route Document';
-  const recipientOptions=state.recipients.map(x=>'<option value="'+esc(x.user_id)+'">'+esc(x.display_name)+'</option>').join('');
-  body='<form id="form-doc">'+field('Document Title','subject')+
-   '<div class="field"><label for="doc-type">Document Type (approved)</label><select name="type" id="doc-type" required><option value="">Choose document type</option>'+
-    state.docTypes.map(x=>'<option value="'+esc(x.name)+'">'+esc(x.name)+'</option>').join('')+'</select></div>'+
-   '<div class="field"><label for="doc-recipient">Recipient (optional)</label><select name="recipient" id="doc-recipient"><option value="">Choose recipient (optional)</option>'+
-    recipientOptions+'</select><p class="small muted">Only verified and approved users appear here. Choose your own name or leave blank to save In School.</p></div>'+
-   '<fieldset class="field"><legend><strong>Destination</strong></legend>'+
-    '<label style="display:inline-flex;gap:6px;align-items:center;margin-right:12px"><input type="radio" name="destination" value="school" checked> School Only</label>'+
-    '<label style="display:inline-flex;gap:6px;align-items:center;margin-right:12px"><input type="radio" name="destination" value="district"> District</label>'+
-    '<label style="display:inline-flex;gap:6px;align-items:center"><input type="radio" name="destination" value="division"> Division</label>'+
-    '<p class="small muted">Division documents can be added to any authorized user’s transmittal immediately, even before acknowledgment.</p></fieldset>'+
-   '<div class="field"><label for="doc-notes">Instructions / Remarks</label><textarea name="notes" id="doc-notes" placeholder="Add instructions, filing location, date or other remarks here (optional)"></textarea></div>'+
-   '<div class="field"><label for="doc-attachments">Attachments (optional)</label><input id="doc-attachments" type="file" multiple accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp">'+
-    '<p id="doc-attachment-selection" class="small muted">Select up to 5 files, maximum 4 MB each. Files upload securely when you save the document.</p></div>'+
-   '<p id="doc-save-message" class="small muted" role="status" aria-live="polite"></p></form>'+
-   '<div class="field"><label for="suggested-doc-type">Suggest a missing document type</label><input id="suggested-doc-type" type="text" maxlength="140" placeholder="Enter new document type"></div>'+
-   '<div class="toolbar"><button type="button" class="btn alt tiny" data-a="suggest-doc-type">Submit Type Suggestion</button></div>'+
-   '<p id="type-suggestion-feedback" class="small muted" aria-live="polite">New types require District Administrator approval before use.</p>';
-  footer='<button class="btn alt" data-a="close">Close</button><button class="btn" id="doc-submit-btn" type="submit" form="form-doc">Save / Route Document</button>';
+  const recipientOptions=state.recipients.map(x=>
+   '<option value="'+esc(x.user_id)+'">'+esc(x.display_name)+'</option>').join('');
+  body='<p class="route-form-intro">Create a document record, send it to a colleague, or prepare it for Division submission.</p>'+
+   '<form id="form-doc" class="route-document-form">'+
+    '<div class="route-form-grid">'+field('Document Title','subject')+
+    '<div class="field"><label for="doc-type">Document Type</label><select name="type" id="doc-type" required>'+
+     '<option value="">Select document type</option>'+
+     state.docTypes.map(x=>'<option value="'+esc(x.name)+'">'+esc(x.name)+'</option>').join('')+
+    '</select></div></div>'+
+    '<div class="field route-recipient-field"><label for="doc-recipient">Recipient <span class="route-optional">(optional)</span></label>'+
+     '<select name="recipient" id="doc-recipient"><option value="">No recipient — Save In School</option>'+
+     recipientOptions+'</select>'+
+     '<p class="route-field-note">Choose a verified, approved user. Selecting your own name or leaving this blank saves the document <strong>In School</strong>.</p></div>'+
+    '<div class="route-destination" role="group" aria-labelledby="route-destination-label">'+
+     '<div class="route-section-label" id="route-destination-label">Destination</div>'+
+     '<div class="route-destination-grid">'+
+      '<label class="route-destination-choice"><input type="radio" name="destination" value="school" checked>'+
+       '<span><strong>School Only</strong><small>School-level record</small></span></label>'+
+      '<label class="route-destination-choice"><input type="radio" name="destination" value="district">'+
+       '<span><strong>District</strong><small>For district processing</small></span></label>'+
+      '<label class="route-destination-choice"><input type="radio" name="destination" value="division">'+
+       '<span><strong>Division</strong><small>Eligible for transmittal</small></span></label>'+
+     '</div>'+
+     '<p class="route-field-note">Division documents can appear in any authorized user’s transmittal immediately—no recipient approval needed.</p>'+
+    '</div>'+
+    '<div class="field route-instructions-field"><label for="doc-notes">Instructions / Remarks <span class="route-optional">(optional)</span></label>'+
+     '<textarea name="notes" id="doc-notes" rows="3" placeholder="Type your instructions or other details here…"></textarea></div>'+
+    '<div class="field route-attachment-field"><label for="doc-attachments">Attachments <span class="route-optional">(optional)</span></label>'+
+     '<div class="route-attachment-picker"><input id="doc-attachments" type="file" multiple accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp">'+
+      '<p id="doc-attachment-selection" class="route-field-note">PDF, Word or images · Up to 5 files, 4 MB each</p></div></div>'+
+    '<p id="doc-save-message" class="route-save-message" role="status" aria-live="polite"></p>'+
+   '</form>'+
+   '<details class="route-type-suggestion"><summary>Missing a document type?</summary>'+
+    '<div class="field"><label for="suggested-doc-type">Suggest a document type</label>'+
+     '<input id="suggested-doc-type" type="text" maxlength="140" placeholder="Enter new document type"></div>'+
+    '<button type="button" class="btn alt tiny" data-a="suggest-doc-type">Submit Type Suggestion</button>'+
+    '<p id="type-suggestion-feedback" class="small muted" aria-live="polite">New types require District Administrator approval before use.</p></details>';
+  footer='<button class="btn alt" data-a="close">Cancel</button>'+
+   '<button class="btn" id="doc-submit-btn" type="submit" form="form-doc">Save / Route Document</button>';
  }else if(m==='school-submission-detail'){
   const selected=(state.schoolSubmissionDocs||[]).find(f=>f.assignment_id===state.selectedSchoolSubmission);
   title=selected?(selected.announcement_code||'School Submission')+' · '+selected.school_name:'School Submission';
@@ -1373,7 +1393,7 @@ function modalHtml(){
     '<button class="btn" data-a="route" data-id="'+esc(last.route_id)+'" data-return="false">Forward</button>':'');
 
  }
- return `<div class="dialog-backdrop"><div class="dialog" role="dialog" aria-modal="true" aria-label="${esc(title)}"><header><h2>${esc(title)}</h2><button class="btn alt tiny" data-a="close">✕</button></header>${body}<footer>${footer}</footer></div></div>`;
+ return `<div class="dialog-backdrop"><div class="dialog${m==='send'?' route-document-dialog':''}" role="dialog" aria-modal="true" aria-label="${esc(title)}"><header><div><h2>${esc(title)}</h2>${m==='send'?'<p class="route-dialog-subtitle">Document Tracking · SRII i-TRACK</p>':''}</div><button class="btn alt tiny" data-a="close" aria-label="Close dialog">✕</button></header>${m==='send'?'<div class="route-dialog-content">'+body+'</div>':body}<footer>${footer}</footer></div></div>`;
 }
 async function openDetail(id){
  const d=state.docs.find(x=>x.id===id);if(!d)return;
