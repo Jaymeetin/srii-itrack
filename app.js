@@ -1233,7 +1233,7 @@ function divisionPage(){
  return '<div class="sectionhead"><div><div class="eyebrow">Physical document custody</div><h1>Division Transmittals</h1><p class="sub">Prepare, accept, submit, retrieve and return physical documents. Every action is audited.</p></div><button class="btn alt" data-a="division-refresh">Refresh</button></div>'+
  adminPanel+'<div class="panel"><h3>Division Retrieval Checklist</h3><p class="note">Status-only list of documents still physically at Division. Any approved user who actually collects an item can record retrieval.</p>'+table(['Tracking #','School','Document','Action'],(state.divisionRetrievable||[]).map(i=>'<tr><td>'+esc(i.tracking_number)+'</td><td>'+esc(i.school_name)+'</td><td>'+esc(i.document_label)+'</td><td><button class="btn tiny" data-a="division-act" data-act="retrieve" data-trans="'+esc(i.transmittal_id)+'" data-id="'+esc(i.item_id)+'">Mark as Retrieved from Division</button></td></tr>'))+'</div>'+
  '<div class="panel"><h3>Notifications</h3>'+(state.divisionNotices||[]).map(n=>'<p class="note">'+esc(date(n.created_at))+' — '+esc(n.message)+'</p>').join('')+'</div>'+
- '<div class="panel"><h3>Create Transmittal</h3><p class="note">Division-destination documents appear here immediately, even without recipient acknowledgment.</p><div class="field"><label>Assigned submitter</label><select id="division-submitter">'+opts+'</select></div><div style="max-height:210px;overflow:auto">'+(eligible||'<p class="note">No eligible documents are visible to your account.</p>')+'</div><button class="btn" data-a="division-create">Create Transmittal</button></div>'+
+ '<div class="panel"><h3>Create Transmittal</h3><p class="note">Select Division documents and verified announcement submissions. Recipient approval is not needed.</p><div class="field"><label>Assigned submitter</label><select id="division-submitter">'+opts+'</select></div><h4>Division Documents</h4><div class="division-eligible-list">'+(eligible||'<p class="note">No eligible documents.</p>')+'</div><h4>Verified School Submissions</h4><div class="division-eligible-list">'+(compEligible||'<p class="note">No verified submissions.</p>')+'</div><button class="btn" data-a="division-create">Create Transmittal</button></div>'+
  '<div class="panel"><h3>Transmittal</h3><div class="field"><label>Select transmittal</label><select id="division-current">'+ts.map(x=>'<option value="'+esc(x.id)+'" '+(x.id===activeId?'selected':'')+'>'+esc(x.transmittal_number)+'</option>').join('')+'</select></div>'+
  (t?'<p><strong>'+esc(t.transmittal_number)+'</strong> · '+pTag(t.assignment_accepted_at?'accepted':'pending')+'</p>'+
  '<div class="toolbar"><button class="btn alt" data-a="division-print">Print / Save PDF</button><button class="btn alt" data-a="division-word">Editable Word</button>'+
@@ -1441,9 +1441,9 @@ async function click(e){
   if(a==='open-self-division'){state.modal=null;rememberView('division');await load();return;}
   if(a==='division-refresh'){await load();return;}
   if(a==='division-create'){
-   const docs=[...document.querySelectorAll('.division-pick:checked')].map(x=>x.value),submitter=document.getElementById('division-submitter')?.value;
-   if(!docs.length)throw Error('Select at least one eligible document.');
-   state.busy=true;try{const {data,error}=await db.rpc('i_track_division_action',{p_action:'create',p_documents:docs,p_submitter:submitter});if(error)throw error;state.divisionSelected=data.id;await load();pop('Transmittal created.');}finally{state.busy=false;}return;
+   const docs=[...document.querySelectorAll('.division-pick:checked')].map(x=>x.value),compliances=[...document.querySelectorAll('.division-compliance-pick:checked')].map(x=>x.value),submitter=document.getElementById('division-submitter')?.value;
+   if(!docs.length&&!compliances.length)throw Error('Select a document or approved submission.');
+   state.busy=true;try{const {data,error}=await db.rpc('i_track_create_mixed_transmittal',{p_documents:docs,p_compliances:compliances,p_submitter:submitter});if(error)throw error;state.divisionSelected=data.id;await load();pop('Transmittal created.');}finally{state.busy=false;}return;
   }
   if(a==='division-print'||a==='division-word'){
    const t=state.divisionData.transmittals.find(x=>x.id===state.divisionSelected)||state.divisionData.transmittals[0];if(!t)throw Error('Choose a transmittal.');
