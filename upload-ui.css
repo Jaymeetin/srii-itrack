@@ -30,35 +30,37 @@
 .iu-message.success{background:#def7e7;color:#15603a}
 .iu-history{border-top:1px solid var(--line);padding-top:15px;margin-top:20px}
 .iu-history h4{margin:0 0 10px;font-size:13px}
-.iu-history-list{display:grid;gap:8px}
-.iu-history-item{display:flex;align-items:flex-start;justify-content:space-between;gap:9px;padding:11px 12px;border-radius:11px;background:var(--bg);border:1px solid var(--line)}
-.iu-history-item strong{display:block;font-size:12px;overflow-wrap:anywhere;font-weight:750}
-.iu-history-item small{color:var(--muted);display:block;font-size:11px;margin-top:3px;line-height:1.45}
-.iu-state{font-size:10px;font-weight:850;padding:4px 7px;border-radius:999px;background:var(--light);white-space:nowrap}
-.iu-state.verified{background:#d7f6e8;color:#08734f}
-.iu-state.rejected{background:#fce0e0;color:#9c2424}
-.iu-state.pending{background:#fff0c9;color:#8d5a07}
+.iu-history-list{display:flex;flex-direction:column;gap:7px}
+.iu-history-item{
+ display:grid;grid-template-columns:minmax(0,1fr) auto;
+ grid-template-areas:"info status" "info actions";align-items:center;
+ column-gap:12px;row-gap:5px;min-width:0;min-height:0;
+ padding:10px 12px;border-radius:11px;background:var(--bg);border:1px solid var(--line)
+}
+.iu-history-detail{grid-area:info;min-width:0}
+.iu-history-detail strong{display:block;font-size:12px;line-height:1.35;overflow-wrap:anywhere;font-weight:750}
+.iu-history-detail small{color:var(--muted);display:block;font-size:11px;margin-top:3px;line-height:1.4}
+.iu-state{grid-area:status;justify-self:end;align-self:center;font-size:10px;line-height:1.3;font-weight:850;padding:4px 8px;margin:0;max-width:none;border-radius:999px;background:var(--light);white-space:nowrap}
+.iu-state--verified{background:#d7f6e8;color:#08734f}
+.iu-state--rejected{background:#fce0e0;color:#9c2424}
+.iu-state--pending{background:#fff0c9;color:#8d5a07}
 .iu-limits{font-size:11px;color:var(--muted);line-height:1.5;margin:12px 0 0}
 @media(max-width:730px){
  .itrack-upload{padding:18px 15px!important}
  .iu-actions{flex-direction:column}
  .iu-actions button{width:100%}
  .iu-file{padding:14px}
- .iu-history-item{flex-direction:column}
 }
 
 .iu-controls[hidden],.iu-message[hidden],.itrack-upload[hidden],.panel[hidden]{display:none!important}
 
-/* Secure Drive view/download controls */
-.iu-history-detail{min-width:0;flex:1}
-.iu-history-controls{display:flex;align-items:center;justify-content:flex-end;gap:9px;flex-wrap:wrap}
-.iu-file-actions{display:flex;gap:7px;flex-wrap:wrap}
-.iu-file-action{min-height:37px;white-space:nowrap}
-.iu-archived{font-size:11px;color:var(--muted);font-weight:650}
+/* Compact submission history with independent status styles. */
+.iu-history-item .iu-file-actions{grid-area:actions;display:flex;justify-content:flex-end;gap:6px;flex-wrap:wrap}
+.iu-history-item .iu-file-action{min-height:34px;min-width:68px;padding:6px 10px;font-size:11px;white-space:nowrap}
+.iu-history-item .iu-archived{grid-area:actions;justify-self:end;font-size:11px;color:var(--muted);font-weight:650}
 @media(max-width:730px){
- .iu-history-controls{justify-content:space-between;width:100%}
- .iu-file-actions{flex:1;justify-content:flex-end}
- .iu-file-action{min-width:78px}
+ .iu-history-item{grid-template-areas:"info status" "actions actions";column-gap:8px;row-gap:7px}
+ .iu-history-item .iu-file-action{min-height:36px}
 }
 
 /* Mobile upload account-check recovery */
