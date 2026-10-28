@@ -1579,6 +1579,7 @@ async function click(e){
   }
   if(a==='division-print'||a==='division-word'){
    const t=state.divisionData.transmittals.find(x=>x.id===state.divisionSelected)||state.divisionData.transmittals[0];if(!t)throw Error('Choose a transmittal.');
+   if(!state.divisionData.items.some(item=>item.transmittal_id===t.id&&item.division_status!=='cancelled'))throw Error('Add at least one document before printing the transmittal.');
    const edits={p_transmittal:t.id,p_name:document.getElementById('trans-signer-name')?.value?.trim()||t.signer_name,p_position:document.getElementById('trans-signer-position')?.value?.trim()||t.signer_position,p_office:document.getElementById('trans-signer-office')?.value?.trim()||t.signer_office,p_school:document.getElementById('trans-authorized-school')?.value?.trim()||null};
    if((edits.p_name!==t.signer_name||edits.p_position!==t.signer_position||edits.p_office!==t.signer_office||edits.p_school!==(t.authorized_school_name||null))&&!t.dispatched_at){
      const saved=await db.rpc('i_track_edit_transmittal_signer',edits);if(saved.error)throw saved.error;
