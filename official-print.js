@@ -47,7 +47,7 @@ function render(t,items,kind,people=[],schools=[]){
  const submitter=people.find(p=>p.id===t.assigned_submitter)||{};
  const school=t.authorized_school_name||submitter.school_name||'San Remigio II District';
  const schoolAddress=school+', San Remigio, Antique';
- const sorted=[...items].sort((a,b)=>String(a.document_type||'').localeCompare(String(b.document_type||''))||String(a.document_label||'').localeCompare(String(b.document_label||''));
+ const sorted=[...items].sort((a,b)=>String(a.document_type||'').localeCompare(String(b.document_type||''))||String(a.document_label||'').localeCompare(String(b.document_label||'')));
  const pages=[];
  for(const type of (kind==='both'?['endorsement','transmittal']:[kind])){
   const chunks=[];for(let i=0;i<sorted.length;i+=12)chunks.push(sorted.slice(i,i+12));if(!chunks.length)chunks.push([]);
