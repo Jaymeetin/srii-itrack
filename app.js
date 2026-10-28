@@ -1188,7 +1188,7 @@ function documentPage(){
   if(!newestSchoolFiles.has(f.assignment_id))newestSchoolFiles.set(f.assignment_id,f);
  }
  const schoolRows=[...newestSchoolFiles.values()].map(f=>{
-  const id=f.announcement_code||'School Submission';
+  const id=state.compliances.find(c=>c.assignment_id===f.assignment_id)?.number||f.announcement_code||'School Submission';
   const name=f.school_name+' · '+f.announcement_title;
   return {when:f.submitted_at,markup:'<button type="button" class="compact-doc-row" data-document-row '+
    'data-a="school-submission-detail" data-id="'+esc(f.assignment_id)+'" '+
@@ -1198,7 +1198,11 @@ function documentPage(){
    '<span class="compact-doc-name" title="'+esc(name)+'">'+esc(name)+'</span>'+
    '<span class="compact-doc-arrow" aria-hidden="true">›</span></button>'};
  });
- const rows=[...routed,...schoolRows].sort((a,b)=>new Date(b.when)-new Date(a.when)).map(r=>r.markup);
+ const fileless=(state.compliances||[]).filter(c=>!newestSchoolFiles.has(c.assignment_id)).map(c=>({
+  when:c.submitted_at,markup:'<button type="button" class="compact-doc-row" data-document-row data-a="open-compliance" data-id="'+esc(c.id)+'" data-route-status="submission" data-created="'+esc((c.submitted_at||'').slice(0,10))+'">'+
+  '<span class="compact-doc-id">'+esc(c.number)+'</span><span class="compact-doc-name">'+esc(c.school_name+' · '+c.announcement_title+' · '+label(c.status))+'</span><span class="compact-doc-arrow">›</span></button>'
+ }));
+ const rows=[...routed,...schoolRows,...fileless].sort((a,b)=>new Date(b.when)-new Date(a.when)).map(r=>r.markup);
  return '<div class="sectionhead"><div><div class="eyebrow">Routing, files and school submissions</div><h1>My Documents</h1>'+
   '<p class="sub">One document per line. Tap a tracking number or school submission to see its files, uploader, and history.</p></div>'+
   '<button class="btn" data-a="send">+ Route Document</button></div>'+
