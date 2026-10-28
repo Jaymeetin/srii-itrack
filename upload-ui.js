@@ -303,7 +303,7 @@ async function refreshHistory(node,kind){
   if(!node.isConnected||node.querySelector(".iu-select")?.value!==id)return;
   if(!data?.length){history.textContent=node._iuDelegated?"No uploads are visible to your account for this school. Other schools\u0027 files remain private.":"No files submitted for this requirement yet.";return;}
   history.innerHTML=data.map(x=>{
-   const state=kind==="announcement"?x.verification_status:"stored";
+   const state=kind==="announcement"?(["verified","rejected"].includes(x.verification_status)?x.verification_status:"pending"):"stored";
    const when=displayTime(kind==="announcement"?x.first_received_at:x.uploaded_at);
    const details=(kind==="announcement"?"Version "+x.version_number+" · ":"")+size(x.file_size_bytes)+" · "+when;
    const available=kind==="document"||x.storage_status==="uploaded";
@@ -313,8 +313,8 @@ async function refreshHistory(node,kind){
      (viewable?'<button type="button" class="btn tiny alt iu-file-action" data-mode="view" data-kind="'+kind+'" data-id="'+esc(x.id)+'" data-name="'+esc(x.original_filename)+'">View</button>':'')+
      '<button type="button" class="btn tiny alt iu-file-action" data-mode="download" data-kind="'+kind+'" data-id="'+esc(x.id)+'" data-name="'+esc(x.original_filename)+'">Download</button></div>':
      '<span class="iu-archived">Archived offline</span>';
-   return '<div class="iu-history-item"><div><strong>'+esc(x.original_filename)+'</strong><small>'+esc(details)+'</small></div>'+
-    '<div class="iu-history-controls"><span class="iu-state '+esc(state)+'">'+esc(state.toUpperCase())+'</span>'+actions+'</div></div>';
+   return '<div class="iu-history-item"><div class="iu-history-detail"><strong>'+esc(x.original_filename)+'</strong><small>'+esc(details)+'</small></div>'+
+    '<span class="iu-state iu-state--'+esc(state)+'">'+esc(state.toUpperCase())+'</span>'+actions+'</div>';
   }).join("");
  }catch(e){if(node.isConnected)history.textContent="Could not load history: "+(e?.message||e);}
 }
