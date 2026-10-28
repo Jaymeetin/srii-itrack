@@ -1554,7 +1554,31 @@ function modalHtml(){
    '<section class="routing-current-panel"><h3>Current Whereabouts / Responsible Handler</h3>'+routingOverview(d)+'</section>'+
    '<section class="doc-detail-attachments"><h3>Attached Files</h3><div data-doc-files="'+esc(d.id)+'">'+attachmentListHtml(d.id)+'</div></section>'+
    '<details class="routing-history-collapse" open><summary><strong>Routing History</strong><span class="small muted"> Routing, approval and Division events · Tap to view complete journey</span></summary>'+routingTimeline(routes,state.approvals,state.divisionHistory)+'</details>';
-  if(d.status!=='completed'&&(d.created_by===state.session.user.id || (last?.to_user_id===state.session.user.id&&last.acknowledged_at)))body+='<div class="field"><label for="document-destination">Document Destination</label><select id="document-destination"><option value="school"'+(d.destination==='school'?' selected':'')+'>School Only</option><option value="district"'+(d.destination==='district'?' selected':'')+'>District</option><option value="division"'+(d.destination==='division'?' selected':'')+'>Division</option></select><button class="btn tiny alt" data-a="document-change-destination" data-id="'+esc(d.id)+'">Save Destination</button><p class="small muted">Forward to Division by selecting Division here. No recipient approval is required for transmittal eligibility.</p></div>';
+  const editablePersonal=d.destination==='personal'&&d.completion_kind==='personal_record'&&
+   d.status==='completed'&&d.created_by===state.session.user.id;
+  if(editablePersonal){
+   body+='<details class="panel" open><summary><strong>Edit Personal Record</strong></summary>'+
+    '<p class="small muted">Changes are audited. Existing tracking number remains unchanged.</p>'+
+    '<div class="field"><label>Document Title</label><input id="personal-edit-title" value="'+esc(d.subject)+'" maxlength="240"></div>'+
+    '<div class="field"><label>Document Type</label><select id="personal-edit-type">'+state.docTypes.map(x=>
+      '<option value="'+esc(x.name)+'"'+(x.name===d.document_type?' selected':'')+'>'+esc(x.name)+'</option>').join('')+'</select></div>'+
+    '<div class="field"><label>Remarks</label><textarea id="personal-edit-notes" rows="2">'+esc(d.notes||'')+'</textarea></div>'+
+    '<button class="btn alt" data-a="personal-save" data-id="'+esc(d.id)+'">Save Personal Changes</button></details>'+
+    '<details class="panel"><summary><strong>Forward This Personal Record</strong></summary>'+
+    '<p class="small muted">Reopens the original tracking number as In Progress. The personal-completion event remains in History.</p>'+
+    '<div class="field"><label>New Destination</label><select id="personal-forward-destination">'+
+     '<option value="district">District Office</option><option value="division">Division Office</option>'+
+     '<option value="school">School Only</option></select></div>'+
+    '<div class="field"><label>Return Rule</label><select id="personal-forward-return">'+
+     '<option value="no">No Return — complete on confirmed submission</option>'+
+     '<option value="yes">For Return — owner confirms final receipt</option></select></div>'+
+    '<div class="field"><label>Recipient (optional)</label><select id="personal-forward-recipient">'+
+     '<option value="">No recipient — use transmittal when applicable</option>'+
+     state.recipients.filter(x=>x.user_id!==state.session.user.id).map(x=>
+      '<option value="'+esc(x.user_id)+'">'+esc(x.display_name)+'</option>').join('')+'</select></div>'+
+    '<button class="btn" data-a="personal-forward" data-id="'+esc(d.id)+'">Forward and Reopen Routing</button></details>';
+  }
+    if(d.status!=='completed'&&(d.created_by===state.session.user.id || (last?.to_user_id===state.session.user.id&&last.acknowledged_at)))body+='<div class="field"><label for="document-destination">Document Destination</label><select id="document-destination"><option value="school"'+(d.destination==='school'?' selected':'')+'>School Only</option><option value="district"'+(d.destination==='district'?' selected':'')+'>District</option><option value="division"'+(d.destination==='division'?' selected':'')+'>Division</option></select><button class="btn tiny alt" data-a="document-change-destination" data-id="'+esc(d.id)+'">Save Destination</button><p class="small muted">Forward to Division by selecting Division here. No recipient approval is required for transmittal eligibility.</p></div>';
   if(canAck)body+='<p class="notice">Acknowledging confirms that you received this document. It does not mean the document has been approved. Review the attachment and sender details before acknowledging.</p>';
   if(awaitingDecision)body+='<p class="notice">Receipt acknowledged. You may approve, forward, or return this document. Approval is recorded separately.</p>';
   if(canForward)body+='<div class="field"><label>Recipient for forwarding or return</label><p class="small muted">For Return for Correction, select the person who must correct the document (normally its original sender). For Forward, select the next handler.</p><select id="next-person"><option value="">Choose recipient</option>'+
@@ -1725,6 +1749,37 @@ async function click(e){
     img.onload=resolve;img.onerror=resolve;setTimeout(resolve,3500);
    })));
    win.focus();win.print();return;
+  }
+  if(a==='personal-save'){
+   const d=state.docs.find(x=>x.id===t.dataset.id);
+   if(!d||d.destination!=='personal'||d.completion_kind!=='personal_record'||d.created_by!==state.session.user.id)
+    throw Error('Only your completed personal record can be edited.');
+   const title=clean(document.getElementById('personal-edit-title')?.value);
+   const type=clean(document.getElementById('personal-edit-type')?.value);
+   const notes=clean(document.getElementById('personal-edit-notes')?.value);
+   if(!title||!state.docTypes.some(x=>x.name===type))throw Error('Enter a title and approved document type.');
+   if(!confirm('Save changes to '+d.tracking_number+'? Original tracking number and audit history will remain.'))return;
+   state.busy=true;try{
+    const {error}=await db.rpc('i_track_edit_personal',{p_document:d.id,p_subject:title,p_document_type:type,p_notes:notes});
+    if(error)throw error;
+    await load();await openDetail(d.id);pop('Personal record updated; tracking ID unchanged.');
+   }finally{state.busy=false;}return;
+  }
+  if(a==='personal-forward'){
+   const d=state.docs.find(x=>x.id===t.dataset.id);
+   if(!d||d.destination!=='personal'||d.completion_kind!=='personal_record'||d.created_by!==state.session.user.id)
+    throw Error('Only your completed personal record can be forwarded.');
+   const destination=document.getElementById('personal-forward-destination')?.value;
+   const recipient=document.getElementById('personal-forward-recipient')?.value||null;
+   const returns=document.getElementById('personal-forward-return')?.value==='yes';
+   if(!['school','district','division'].includes(destination))throw Error('Choose destination.');
+   if(!confirm('Reopen '+d.tracking_number+' for '+destination+'? It will become In Progress and preserve the original tracking ID and history.'))return;
+   state.busy=true;try{
+    const {error}=await db.rpc('i_track_forward_personal',{
+     p_document:d.id,p_destination:destination,p_recipient_id:recipient,p_return_required:returns});
+    if(error)throw error;
+    state.modal=null;await load();pop('Personal document forwarded. Continue in '+(destination==='district'?'District Transmittals':destination==='division'?'Division Transmittals':'My Documents')+'.');
+   }finally{state.busy=false;}return;
   }
   if(a==='division-admin-search'){if(!yesAdmin())throw Error('Admin only');const query=document.getElementById('division-admin-query')?.value?.trim()||'';if(query.length<2)throw Error('Enter at least two characters.');const {data,error}=await db.rpc('i_track_division_admin_find',{p_query:query});if(error)throw error;state.divisionQuery=query;state.divisionSearchResults=data||[];show();return;}
   if(a==='division-admin-resolve'){if(!yesAdmin())throw Error('Admin only');const d=state.divisionSearchResults.find(x=>x.id===t.dataset.id);if(!d)throw Error('Document not found');const reason=prompt('Reason for '+t.dataset.act+' (required)');if(!reason?.trim())return;if(!confirm('Apply '+t.dataset.act+' to '+d.tracking_number+'?'))return;const {error}=d.last_item_id?await db.rpc('i_track_division_action',{p_action:t.dataset.act==='received'?'admin_received':t.dataset.act==='corrected'?'correct':t.dataset.act,p_transmittal:d.last_transmittal_id,p_item:d.last_item_id,p_reason:reason.trim()}):await db.rpc('i_track_division_admin_resolve',{p_document:d.id,p_resolution:t.dataset.act,p_reason:reason.trim()});if(error)throw error;state.divisionSearchResults=[];await load();pop('Resolution recorded.');return;}
