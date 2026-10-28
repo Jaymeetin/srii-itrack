@@ -28,13 +28,13 @@ const db=window.supabase?.createClient(C.url,C.publishableKey,{auth:{persistSess
 // Reuse one authenticated client across tracking, upload and download screens.
 // Multiple clients refreshing the same mobile session can reset upload forms.
 window.ITRACK_DB=db;
-const knownViews=new Set(['dashboard','announcements','monitoring','documents','reports','school-files','verification','approvals','archive','division','retrieval','district','document-types','settings']);
+const knownViews=new Set(['dashboard','announcements','notifications','monitoring','documents','reports','school-files','verification','approvals','archive','division','retrieval','district','document-types','settings']);
 // The manifest launches at ./ (Home). Navigation keeps the page in the URL,
 // so a real refresh returns to that page without persistent cross-launch state.
 const urlView=new URLSearchParams(location.search).get('view');
 const firstView=knownViews.has(urlView)?urlView:'dashboard';
 localStorage.removeItem('srii-current-view');
-const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:arrivedFromExpiredEmailLink?'resend':'login',emailHelpReason:arrivedFromExpiredEmailLink?'expired':'',queueTicket:localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],showRemovedAccounts:false,modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],districtHistory:[],documentDistrictStatuses:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],compliances:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewCompliances:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',districtData:{eligible:[],transmittals:[],items:[],claimable:[],people:[]},districtPicked:new Set(),districtSubmitPicked:new Set(),districtSelected:'',districtSchoolId:'',adminDocumentTypes:{types:[],requests:[]},documentDivisionStatuses:[],approverAssignments:[],announcementApproverEditing:null,announcementEditId:null,announcementEditorData:null,announcementCancelId:null,transmittalEditing:false,retrievalData:{},retrievalPicked:new Set(),retrievalTurnoverPicked:new Set(),retrievalDistrictPicked:new Set(),retrievalSearch:'',privateDetails:null,profileRequests:[],userFeedback:[],issue:null,maintenance:{enabled:false,message:''}};
+const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:arrivedFromExpiredEmailLink?'resend':'login',emailHelpReason:arrivedFromExpiredEmailLink?'expired':'',queueTicket:localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],showRemovedAccounts:false,modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],districtHistory:[],documentDistrictStatuses:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],compliances:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewCompliances:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],notificationLimit:50,notificationHasMore:false,divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',districtData:{eligible:[],transmittals:[],items:[],claimable:[],people:[]},districtPicked:new Set(),districtSubmitPicked:new Set(),districtSelected:'',districtSchoolId:'',adminDocumentTypes:{types:[],requests:[]},documentDivisionStatuses:[],approverAssignments:[],announcementApproverEditing:null,announcementEditId:null,announcementEditorData:null,announcementCancelId:null,transmittalEditing:false,retrievalData:{},retrievalPicked:new Set(),retrievalTurnoverPicked:new Set(),retrievalDistrictPicked:new Set(),retrievalSearch:'',privateDetails:null,profileRequests:[],userFeedback:[],issue:null,maintenance:{enabled:false,message:''}};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=x=>x?new Date(x).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}):'—';
@@ -120,7 +120,7 @@ async function sync(){
   if(error)throw error;
   state.profile=data;
   if(active())await readMaintenance();
-  if(isOic()&&!['dashboard','announcements','monitoring','reports','settings'].includes(state.view))rememberView('dashboard');
+  if(isOic()&&!['dashboard','announcements','notifications','monitoring','reports','settings'].includes(state.view))rememberView('dashboard');
   if(!yesAdmin()&&['school-files','verification','approvals','archive','document-types'].includes(state.view))rememberView('dashboard');
   if(yesAdmin()&&state.view==='settings')rememberView('dashboard');
   if(!districtOversight()&&state.view==='reports')rememberView('dashboard');
@@ -131,11 +131,12 @@ async function load(){
  if(!active()){show();return;}
  try{
   const tasks=[];
+  if(state.view==='notifications')state.notificationHasMore=false;
   tasks.push((async()=>{const {data,error}=await db.rpc('i_track_approver_assignments');if(error)throw error;state.approverAssignments=data||[];})());
   if(['dashboard','announcements','monitoring','verification','reports','school-files'].includes(state.view)){
    tasks.push((async()=>{const {data,error}=await db.from('announcements').select('id,announcement_code,title,description,status,deadline_at,original_deadline_at,created_at,cancelled_at,cancellation_reason').order('created_at',{ascending:false});if(error)throw error;state.announcements=data||[];if(!state.selectedId||!state.announcements.some(x=>x.id===state.selectedId))state.selectedId=state.announcements.find(x=>x.status!=='draft')?.id||'';})());
   }
-  if(!isOic()&&['dashboard','documents','division'].includes(state.view)){
+  if(!isOic()&&['dashboard','documents','division','notifications'].includes(state.view)){
    tasks.push((async()=>{const {data,error}=await db.from('documents').select('id,tracking_number,subject,document_type,status,destination,return_required,completion_kind,rightful_owner_id,notes,created_by,origin_school_id,created_at').order('created_at',{ascending:false}).limit(200);if(error)throw error;state.docs=data||[];if(state.view==='documents')await Promise.all([loadDocumentAttachments(),loadRoutingHistory(),loadDocumentTypes(),loadSchoolSubmissionDocuments(),loadCompliances()]);
     else if(state.view==='dashboard')await loadRoutingHistory();
     await Promise.all([loadDocumentDivisionStatuses(),loadDocumentDistrictStatuses()]);})());
@@ -177,17 +178,34 @@ async function load(){
     state.retrievalTurnoverPicked=new Set([...state.retrievalTurnoverPicked].filter(id=>validTurnover.has(id)));
     state.retrievalDistrictPicked=new Set([...state.retrievalDistrictPicked].filter(id=>validDistrict.has(id)));
    })());
-   if(state.view==='division')tasks.push((async()=>{const {data,error}=await db.rpc('i_track_division_list');if(error)throw error;state.divisionData=data||{transmittals:[],items:[],eligible:[],people:[]};const deepLink=new URLSearchParams(location.search).get('transmittal');if(deepLink&&state.divisionData.transmittals.some(t=>t.id===deepLink))state.divisionSelected=deepLink;const notice=await db.from('division_notifications').select('id,message,created_at').order('created_at',{ascending:false}).limit(12);state.divisionNotices=notice.data||[];const retrieval=await db.rpc('i_track_division_retrievable');if(retrieval.error)throw retrieval.error;state.divisionRetrievable=retrieval.data||[];})());
-  if(!yesAdmin()&&!isOic()&&['dashboard','documents'].includes(state.view))tasks.push((async()=>{
+   if(state.view==='division')tasks.push((async()=>{const {data,error}=await db.rpc('i_track_division_list');if(error)throw error;state.divisionData=data||{transmittals:[],items:[],eligible:[],people:[]};const deepLink=new URLSearchParams(location.search).get('transmittal');if(deepLink&&state.divisionData.transmittals.some(t=>t.id===deepLink))state.divisionSelected=deepLink;const retrieval=await db.rpc('i_track_division_retrievable');if(retrieval.error)throw retrieval.error;state.divisionRetrievable=retrieval.data||[];})());
+  if(!isOic()&&['dashboard','documents','notifications'].includes(state.view))tasks.push((async()=>{
+   const noticeLimit=state.view==='notifications'?state.notificationLimit:3;
    const [routing,division]=await Promise.all([
-    db.from('document_notifications').select('id,document_id,message,created_at,read_at').order('created_at',{ascending:false}).limit(12),
-    db.from('document_division_notifications').select('id,document_id,message,created_at,read_at').order('created_at',{ascending:false}).limit(12)
+    db.from('document_notifications').select('id,document_id,message,created_at,read_at').order('created_at',{ascending:false}).limit(noticeLimit),
+    db.from('document_division_notifications').select('id,document_id,message,created_at,read_at').order('created_at',{ascending:false}).limit(noticeLimit)
    ]);
-   if(routing.error||division.error)console.error('Some document notifications unavailable',routing.error||division.error);
+   if(routing.error||division.error){
+    if(state.view==='notifications')throw routing.error||division.error;
+    console.error('Some document notifications unavailable',routing.error||division.error);
+   }
    state.documentNotices=[
     ...(routing.data||[]).map(n=>({...n,source:'routing'})),
     ...(division.data||[]).map(n=>({...n,source:'division'}))
-   ].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,12);
+   ].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+   if(state.view==='notifications'&&((routing.data||[]).length===noticeLimit||(division.data||[]).length===noticeLimit))state.notificationHasMore=true;
+  })());
+  if(!isOic()&&['dashboard','division','notifications'].includes(state.view))tasks.push((async()=>{
+   const noticeLimit=state.view==='notifications'?state.notificationLimit:3;
+   const {data,error}=await db.from('division_notifications')
+    .select('id,message,created_at').order('created_at',{ascending:false}).limit(noticeLimit);
+   if(error){
+    if(state.view==='notifications')throw error;
+    console.error('Division notifications unavailable',error);
+    return;
+   }
+   state.divisionNotices=data||[];
+   if(state.view==='notifications'&&state.divisionNotices.length===noticeLimit)state.notificationHasMore=true;
   })());
   if(state.view==='settings'&&!yesAdmin())tasks.push((async()=>{
    const [privateResult,requestsResult,feedbackResult]=await Promise.all([
@@ -797,13 +815,13 @@ function pendingPage(){
   pTag(state.profile.account_status)+'<p></p><div class="toolbar"><button class="btn" data-a="refresh">Check Again</button>'+
   '<button class="btn alt" data-a="logout">Sign Out</button></div></div>';
 }
-const menu=[['dashboard','⌂ Home'],['announcements','▤ Announcements'],['monitoring','▥ Submission Status']];
+const menu=[['dashboard','⌂ Home'],['announcements','▤ Announcements'],['notifications','◉ Notifications'],['monitoring','▥ Submission Status']];
 function appPage(){
  const nav=[...menu,...(!isOic()?[['documents','▣ My Documents'],['division','▤ Division Transmittals'],['district','▤ District Transmittals'],['retrieval','✓ Division Retrieval']]:[]),...(districtOversight()?[['reports','▥ District Reports']]:[]),...(!yesAdmin()?[['settings','⚙ Personal Settings']]:[]),...((yesAdmin()||state.approverAssignments.some(x=>x.user_id===state.session.user.id))?[['verification','✓ Submission Verification']]:[]),...(yesAdmin()?[['school-files','▣ School Attachments'],['approvals','♙ Account Approvals'],['document-types','▦ Document Types'],['archive','▤ Archive Documents']]:[])].map(([id,title])=>`<button class="${state.view===id?'active':''}" data-a="nav" data-page="${id}">${title}</button>`).join('');
- const title={dashboard:'Home',announcements:'Announcements',monitoring:'Submission Monitoring',documents:'My Documents',division:'Division Transmittals',district:'District Transmittals','document-types':'Document Types',retrieval:'Division Retrieval',settings:'Personal Settings',reports:'District Reports','school-files':'School Attachments',verification:'Submission Verification',approvals:'Account Management',archive:'Document Archiving'}[state.view]||'Overview';
+ const title={dashboard:'Home',announcements:'Announcements',notifications:'Notifications',monitoring:'Submission Monitoring',documents:'My Documents',division:'Division Transmittals',district:'District Transmittals','document-types':'Document Types',retrieval:'Division Retrieval',settings:'Personal Settings',reports:'District Reports','school-files':'School Attachments',verification:'Submission Verification',approvals:'Account Management',archive:'Document Archiving'}[state.view]||'Overview';
  const school=state.schools.find(x=>x.id===state.profile.school_id)?.name||'District Office';
  const name=state.profile.display_name||(isOic()?'OIC-PSDS':'District Administrator');
- let body={dashboard:dashboardPage,announcements:announcementPage,monitoring:monitorPage,documents:documentPage,division:divisionPage,district:districtPage,'document-types':documentTypesAdminPage,retrieval:retrievalPage,settings:settingsPage,reports:districtReportPage,'school-files':schoolAttachmentsPage,verification:verificationPage,approvals:approvalPage,archive:archivePage}[state.view]?.()||dashboardPage();
+ let body={dashboard:dashboardPage,announcements:announcementPage,notifications:notificationsPage,monitoring:monitorPage,documents:documentPage,division:divisionPage,district:districtPage,'document-types':documentTypesAdminPage,retrieval:retrievalPage,settings:settingsPage,reports:districtReportPage,'school-files':schoolAttachmentsPage,verification:verificationPage,approvals:approvalPage,archive:archivePage}[state.view]?.()||dashboardPage();
  if(state.view==='dashboard'&&yesAdmin())body='<section class="panel" style="padding:20px;margin:16px 0;border:2px solid #d7bd6b"><h3>🔧 System Maintenance</h3><p class="note">Pause access for regular users while admins continue working.</p><p><strong>Status: '+(state.maintenance.enabled?'MAINTENANCE ON':'Running normally')+'</strong></p><button class="btn" data-a="maintenance-toggle">'+(state.maintenance.enabled?'Turn OFF Maintenance — Reopen App':'Turn ON Maintenance — Pause Users')+'</button></section>'+body;
  // Read-only presentation context for the upload panel. Not an authorization
  // mechanism: Supabase RLS and the Edge Function enforce permissions.
@@ -860,15 +878,46 @@ function settingsPage(){
  '<button type="button" class="btn alt" data-a="logout">Sign Out</button></div>';
 }
 
+function allNotificationEntries(){
+ return [
+  ...(state.documentNotices||[]),
+  ...(state.divisionNotices||[]).map(n=>({...n,source:'transmittal'}))
+ ].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+}
+function notificationRow(n,compact=false){
+ const documentNotice=n.source!=='transmittal';
+ const unread=documentNotice&&!n.read_at;
+ const context=n.source==='transmittal'?'Division transmittal':n.source==='division'?'Division document':'Document routing';
+ const canReview=documentNotice&&state.docs.some(d=>d.id===n.document_id);
+ const action=n.source==='transmittal'
+  ? '<button class="btn tiny alt" data-a="nav" data-page="division">View</button>'
+  : (canReview?'<button class="btn tiny alt" data-a="doc-notice-open" data-id="'+esc(n.document_id)+'">Review</button>':'');
+ return '<div class="v2-notice-item itrack-notice-row'+(unread?' itrack-unread':'')+'">'+
+  '<span class="itrack-notice-icon" aria-hidden="true">'+(n.source==='transmittal'?'▤':'▣')+'</span>'+
+  '<div class="v2-notice-copy"><strong>'+esc(n.message)+'</strong><small>'+esc(context+' · '+date(n.created_at))+(unread?' · Unread':'')+'</small></div>'+
+  '<div class="itrack-notice-actions">'+action+
+  (!compact&&unread?'<button class="btn tiny alt" data-a="doc-notice-read" data-id="'+esc(n.id)+'" data-source="'+esc(n.source)+'">Mark Read</button>':'')+'</div></div>';
+}
 function documentNotificationPanel(){
- const notices=state.documentNotices||[];
- const unread=notices.filter(n=>!n.read_at).length;
- return '<section class="panel v2-board"><div class="panel-head"><h3>Document Notifications'+(unread?' ('+unread+' unread)':'')+'</h3></div>'+
- (notices.length?'<div class="v2-notice-list">'+notices.map(n=>
-  '<div class="v2-notice-item"><div class="v2-notice-copy"><strong>'+esc(n.message)+'</strong><small>'+esc(date(n.created_at))+(n.read_at?' · Read':' · Unread')+'</small></div>'+
-  (state.docs.some(d=>d.id===n.document_id)?'<button class="btn tiny alt" data-a="doc-notice-open" data-id="'+esc(n.document_id)+'">Review</button>':'')+
-  (!n.read_at?'<button class="btn tiny alt" data-a="doc-notice-read" data-id="'+esc(n.id)+'" data-source="'+esc(n.source)+'">Mark Read</button>':'')+'</div>'
- ).join('')+'</div>':'<p class="note">No document notifications yet.</p>')+'</section>';
+ const notices=allNotificationEntries().slice(0,3);
+ const unread=notices.some(n=>n.source!=='transmittal'&&!n.read_at);
+ return '<section class="panel v2-board itrack-preview" aria-label="Latest notifications">'+
+  '<div class="panel-head"><h3>Notifications'+(unread?' <span class="itrack-unread-dot" aria-label="New notifications"></span>':'')+'</h3>'+
+  '<button type="button" class="btn tiny alt itrack-show-all" data-a="nav" data-page="notifications">Show All</button></div>'+
+  (notices.length?'<div class="v2-notice-list">'+notices.map(n=>notificationRow(n,true)).join('')+'</div>':
+    '<p class="note">No notifications yet.</p>')+'</section>';
+}
+function notificationsPage(){
+ const notices=allNotificationEntries();
+ return '<div class="sectionhead"><div><div class="eyebrow">Your activity</div>'+
+  '<h1>All Notifications</h1><p class="sub">Document routing, Division activity, and important updates. Newest first.</p></div>'+
+  '<button class="btn alt" data-a="notifications-refresh">Refresh</button></div>'+
+  '<section class="panel v2-board itrack-notification-page"><div class="panel-head"><h3>Notification History</h3>'+
+  '<button class="btn tiny alt" data-a="nav" data-page="announcements">Announcements</button></div>'+
+  (notices.length?'<div class="v2-notice-list">'+notices.map(n=>notificationRow(n)).join('')+'</div>':
+   '<p class="note">No notifications recorded for your account yet. Official school requests are listed under Announcements.</p>')+
+  (state.notificationHasMore?'<button class="btn alt block itrack-more-notices" data-a="notifications-more">Load Older Notifications</button>':'')+
+  '</section>';
 }
 function dashboardPage(){
  const name=state.profile.display_name||"District User";
@@ -887,7 +936,7 @@ function dashboardPage(){
   }
  }
  const mine=[...byAnn.values()];
- const latest=(admin||oversight?state.announcements.filter(a=>a.status!=="draft"):mine).slice(0,admin||oversight?5:3);
+ const latest=(admin||oversight?state.announcements.filter(a=>a.status!=="draft"):mine).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,3);
  function receipt(assignmentId){
   const dates=submissions.filter(s=>s.assignment_id===assignmentId).map(s=>new Date(s.first_received_at).getTime()).filter(Number.isFinite);
   return dates.length?Math.min(...dates):null;
@@ -929,7 +978,7 @@ function dashboardPage(){
  }).join("")||'<div class="empty">No assigned announcements yet.</div>';
  const actionNeeded=!admin&&!oversight?state.docs.filter(d=>{const routes=documentRoutes(d.id),last=routes.at(-1);return last?.to_user_id===state.session.user.id&&(last.route_status==='awaiting_ack'||(last.route_status==='received'&&!last.processed_at));}).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,3):[];
  const actionNeededHtml=actionNeeded.map(d=>'<div class="v2-notice-item"><div class="v2-notice-copy"><strong>'+esc(d.subject)+'</strong><small>'+esc(d.tracking_number)+'</small></div><button class="btn tiny alt" data-a="detail" data-id="'+esc(d.id)+'">Review</button></div>').join('')||'<p class="note">No documents currently need your action.</p>';
- const upcoming=latest.filter(a=>a.deadline_at&&new Date(a.deadline_at)>new Date()&&a.status==="open")
+ const upcoming=(admin||oversight?state.announcements.filter(a=>a.status!=="draft"):mine).filter(a=>a.deadline_at&&new Date(a.deadline_at)>new Date()&&a.status==="open")
   .sort((a,b)=>new Date(a.deadline_at)-new Date(b.deadline_at)).slice(0,3);
  const reminders=upcoming.map(a=>'<div class="v2-reminder"><span class="v2-dot"></span><span>'+esc(short(a.deadline_at))+'</span><strong>'+esc(announcementName(a))+'</strong></div>').join("")||
   '<p class="note">No upcoming deadlines.</p>';
@@ -947,14 +996,14 @@ function dashboardPage(){
     '<button data-a="nav" data-page="announcements"><span>◷</span><strong>Due Dates</strong><small>Latest notices</small></button>')+
   '</div>';
  return '<section class="v2-intro"><div><div class="eyebrow">SAN REMIGIO II DISTRICT</div><h1>Welcome back, '+esc(name)+'!</h1><p class="v2-role">'+esc(oversight?"OIC-PSDS · District Oversight (Read Only)":admin?"District Administrator":school)+'</p></div><div class="v2-motto">One District. One Direction.<br><strong>Organized for a Stronger SRII.</strong></div></section>'+
-  '<div class="v2-metrics">'+metricHtml+'</div>'+(!admin&&!oversight?documentNotificationPanel():'')+
+  '<div class="v2-metrics">'+metricHtml+'</div>'+(!oversight?documentNotificationPanel():'')+
   '<div class="v2-home-grid"><div class="v2-home-primary">'+
-  '<section class="panel v2-board"><div class="panel-head"><h3>Latest Announcements</h3><button class="btn tiny alt" data-a="nav" data-page="announcements">View All</button></div><div class="v2-notice-list">'+announcements+'</div></section>'+
-  '<section class="panel v2-board">'+(!admin&&!oversight?'<div class="panel-head"><h3>Documents Requiring Action</h3><button class="btn tiny alt" data-a="nav" data-page="documents">View All</button></div><div class="v2-notice-list">'+actionNeededHtml+'</div>':'')+'<h3>Quick Actions</h3>'+quick+'</section>'+
+  '<section class="panel v2-board itrack-preview"><div class="panel-head"><h3>Latest Announcements</h3><button class="btn tiny alt itrack-show-all" data-a="nav" data-page="announcements">Show All</button></div><div class="v2-notice-list">'+announcements+'</div></section>'+
+  '<section class="panel v2-board itrack-preview">'+(!admin&&!oversight?'<div class="panel-head"><h3>Documents Requiring Action</h3><button class="btn tiny alt itrack-show-all" data-a="nav" data-page="documents">Show All</button></div><div class="v2-notice-list">'+actionNeededHtml+'</div>':'')+'<h3>Quick Actions</h3>'+quick+'</section>'+
   '</div><div class="v2-home-secondary">'+
   '<section class="panel v2-board"><h3>At a Glance</h3><div class="v2-summary-big">'+esc(admin?state.announcements.filter(a=>a.status==="open").length:oversight?reportTotals.submitted:submitted)+'<small>'+esc(admin?"Open announcements":oversight?"On-time school submissions":"Submitted requirements")+'</small></div>'+
    '<button class="btn alt block" data-a="nav" data-page="monitoring">View Submission Status</button></section>'+
-  '<section class="panel v2-board"><h3>Upcoming Deadlines</h3>'+reminders+'</section>'+
+  '<section class="panel v2-board itrack-preview"><div class="panel-head"><h3>Upcoming Deadlines</h3><button class="btn tiny alt itrack-show-all" data-a="nav" data-page="announcements">Show All</button></div>'+reminders+'</section>'+
   '</div></div>';
 }
 function districtReportPage(){
@@ -1383,7 +1432,8 @@ function divisionPage(){
  const adminPanel=yesAdmin()?'<div class="panel"><h3>Administrator Document Search & Resolution</h3><p class="note">Search any tracking number or document title. A written reason is required for manual changes.</p><div class="toolbar"><input id="division-admin-query" placeholder="Tracking number or document name" value="'+esc(state.divisionQuery||'')+'"><button class="btn alt" data-a="division-admin-search">Search</button></div>'+table(['Tracking #','Document','Status','Resolution'],(state.divisionSearchResults||[]).map(d=>'<tr><td>'+esc(d.tracking_number)+'</td><td>'+esc(d.subject)+'</td><td>'+esc(d.resolution||d.status)+'</td><td>'+(['received','lost','not_for_return','recovered','corrected'].map(a=>'<button class="btn tiny alt" data-a="division-admin-resolve" data-id="'+esc(d.id)+'" data-act="'+a+'">'+esc(label(a))+'</button>').join(' '))+'</td></tr>'))+'</div>':'';
  return '<div class="sectionhead"><div><div class="eyebrow">Physical document custody</div><h1>Division Transmittals</h1><p class="sub">Prepare and submit documents to Division. Retrieval and final receipt are managed separately, with every tracking ID preserved.</p></div><button class="btn alt" data-a="division-refresh">Refresh</button></div>'+
  adminPanel+'<div class="panel"><h3>Division Retrieval</h3><p class="note">Physical pickup, turnover slips, District acknowledgment and final owner receipt are recorded in the separate Division Retrieval page. The original transmittal below remains the official outgoing record.</p><button class="btn alt" data-a="nav" data-page="retrieval">Open Division Retrieval</button></div>'+
- '<div class="panel"><h3>Notifications</h3>'+(state.divisionNotices||[]).map(n=>'<p class="note">'+esc(date(n.created_at))+' — '+esc(n.message)+'</p>').join('')+'</div>'+
+ '<div class="panel v2-board itrack-preview"><div class="panel-head"><h3>Notifications</h3><button class="btn tiny alt itrack-show-all" data-a="nav" data-page="notifications">Show All</button></div>'+
+ ((state.divisionNotices||[]).length?'<div class="v2-notice-list">'+(state.divisionNotices||[]).slice(0,3).map(n=>notificationRow({...n,source:'transmittal'},true)).join('')+'</div>':'<p class="note">No recent Division notifications.</p>')+'</div>'+
  '<div class="panel"><h3>Create Transmittal</h3><p class="note">Select Division documents and verified announcement submissions. Recipient approval is not needed.</p><div class="field"><label>Assigned submitter</label><select id="division-submitter">'+opts+'</select></div><h4>Division Documents</h4><div class="division-eligible-list">'+(eligible||'<p class="note">No eligible documents.</p>')+'</div><h4>Verified School Submissions</h4><div class="division-eligible-list">'+(compEligible||'<p class="note">No verified submissions.</p>')+'</div><button class="btn" data-a="division-create">Create Transmittal</button></div>'+
  '<div class="panel"><h3>Transmittal</h3><div class="field"><label>Select transmittal</label><select id="division-current">'+ts.map(x=>'<option value="'+esc(x.id)+'" '+(x.id===activeId?'selected':'')+'>'+esc(x.transmittal_number)+'</option>').join('')+'</select></div>'+
  (t?'<p><strong>'+esc(t.transmittal_number)+'</strong> · '+pTag(transmittalLocked?'dispatched':t.assignment_accepted_at?'accepted':'pending')+'</p>'+draftControls+
@@ -2098,12 +2148,20 @@ async function click(e){
   if(a==='logout'){await db.auth.signOut();state.session=null;state.profile=null;state.recoveryReady=false;rememberView('dashboard');localStorage.removeItem('srii-current-view');sessionStorage.removeItem('srii-last-announcement');sessionStorage.removeItem('srii-review-announcement');state.modal=null;state.schoolFiles=[];state.accountEmails=[];show();return;}
   if(a==='refresh'){await sync();return;}
   if(a==='export-district-report'){exportDistrictReport();pop('District compliance report prepared.');return;}
+  if(a==='notifications-more'){
+   if(state.view!=='notifications')return;
+   state.notificationLimit+=50;await load();return;
+  }
+  if(a==='notifications-refresh'){
+   if(state.view!=='notifications')return;
+   state.notificationLimit=50;await load();return;
+  }
   if(a==='nav'){
    if(['school-files','approvals','archive'].includes(t.dataset.page)&&!yesAdmin())throw new Error('District administrator access required.');
    if(t.dataset.page==='verification'&&!yesAdmin()&&!state.approverAssignments.some(x=>x.user_id===state.session.user.id))throw new Error('Not an assigned approver.');
    if(t.dataset.page==='reports'&&!districtOversight())throw new Error('District oversight access required.');
    if(t.dataset.page==='settings'&&yesAdmin())throw new Error('Personal Settings in this redesign are for Normal User accounts.');
-   if(isOic()&&!['dashboard','announcements','monitoring','reports','settings'].includes(t.dataset.page))throw new Error('This OIC-PSDS account is read-only.');
+   if(isOic()&&!['dashboard','announcements','notifications','monitoring','reports','settings'].includes(t.dataset.page))throw new Error('This OIC-PSDS account is read-only.');
    rememberView(t.dataset.page);state.modal=null;
    await load();return;
   }
