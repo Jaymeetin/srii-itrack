@@ -2193,6 +2193,32 @@ async function submit(e){
    state.emailHelpReason='';
    await sync();pop('Signed in.');return;
   }
+  if(form.id==='form-ann-edit'){
+   if(!yesAdmin())throw Error('District administrator required');
+   const ann=state.announcements.find(x=>x.id===state.announcementEditId);
+   if(!ann||ann.status==='cancelled')throw Error('This announcement is cancelled or unavailable');
+   const title=clean(fd.get('title')),description=clean(fd.get('description'));
+   if(title.length<2||title.length>180)throw Error('Enter a title between 2 and 180 characters.');
+   if(description.length>5000)throw Error('Description must be at most 5,000 characters.');
+   const selected=[...form.querySelectorAll('.school-checkbox:checked')].map(c=>c.value);
+   if(!selected.length)throw Error('At least one school must remain assigned.');
+   const locked=state.announcementEditorData?.protected_school_ids||[];
+   if(locked.some(id=>!selected.includes(id)))throw Error('Schools with existing submissions cannot be removed.');
+   const raw=clean(fd.get('deadline'));
+   if(!raw)throw Error('Enter the deadline.');
+   const deadline=new Date(raw+'+08:00');
+   if(Number.isNaN(deadline.getTime()))throw Error('Invalid Philippine-time deadline.');
+   const approvers=[...form.querySelectorAll('.announcement-approver-pick:checked')].map(c=>c.value);
+   const {data,error}=await db.rpc('i_track_update_announcement',{
+    p_announcement:ann.id,p_title:title,p_description:description,
+    p_deadline_at:deadline.toISOString(),p_school_ids:selected,p_approver_ids:approvers
+   });
+   if(error)throw error;
+   state.modal=null;state.announcementEditId=null;state.announcementEditorData=null;
+   await load();
+   pop('Announcement updated. '+(data?.required_school_count||selected.length)+' school(s) assigned; previous submissions preserved.');
+   return;
+  }
   if(form.id==='form-ann'){
    const selected=[...form.querySelectorAll('.school-checkbox:checked')].map(c=>c.value);
    if(!selected.length)throw new Error('Select at least one school.');
