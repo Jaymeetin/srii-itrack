@@ -967,8 +967,22 @@ function exportDistrictReport(){
  setTimeout(()=>URL.revokeObjectURL(url),2000);
 }
 function announcementPage(){
- const rows=state.announcements.map(a=>`<tr><td><span class="ann-ref">${esc(a.announcement_code||'')}</span><strong>${esc(a.title)}</strong><div class="small muted">${esc(a.description||'')}</div></td><td>${pTag(a.status)}</td><td>${short(a.deadline_at)}</td><td><button class="btn tiny alt" data-a="monitor" data-id="${a.id}">Monitor</button>${yesAdmin()?` <button class="btn tiny alt" data-a="manage-approvers" data-id="${a.id}">Approvers</button>`:""}</td></tr>`);
- return `<div class="sectionhead"><div><div class="eyebrow">District requirements</div><h1>Announcements</h1><p class="sub">Official school submission requests and deadlines.</p></div>${yesAdmin()?'<button class="btn" data-a="new-announcement">+ New Announcement</button>':''}</div><div class="panel"><h3>Announcement Board</h3>${table(['Announcement','Status','Deadline',''],rows)}</div>`;
+ const rows=state.announcements.map(a=>{
+  const canManage=yesAdmin()&&a.status!=='cancelled';
+  const actions='<button class="btn tiny alt" data-a="monitor" data-id="'+esc(a.id)+'">Monitor</button>'+
+   (canManage?'<button class="btn tiny alt" data-a="edit-announcement" data-id="'+esc(a.id)+'">Edit</button>'+
+    '<button class="btn tiny alt" data-a="manage-approvers" data-id="'+esc(a.id)+'">Approvers</button>'+
+    '<button class="btn tiny danger" data-a="cancel-announcement" data-id="'+esc(a.id)+'">Cancel Announcement</button>':'');
+  const cancellation=a.status==='cancelled'?'<div class="announcement-cancelled-note"><strong>Cancelled '+esc(date(a.cancelled_at))+'</strong> · '+esc(a.cancellation_reason||'Cancelled by district administrator')+'</div>':'';
+  return '<tr><td><span class="ann-ref">'+esc(a.announcement_code||'')+'</span><strong>'+esc(a.title)+'</strong>'+
+   '<div class="small muted">'+esc(a.description||'')+'</div>'+cancellation+'</td>'+
+   '<td>'+pTag(a.status)+'</td><td>'+esc(short(a.deadline_at))+'</td>'+
+   '<td><div class="announcement-admin-actions">'+actions+'</div></td></tr>';
+ });
+ return '<div class="sectionhead"><div><div class="eyebrow">District requirements</div><h1>Announcements</h1>'+
+  '<p class="sub">Official school submission requests and deadlines. Cancelled announcements remain visible for reference, but no longer accept submissions.</p></div>'+
+  (yesAdmin()?'<button class="btn" data-a="new-announcement">+ New Announcement</button>':'')+'</div>'+
+  '<div class="panel"><h3>Announcement Board</h3>'+table(['Announcement','Status','Deadline','Actions'],rows)+'</div>';
 }
 function monitorPage(){
  const opts=state.announcements.filter(a=>a.status!=='draft').map(a=>
