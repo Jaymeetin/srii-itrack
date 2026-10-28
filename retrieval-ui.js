@@ -68,25 +68,25 @@ window.ITRACK_RETRIEVAL_VIEW=function(state,{esc,date,label,divisionStageLabel})
   '<button class="btn tiny alt" data-a="retrieval-check-visible">Check Visible</button>'+
   '<button class="btn tiny alt" data-a="retrieval-clear">Clear</button></div>'+
   '<p class="note">Check only documents physically handed to you. You can collect documents from multiple original transmittals.</p>'+
-  table(available,'retrieval-pick',state.retrievalPicked)+
-  '<div class="retrieval-bottom-bar"><span class="small muted">'+state.retrievalPicked.size+' checked</span>'+
-  '<button class="btn" data-a="retrieval-pickup"'+(!state.retrievalPicked.size?' disabled':'')+'>Retrieve Selected</button></div></div>'+
+  '<div id="retrieval-available-list">'+table(available,'retrieval-pick',state.retrievalPicked)+'</div>'+
+  '<div class="retrieval-bottom-bar"><span id="retrieval-pick-count" class="small muted">'+state.retrievalPicked.size+' checked</span>'+
+  '<button class="btn" id="retrieval-pickup-btn" data-a="retrieval-pickup"'+(!state.retrievalPicked.size?' disabled':'')+'>Retrieve Selected</button></div></div>'+
   '<div class="panel retrieval-panel"><div class="retrieval-panel-head"><h3>2. My Retrieval Batches</h3>'+
   '<span class="small muted">'+batches.length+' batch(es)</span></div>'+
   '<p class="note">Check collected documents for District handoff; the official slip prints up to 20 rows per A4 page.</p>'+
   batchesMarkup+'<div class="retrieval-bottom-bar"><label class="retrieval-recipient">District receiving personnel'+
   '<select id="retrieval-district-recipient"><option value="">Choose recipient</option>'+
   recipients.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name||'District personnel')+' — '+esc(p.position||'')+'</option>').join('')+
-  '</select></label><span class="small muted">'+state.retrievalTurnoverPicked.size+' checked</span>'+
-  '<button class="btn" data-a="retrieval-prepare"'+(!eligibility.size?' disabled':'')+'>Prepare Turnover Slip</button></div></div>'+
+  '</select></label><span id="retrieval-turnover-count" class="small muted">'+state.retrievalTurnoverPicked.size+' checked</span>'+
+  '<button class="btn" id="retrieval-prepare-btn" data-a="retrieval-prepare"'+(!eligibility.size?' disabled':'')+'>Prepare Turnover Slip</button></div></div>'+
   '<div class="panel retrieval-panel"><h3>3. Turnover Slips</h3><p class="note">Print before handoff. Printing does not change custody; confirm physical handoff afterward.</p>'+
   turns+'</div>'+
   '<div class="panel retrieval-panel"><div class="retrieval-panel-head"><h3>4. District Receiving</h3>'+
   '<span class="small muted">'+district.length+' awaiting acknowledgment</span></div>'+
   '<p class="note">Only the assigned District recipient can check and acknowledge the documents actually received. Partial receipt is supported.</p>'+
   table(district,'retrieval-district-pick',state.retrievalDistrictPicked)+
-  '<div class="retrieval-bottom-bar"><span class="small muted">'+state.retrievalDistrictPicked.size+' checked</span>'+
-  '<button class="btn" data-a="retrieval-district-ack"'+(!state.retrievalDistrictPicked.size?' disabled':'')+'>Acknowledge Checked</button></div></div>'+
+  '<div class="retrieval-bottom-bar"><span id="retrieval-district-count" class="small muted">'+state.retrievalDistrictPicked.size+' checked</span>'+
+  '<button class="btn" id="retrieval-district-btn" data-a="retrieval-district-ack"'+(!state.retrievalDistrictPicked.size?' disabled':'')+'>Acknowledge Checked</button></div></div>'+
   '<div class="panel retrieval-panel"><h3>5. My Documents for Final Receipt</h3>'+
   '<p class="note">Only the designated rightful owner can complete a document. Default owner is the original sender. Collection by someone else never completes it.</p>'+
   '<div class="retrieval-claim-list">'+claiming+'</div></div>'+
