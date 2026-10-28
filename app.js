@@ -1085,6 +1085,7 @@ function documentRoutes(id){return (state.routeHistory||[]).filter(r=>r.document
  .sort((a,b)=>new Date(a.sent_at)-new Date(b.sent_at)||String(a.route_id).localeCompare(String(b.route_id)));}
 function routeState(r){
  if(!r)return {label:'Not routed',kind:'muted'};
+ if(r.route_status==='withdrawn')return {label:'Delivery withdrawn',kind:'muted'};
  if(r.processed_at)return {label:'Processed · See History',kind:'received'};
  if(r.route_status==='awaiting_ack')return {label:'Not yet received',kind:'pending'};
  if(r.route_status==='received')return {label:'Receipt acknowledged · Awaiting action',kind:'received'};
@@ -1095,6 +1096,7 @@ function routePerson(name,office){
 }
 function routingOverview(d){
  const steps=documentRoutes(d.id),last=steps.at(-1);
+ if(d.status==='completed')return '<div class="routing-overview"><span class="routing-status routing-status-received">Completed</span><span class="small muted">Document processing is complete. See history for previous routing and Division activity.</span></div>';
  if(d.status==='in_school')return '<div class="routing-overview"><span class="routing-status routing-status-received">In School</span><span class="small muted">Saved in My Documents. No recipient acknowledgment or transmittal is required. You may forward it later.</span></div>';
  if(!last)return '<div class="routing-overview"><span class="routing-status routing-status-received">No Recipient</span><span class="small muted">Use the Division Transmittals page if this document is intended for Division.</span></div>';
  const status=routeState(last);
@@ -1113,7 +1115,7 @@ function routingTimeline(routes,approvals=[],divisionEvents=[]){
   const action=r.route_action==='sent'?'Document sent':r.route_action==='forwarded'?'Document forwarded':r.route_action==='returned'?'Returned for correction':label(r.route_action);
   if(r.sent_at)events.push({when:r.sent_at,title:action,who:sender,detail:'To: '+recipient+(r.recipient_office?' · '+r.recipient_office:''),note:r.route_note||''});
   if(r.acknowledged_at)events.push({when:r.acknowledged_at,title:'Receipt acknowledged',who:recipient,detail:'Received from: '+sender,note:''});
-  if(r.processed_at&&!approvals.some(a=>a.route_id===r.route_id))events.push({when:r.processed_at,title:i<routes.length-1?'Routing processed':'Document processing recorded',who:recipient,detail:'Route status: '+routeState(r).label,note:''});
+  if(r.processed_at&&!approvals.some(a=>a.route_id===r.route_id))events.push({when:r.processed_at,title:r.route_status==='withdrawn'?'Pending delivery withdrawn':i<routes.length-1?'Routing processed':'Document processing recorded',who:r.route_status==='withdrawn'?sender:recipient,detail:'Route status: '+routeState(r).label,note:''});
  });
  approvals.forEach(a=>{const route=routes.find(r=>r.route_id===a.route_id);events.push({when:a.approved_at,title:'Document approved',who:route?.recipient_name||'Assigned recipient',detail:'Approval recorded and current route closed',note:a.remarks||''});});
  const divisionTitles={created:'Division transmittal prepared',accept:'Division assignment accepted',submit:'Submitted to Division',retrieve:'Retrieved from Division',forward:'Forwarded within district',district_ack:'District receipt acknowledged',district_receive:'Received by district',final_receive:'Received by sender',lost:'Document reported lost',recover:'Document recovered',not_for_return:'Marked not for return'};
@@ -1219,7 +1221,7 @@ function divisionPage(){
  const own=state.docs.some(d=>d.id===i.document_id&&d.created_by===state.profile.id);
  if(own&&i.division_status==='received_at_district')actions.push('<button class="btn tiny" data-a="division-act" data-act="sender_received" data-id="'+esc(i.id)+'">Mark Returned to Sender</button>');
  if(yesAdmin())actions.push('<button class="btn tiny alt" data-a="division-act" data-act="admin_received" data-id="'+esc(i.id)+'">Resolve Received</button><button class="btn tiny alt" data-a="division-act" data-act="lost" data-id="'+esc(i.id)+'">Lost</button><button class="btn tiny alt" data-a="division-act" data-act="not_for_return" data-id="'+esc(i.id)+'">Not for Return</button>'+(i.division_status==='lost'?'<button class="btn tiny alt" data-a="division-act" data-act="recovered" data-id="'+esc(i.id)+'">Recovered</button>':'')+(['lost','not_for_return','received_by_sender'].includes(i.division_status)?'<button class="btn tiny alt" data-a="division-act" data-act="correct" data-id="'+esc(i.id)+'">Correct</button>':''));
- return '<tr><td>'+esc(i.tracking_number)+'</td><td>'+esc(i.document_label)+'</td><td>'+pTag(i.division_status)+'</td><td>'+actions.join(' ')+'</td></tr>';
+ return '<tr><td>'+esc(i.tracking_number)+'</td><td>'+esc(i.document_label)+'</td><td>'+pTag(i.division_status==='received_by_sender'&&i.retrieved_from_division_at?'completed':i.division_status)+'</td><td>'+actions.join(' ')+'</td></tr>';
  });
  const adminPanel=yesAdmin()?'<div class="panel"><h3>Administrator Document Search & Resolution</h3><p class="note">Search any tracking number or document title. A written reason is required for manual changes.</p><div class="toolbar"><input id="division-admin-query" placeholder="Tracking number or document name" value="'+esc(state.divisionQuery||'')+'"><button class="btn alt" data-a="division-admin-search">Search</button></div>'+table(['Tracking #','Document','Status','Resolution'],(state.divisionSearchResults||[]).map(d=>'<tr><td>'+esc(d.tracking_number)+'</td><td>'+esc(d.subject)+'</td><td>'+esc(d.resolution||d.status)+'</td><td>'+(['received','lost','not_for_return','recovered','corrected'].map(a=>'<button class="btn tiny alt" data-a="division-admin-resolve" data-id="'+esc(d.id)+'" data-act="'+a+'">'+esc(label(a))+'</button>').join(' '))+'</td></tr>'))+'</div>':'';
  return '<div class="sectionhead"><div><div class="eyebrow">Physical document custody</div><h1>Division Transmittals</h1><p class="sub">Prepare, accept, submit, retrieve and return physical documents. Every action is audited.</p></div><button class="btn alt" data-a="division-refresh">Refresh</button></div>'+
