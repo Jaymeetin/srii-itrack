@@ -1400,7 +1400,8 @@ function modalHtml(){
      '<option value="'+esc(x.user_id)+'">'+esc(x.display_name)+' · '+esc(x.school_name)+'</option>').join('')+
     '</select></div><div class="field"><label>Remarks (required for Return for Correction)</label><input id="route-note" placeholder="Explain the correction needed, or add forwarding instructions"></div>';
   if(canChangePending||canForwardSaved)body+='<div class="field"><label for="pending-new-recipient">'+(canForwardSaved?'Recipient for Forwarding':'Change Pending Recipient')+'</label><select id="pending-new-recipient"><option value="">Choose approved recipient</option>'+state.recipients.filter(x=>x.user_id!==state.session.user.id).map(x=>'<option value="'+esc(x.user_id)+'">'+esc(x.display_name)+'</option>').join('')+'</select></div>';
-  footer='<button class="btn alt" data-a="close">Close</button>'+
+  footer='<button class="btn alt" data-a="close">Close</button>'+ 
+   (d.destination!=='division'&&d.status!=='completed'&&(d.created_by===state.session.user.id||(last?.to_user_id===state.session.user.id&&last?.acknowledged_at))?'<button class="btn alt" data-a="direct-division" data-id="'+esc(d.id)+'">Forward to Division</button>':'')+
    (canChangePending?'<button class="btn alt" data-a="pending-route-action" data-act="change" data-id="'+esc(d.id)+'">Change Recipient</button><button class="btn alt" data-a="pending-route-action" data-act="cancel" data-id="'+esc(d.id)+'">Cancel Sending</button>':'')+
    (canForwardSaved?'<button class="btn" data-a="pending-route-action" data-act="forward_saved" data-id="'+esc(d.id)+'">Forward Document</button>':'')+
    (canAck?'<button class="btn" data-a="ack" data-id="'+esc(last.route_id)+'">Acknowledge Receipt</button>':'')+
