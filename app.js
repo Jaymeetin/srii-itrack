@@ -958,7 +958,7 @@ function monitorPage(){
   (yesAdmin()?'<div class="school-files-monitor-link"><button type="button" class="btn alt" data-a="nav" data-page="school-files">▣ View All School Attachments</button></div>':'')+
   '<div class="panel"><div class="field"><label for="pick-ann">Announcement</label><select id="pick-ann"><option value="">Choose an announcement</option>'+opts+'</select></div></div>'+
   (state.selectedId?'<div class="stats">'+stat('Required Schools',state.monitor.length,'For selected announcement')+
-   stat('Submitted',n('Submitted'),'On time')+stat('Late',n('Late'),'After deadline')+
+   stat('Verified',n('Submitted')+n('Late'),'Admin approved')+stat('Awaiting Review',n('Pending Verification'),'Pending approval')+stat('Returned',n('Returned for Correction'),'Needs correction')+
    stat('Pending',n('Pending'),'Not yet submitted')+'</div>'+
    '<div class="panel"><h3>School Status</h3><div class="status-school-list">'+(rows||'<p class="empty">No required schools found.</p>')+'</div></div>':
    '<div class="panel empty">Choose an announcement to view status.</div>')+
