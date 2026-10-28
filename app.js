@@ -1309,11 +1309,6 @@ function divisionPage(){
  const rows=activeItems.map(i=>{
  const actions=[];
  if(t?.assigned_submitter===state.profile.id&&t.assignment_accepted_at&&i.division_status==='in_transmittal')actions.push('<button class="btn tiny" data-a="division-act" data-act="submit" data-id="'+esc(i.id)+'">Mark as Submitted to Division</button>');
- if(i.division_status==='submitted_to_division')actions.push('<button class="btn tiny alt" data-a="division-act" data-act="retrieve" data-id="'+esc(i.id)+'">Mark as Retrieved from Division</button>');
- if(i.division_status==='retrieved_from_division'&&i.retrieved_from_division_by===state.profile.id)actions.push('<button class="btn tiny alt" data-a="division-act" data-act="forward" data-id="'+esc(i.id)+'">Forward to District</button>');
- if(i.division_status==='forwarded_to_district'&&i.district_recipient_id===state.profile.id)actions.push('<button class="btn tiny" data-a="division-act" data-act="district_ack" data-id="'+esc(i.id)+'">Acknowledge</button>');
- const own=state.docs.some(d=>d.id===i.document_id&&d.created_by===state.profile.id);
- if(own&&i.division_status==='received_at_district')actions.push('<button class="btn tiny" data-a="division-act" data-act="sender_received" data-id="'+esc(i.id)+'">Mark Returned to Sender</button>');
  if(yesAdmin())actions.push('<button class="btn tiny alt" data-a="division-act" data-act="admin_received" data-id="'+esc(i.id)+'">Resolve Received</button><button class="btn tiny alt" data-a="division-act" data-act="lost" data-id="'+esc(i.id)+'">Lost</button><button class="btn tiny alt" data-a="division-act" data-act="not_for_return" data-id="'+esc(i.id)+'">Not for Return</button>'+(i.division_status==='lost'?'<button class="btn tiny alt" data-a="division-act" data-act="recovered" data-id="'+esc(i.id)+'">Recovered</button>':'')+(['lost','not_for_return','received_by_sender'].includes(i.division_status)?'<button class="btn tiny alt" data-a="division-act" data-act="correct" data-id="'+esc(i.id)+'">Correct</button>':''));
  if(canEditDraft&&state.transmittalEditing&&i.division_status==='in_transmittal')actions.unshift('<button class="btn tiny alt" data-a="transmittal-rename" data-id="'+esc(i.id)+'">Edit Name</button>');
  if(canEditDraft&&state.transmittalEditing)actions.unshift('<button class="btn tiny danger" data-a="draft-remove-item" data-id="'+esc(i.id)+'">Remove</button>');
@@ -1343,8 +1338,8 @@ function divisionPage(){
  const removedHistory=removedItems.length?'<details class="draft-removed-history"><summary>Removed before submission ('+removedItems.length+')</summary>'+
    removedItems.map(i=>'<p class="small muted">'+esc(i.tracking_number)+' — '+esc(i.document_label)+' (removed; eligible to add again)</p>').join('')+'</details>':'';
  const adminPanel=yesAdmin()?'<div class="panel"><h3>Administrator Document Search & Resolution</h3><p class="note">Search any tracking number or document title. A written reason is required for manual changes.</p><div class="toolbar"><input id="division-admin-query" placeholder="Tracking number or document name" value="'+esc(state.divisionQuery||'')+'"><button class="btn alt" data-a="division-admin-search">Search</button></div>'+table(['Tracking #','Document','Status','Resolution'],(state.divisionSearchResults||[]).map(d=>'<tr><td>'+esc(d.tracking_number)+'</td><td>'+esc(d.subject)+'</td><td>'+esc(d.resolution||d.status)+'</td><td>'+(['received','lost','not_for_return','recovered','corrected'].map(a=>'<button class="btn tiny alt" data-a="division-admin-resolve" data-id="'+esc(d.id)+'" data-act="'+a+'">'+esc(label(a))+'</button>').join(' '))+'</td></tr>'))+'</div>':'';
- return '<div class="sectionhead"><div><div class="eyebrow">Physical document custody</div><h1>Division Transmittals</h1><p class="sub">Prepare, accept, submit, retrieve and return physical documents. Every action is audited.</p></div><button class="btn alt" data-a="division-refresh">Refresh</button></div>'+
- adminPanel+'<div class="panel"><h3>Division Retrieval Checklist</h3><p class="note">Status-only list of documents still physically at Division. Any approved user who actually collects an item can record retrieval.</p>'+table(['Tracking #','School','Document','Action'],(state.divisionRetrievable||[]).map(i=>'<tr><td>'+esc(i.tracking_number)+'</td><td>'+esc(i.school_name)+'</td><td>'+esc(i.document_label)+'</td><td><button class="btn tiny" data-a="division-act" data-act="retrieve" data-trans="'+esc(i.transmittal_id)+'" data-id="'+esc(i.item_id)+'">Mark as Retrieved from Division</button></td></tr>'))+'</div>'+
+ return '<div class="sectionhead"><div><div class="eyebrow">Physical document custody</div><h1>Division Transmittals</h1><p class="sub">Prepare and submit documents to Division. Retrieval and final receipt are managed separately, with every tracking ID preserved.</p></div><button class="btn alt" data-a="division-refresh">Refresh</button></div>'+
+ adminPanel+'<div class="panel"><h3>Division Retrieval</h3><p class="note">Physical pickup, turnover slips, District acknowledgment and final owner receipt are recorded in the separate Division Retrieval page. The original transmittal below remains the official outgoing record.</p><button class="btn alt" data-a="nav" data-page="retrieval">Open Division Retrieval</button></div>'+
  '<div class="panel"><h3>Notifications</h3>'+(state.divisionNotices||[]).map(n=>'<p class="note">'+esc(date(n.created_at))+' — '+esc(n.message)+'</p>').join('')+'</div>'+
  '<div class="panel"><h3>Create Transmittal</h3><p class="note">Select Division documents and verified announcement submissions. Recipient approval is not needed.</p><div class="field"><label>Assigned submitter</label><select id="division-submitter">'+opts+'</select></div><h4>Division Documents</h4><div class="division-eligible-list">'+(eligible||'<p class="note">No eligible documents.</p>')+'</div><h4>Verified School Submissions</h4><div class="division-eligible-list">'+(compEligible||'<p class="note">No verified submissions.</p>')+'</div><button class="btn" data-a="division-create">Create Transmittal</button></div>'+
  '<div class="panel"><h3>Transmittal</h3><div class="field"><label>Select transmittal</label><select id="division-current">'+ts.map(x=>'<option value="'+esc(x.id)+'" '+(x.id===activeId?'selected':'')+'>'+esc(x.transmittal_number)+'</option>').join('')+'</select></div>'+
@@ -2420,8 +2415,21 @@ function filterDocumentRegistry(){
  const count=document.getElementById('document-search-count');
  if(count)count.textContent=visible+' matching document(s)';
 }
-$.addEventListener('input',e=>{if(['document-search','document-date-filter'].includes(e.target.id))filterDocumentRegistry();});
+$.addEventListener('input',e=>{
+ if(['document-search','document-date-filter'].includes(e.target.id))filterDocumentRegistry();
+ if(e.target.id==='retrieval-search')filterRetrievalAvailable();
+});
 $.addEventListener('change',async e=>{
+ if(state.view==='retrieval'&&e.target.matches('input[type="checkbox"].retrieval-check')){
+  const cls=e.target.classList;
+  const store=cls.contains('retrieval-pick')?state.retrievalPicked:
+              cls.contains('retrieval-turnover-pick')?state.retrievalTurnoverPicked:
+              cls.contains('retrieval-district-pick')?state.retrievalDistrictPicked:null;
+  if(store){
+   if(e.target.checked)store.add(e.target.value);else store.delete(e.target.value);
+   refreshRetrievalCheckboxCounters();return;
+  }
+ }
  if(['document-status-filter','document-date-filter'].includes(e.target.id)){filterDocumentRegistry();return;}
  if(e.target.id==='doc-attachments'){
   const files=[...(e.target.files||[])],message=document.getElementById('doc-attachment-selection');
