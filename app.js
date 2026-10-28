@@ -1550,6 +1550,25 @@ async function click(e){
   if(a==='draft-toggle-edit'){
    state.transmittalEditing=!state.transmittalEditing;show();return;
   }
+  if(a==='draft-remove-selected'){
+   const trans=state.divisionData.transmittals.find(x=>x.id===state.divisionSelected)||state.divisionData.transmittals[0];
+   if(!trans)throw Error('Select a transmittal.');
+   const selected=[...document.querySelectorAll('#draft-transmittal-editor .draft-remove-pick:checked')].map(x=>x.value);
+   if(!selected.length)throw Error('Check at least one document under "Documents Already in This Transmittal" to remove it.');
+   const valid=(state.divisionData.items||[]).filter(x=>x.transmittal_id===trans.id&&x.division_status==='in_transmittal');
+   if(selected.some(id=>!valid.some(i=>i.id===id)))throw Error('A selected document is no longer editable. Refresh and check again.');
+   if(!confirm('Remove '+selected.length+' checked document(s) from '+trans.transmittal_number+'? They will become available for other transmittals.'))return;
+   state.busy=true;let removed=0;
+   try{
+    for(const id of selected){
+     const {error}=await db.rpc('i_track_edit_draft_transmittal',{p_transmittal:trans.id,p_action:'remove',p_item:id});
+     if(error)throw error;removed++;
+    }
+   }catch(ex){
+    await load();throw Error(removed+' document(s) removed before an error: '+ex.message);
+   }finally{state.busy=false;}
+   await load();pop(removed+' document(s) removed. They are available for selection again.');return;
+  }
   if(a==='draft-remove-item'){
    const trans=state.divisionData.transmittals.find(x=>x.id===state.divisionSelected)||state.divisionData.transmittals[0];
    const item=state.divisionData.items.find(x=>x.id===t.dataset.id);
