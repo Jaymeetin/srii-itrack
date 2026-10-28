@@ -1577,6 +1577,11 @@ async function click(e){
    await loadVerification();show();pop(a==='compliance-verify'?'Submission verified.':'Submission returned.');return;
   }
   if(a==='monitor'){state.selectedId=t.dataset.id;rememberAnnouncement(state.selectedId);rememberView('monitoring');await load();return;}
+  if(a==='open-compliance'){
+    const c=state.compliances.find(x=>x.id===t.dataset.id);if(!c)throw Error('Submission not found.');
+    state.selectedId=c.announcement_id;rememberAnnouncement(state.selectedId);rememberView('monitoring');
+    await load();await openMonitorSchool(c.school_id);return;
+  }
   if(a==='monitor-school'){await openMonitorSchool(t.dataset.schoolId);return;}
   if(a==='monitor-submission'){
    if(!yesAdmin()||state.view!=='monitoring')throw new Error('District administrator access required.');
