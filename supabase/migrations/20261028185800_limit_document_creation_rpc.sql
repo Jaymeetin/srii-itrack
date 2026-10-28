@@ -1,0 +1,2 @@
+revoke all on function public.i_track_create_document(text,text,uuid,text,text,boolean) from public,anon;
+grant execute on function public.i_track_create_document(text,text,uuid,text,text,boolean) to authenticated;

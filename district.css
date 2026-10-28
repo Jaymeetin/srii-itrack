@@ -1,0 +1,30 @@
+
+/* School-to-District one-row checklist and admin type controls */
+.district-list-scroll{width:100%;overflow-x:auto;border:1px solid var(--line);border-radius:9px;margin:9px 0}
+.district-list{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
+.district-list thead{background:var(--light)}
+.district-list th{font-size:11px;font-weight:800;text-align:left;color:var(--muted);padding:9px 10px;border-bottom:1px solid var(--line)}
+.district-list td{height:41px;padding:6px 10px;border-bottom:1px solid var(--line);vertical-align:middle;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.district-list tbody tr:last-child td{border-bottom:0}
+.district-list .district-check-col{width:40px;text-align:center;padding:5px}
+.district-list input[type=checkbox]{width:17px;height:17px;accent-color:#19458f}
+.district-list .district-tracking{width:175px;font-size:11px;font-family:monospace}
+.district-list .district-return-col{width:125px}
+.district-list .district-status-col{width:155px;color:var(--muted)}
+.district-list .district-name{min-width:0}
+.district-list .district-name strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.district-empty{text-align:center;color:var(--muted);padding:18px!important}
+.district-bottom{display:flex;flex-wrap:wrap;gap:12px;justify-content:flex-end;align-items:center;border-top:1px solid var(--line);padding-top:11px;margin-top:10px}
+.district-bottom label{display:flex;align-items:center;gap:8px;margin-right:auto;font-size:12px;color:var(--muted)}
+.district-bottom input[type=date]{padding:7px;border:1px solid var(--line);border-radius:8px;color:var(--text);background:var(--paper)}
+.district-action-row,.type-admin-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding:11px 0;font-size:12px}
+.district-action-row:last-child,.type-admin-row:last-child{border-bottom:0}
+.district-action-buttons,.type-admin-buttons{display:flex;flex-wrap:wrap;gap:7px}
+@media(max-width:760px){
+ .district-list .district-status-col,.district-list .district-return-col{display:none}
+ .district-list .district-tracking{width:132px;font-size:10px}
+ .district-list td{padding:6px}
+ .district-list th{padding:7px}
+ .district-bottom label{width:100%;margin-right:0}
+ .district-action-row .district-action-buttons{width:100%}
+}

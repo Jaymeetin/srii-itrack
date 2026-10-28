@@ -1,0 +1,1 @@
+drop function if exists public.i_track_create_document(text,text,uuid,text,text);
