@@ -1279,13 +1279,23 @@ function divisionPage(){
  const draftControls=canEditDraft?
   '<div class="draft-edit-bar"><button class="btn alt" data-a="draft-toggle-edit">'+(state.transmittalEditing?'Finish Editing':'Edit Transmittal')+'</button>'+
    '<span class="small muted">Changes allowed only before the first physical Division submission.</span></div>'+
-  (state.transmittalEditing?'<div class="panel draft-transmittal-editor"><h4>Add Eligible Items</h4>'+
-   '<p class="note">Check the documents to add. Removed items return to these lists automatically.</p>'+
-   '<h5>Division Documents</h5><div class="division-eligible-list">'+
-    ((data.eligible||[]).map(d=>'<label class="division-choice"><input type="checkbox" class="draft-add-document" value="'+esc(d.id)+'"><span>'+esc(d.subject)+' <small>'+esc(d.tracking_number)+'</small></span></label>').join('')||'<p class="note">No eligible documents.</p>')+'</div>'+
+  (state.transmittalEditing?'<div class="panel draft-transmittal-editor" id="draft-transmittal-editor">'+
+   '<div class="draft-included-header"><div><h4>Documents Already in This Transmittal ('+activeItems.length+')</h4>'+
+   '<p class="note">These are the documents already attached to <strong>'+esc(t.transmittal_number)+'</strong>. Check the ones to remove.</p></div></div>'+
+   '<div class="draft-current-list">'+
+    (activeItems.map(i=>'<div class="draft-current-item"><label><input type="checkbox" class="draft-remove-pick" value="'+esc(i.id)+'" aria-label="Select '+esc(i.document_label)+' for removal">'+
+     '<span class="draft-current-description"><strong>'+esc(i.document_label)+'</strong>'+
+     '<small>'+esc(i.tracking_number||'No tracking ID')+' · '+esc(i.document_type||'Document')+'</small></span></label>'+
+     '<button class="btn tiny alt" data-a="transmittal-rename" data-id="'+esc(i.id)+'">Edit Name</button></div>').join('')||
+     '<p class="note">There are no documents attached to this draft. Choose from the available documents below.</p>')+'</div>'+
+   (activeItems.length?'<button class="btn danger" data-a="draft-remove-selected">Remove Checked Documents</button>':'')+
+   '<div class="draft-add-divider"></div><h4>Available Documents to Add</h4>'+
+   '<p class="note">Only documents not currently assigned to an active transmittal appear here. If these lists are empty, your documents already attached above are <strong>not missing</strong>.</p>'+
+   '<h5>Regular Division Documents</h5><div class="division-eligible-list">'+
+    ((data.eligible||[]).map(d=>'<label class="division-choice"><input type="checkbox" class="draft-add-document" value="'+esc(d.id)+'"><span>'+esc(d.subject)+' <small>'+esc(d.tracking_number)+'</small></span></label>').join('')||'<p class="note">No additional regular documents available to add.</p>')+'</div>'+
    '<h5>Verified Announcement Submissions</h5><div class="division-eligible-list">'+
-    ((data.eligible_compliances||[]).map(d=>'<label class="division-choice"><input type="checkbox" class="draft-add-compliance" value="'+esc(d.id)+'"><span>'+esc(d.school_name)+' · '+esc(d.subject)+' <small>'+esc(d.tracking_number)+'</small></span></label>').join('')||'<p class="note">No eligible submissions.</p>')+'</div>'+
-   '<button class="btn" data-a="draft-add-items">Add Selected Items</button></div>':'')
+    ((data.eligible_compliances||[]).map(d=>'<label class="division-choice"><input type="checkbox" class="draft-add-compliance" value="'+esc(d.id)+'"><span>'+esc(d.school_name)+' · '+esc(d.subject)+' <small>'+esc(d.tracking_number)+'</small></span></label>').join('')||'<p class="note">No additional verified submissions available to add.</p>')+'</div>'+
+   '<button class="btn" data-a="draft-add-items">Add Checked Documents</button></div>':'')
   :t?'<p class="note"><strong>Transmittal locked.</strong> Its first document has been marked Submitted to Division. Document names, signer details, and items can no longer be changed.</p>':'';
  const removedHistory=removedItems.length?'<details class="draft-removed-history"><summary>Removed before submission ('+removedItems.length+')</summary>'+
    removedItems.map(i=>'<p class="small muted">'+esc(i.tracking_number)+' — '+esc(i.document_label)+' (removed; eligible to add again)</p>').join('')+'</details>':'';
