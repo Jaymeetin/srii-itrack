@@ -2,6 +2,7 @@
 (()=>{
 'use strict';
 const seal='https://www.depedantique.ph/ss_theme/DivisionLogo.jpg';
+const matatag='https://deped-ddo.com/deped_matatag.png';
 const logos='https://training.deped.gov.ph/pluginfile.php/5015292/coursecat/description/%5BLOGO%5D%20DepEd-Bagong%20Pilipinas%20-_Colored%20%281%29.png?time=1747709247717';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const dt=x=>new Date(x||Date.now()).toLocaleDateString('en-PH',{year:'numeric',month:'long',day:'numeric',timeZone:'Asia/Manila'}).toUpperCase();
@@ -27,7 +28,7 @@ h2{font-size:11.3pt;margin:19px 0 12px;text-align:left}
 .sign-date{text-align:center;margin-top:30px;font-size:9pt}
 .footer{position:absolute;bottom:0;left:0;right:0;border-top:1px solid #333;display:flex;align-items:center;gap:9px;padding-top:6px;height:18mm;font-size:8.5pt;line-height:1.3}
 .footer img{object-fit:contain;flex-shrink:0}
-.footer .brand-pair{height:16mm;max-width:52mm}
+.footer .brand-pair{height:14mm;width:22mm;max-width:22mm}
 .footer .seal{height:15mm;width:15mm}
 .footer .address{flex:1}
 @media screen{body{background:#dedede;padding:14px}.sheet{width:210mm;padding:12mm 16mm;background:white;margin:0 auto 20px;box-shadow:0 2px 14px #0002;height:297mm}.footer{left:16mm;right:16mm;bottom:12mm}.signature{right:16mm}}
@@ -37,7 +38,7 @@ function header(withSeal){return '<div class="letterhead">'+(withSeal?'<img clas
 '<div>Region VI – Western Visayas</div><div class="division">SCHOOLS DIVISION OF ANTIQUE</div>'+
 (!withSeal?'<div class="district">San Remigio II District</div><div>San Remigio, Antique</div>':'')+
 '</div><div class="separator"></div>';}
-function footer(kind,school){return '<div class="footer">'+(kind==='endorsement'?'<img class="brand-pair" src="'+logos+'">':'')+
+function footer(kind,school){return '<div class="footer">'+(kind==='endorsement'?'<img class="brand-pair" src="'+matatag+'"><img class="brand-pair" src="'+logos+'">':'')+
 '<img class="seal" src="'+seal+'"><div class="address"><b>Address:</b> '+
 (kind==='endorsement'?esc(school||'San Remigio, Antique'):'Binirayan Hills, San Jose, Antique')+
 (kind==='transmittal'?'<div><b>Contact Information:</b> (036) 540 9837 / 0917 566 4491 / 0998 981 9337</div>':'')+
