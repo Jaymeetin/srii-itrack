@@ -1,0 +1,7 @@
+revoke execute on function public.i_track_mark_compliance_submitted(uuid) from public,anon; grant execute on function public.i_track_mark_compliance_submitted(uuid) to authenticated;
+revoke execute on function public.i_track_verify_compliance(uuid,boolean,text) from public,anon; grant execute on function public.i_track_verify_compliance(uuid,boolean,text) to authenticated;
+revoke execute on function public.i_track_compliance_list(uuid) from public,anon; grant execute on function public.i_track_compliance_list(uuid) to authenticated;
+revoke execute on function public.i_track_create_mixed_transmittal(uuid[],uuid[],uuid) from public,anon; grant execute on function public.i_track_create_mixed_transmittal(uuid[],uuid[],uuid) to authenticated;
+revoke execute on function public.i_track_edit_transmittal_signer(uuid,text,text,text,text) from public,anon; grant execute on function public.i_track_edit_transmittal_signer(uuid,text,text,text,text) to authenticated;
+revoke execute on function public.i_track_edit_transmittal_item(uuid,text) from public,anon; grant execute on function public.i_track_edit_transmittal_item(uuid,text) to authenticated;
+revoke execute on function public.i_track_change_document_destination(uuid,text) from public,anon; grant execute on function public.i_track_change_document_destination(uuid,text) to authenticated;
