@@ -1514,10 +1514,45 @@ async function click(e){
    const {error}=await db.rpc('i_track_edit_transmittal_item',{p_item:item.id,p_label:newName.trim()});if(error)throw error;
    await load();pop('Printed document name updated.');return;
   }
+  if(a==='draft-toggle-edit'){
+   state.transmittalEditing=!state.transmittalEditing;show();return;
+  }
+  if(a==='draft-remove-item'){
+   const trans=state.divisionData.transmittals.find(x=>x.id===state.divisionSelected)||state.divisionData.transmittals[0];
+   const item=state.divisionData.items.find(x=>x.id===t.dataset.id);
+   if(!trans||!item||item.transmittal_id!==trans.id)throw Error('Item not found in selected transmittal.');
+   if(!confirm('Remove '+item.document_label+' from this draft? It will become selectable in transmittals again.'))return;
+   const {error}=await db.rpc('i_track_edit_draft_transmittal',{p_transmittal:trans.id,p_action:'remove',p_item:item.id});
+   if(error)throw error;
+   await load();pop('Removed from draft. The original tracking ID is unchanged.');return;
+  }
+  if(a==='draft-add-items'){
+   const trans=state.divisionData.transmittals.find(x=>x.id===state.divisionSelected)||state.divisionData.transmittals[0];
+   if(!trans)throw Error('Select a transmittal.');
+   const docIds=[...document.querySelectorAll('.draft-add-document:checked')].map(x=>x.value);
+   const compIds=[...document.querySelectorAll('.draft-add-compliance:checked')].map(x=>x.value);
+   if(!docIds.length&&!compIds.length)throw Error('Select an eligible document or submission.');
+   if(!confirm('Add '+(docIds.length+compIds.length)+' selected item(s) to the draft?'))return;
+   state.busy=true;
+   let added=0;
+   try{
+    for(const id of docIds){
+     const {error}=await db.rpc('i_track_edit_draft_transmittal',{p_transmittal:trans.id,p_action:'add_document',p_document:id});
+     if(error)throw error;added++;
+    }
+    for(const id of compIds){
+     const {error}=await db.rpc('i_track_edit_draft_transmittal',{p_transmittal:trans.id,p_action:'add_compliance',p_compliance:id});
+     if(error)throw error;added++;
+    }
+   }catch(ex){
+    await load();throw Error(added+' item(s) added before an error: '+ex.message);
+   }finally{state.busy=false;}
+   await load();pop(added+' item(s) added to the draft.');return;
+  }
   if(a==='division-create'){
    const docs=[...document.querySelectorAll('.division-pick:checked')].map(x=>x.value),compliances=[...document.querySelectorAll('.division-compliance-pick:checked')].map(x=>x.value),submitter=document.getElementById('division-submitter')?.value;
    if(!docs.length&&!compliances.length)throw Error('Select a document or approved submission.');
-   state.busy=true;try{const {data,error}=await db.rpc('i_track_create_mixed_transmittal',{p_documents:docs,p_compliances:compliances,p_submitter:submitter});if(error)throw error;state.divisionSelected=data.id;await load();pop('Transmittal created.');}finally{state.busy=false;}return;
+   state.busy=true;try{const {data,error}=await db.rpc('i_track_create_mixed_transmittal',{p_documents:docs,p_compliances:compliances,p_submitter:submitter});if(error)throw error;state.divisionSelected=data.id;state.transmittalEditing=false;await load();pop('Transmittal created.');}finally{state.busy=false;}return;
   }
   if(a==='division-print'||a==='division-word'){
    const t=state.divisionData.transmittals.find(x=>x.id===state.divisionSelected)||state.divisionData.transmittals[0];if(!t)throw Error('Choose a transmittal.');
@@ -2086,7 +2121,7 @@ $.addEventListener('change',async e=>{
   if(message)message.textContent=files.length?files.map(f=>f.name+' ('+(f.size/1024/1024).toFixed(2)+' MB)').join(' · '):'No attachments selected.';
   return;
  }
- if(e.target.id==='division-current'){state.divisionSelected=e.target.value;show();return;}
+ if(e.target.id==='division-current'){state.divisionSelected=e.target.value;state.transmittalEditing=false;show();return;}
  if(e.target.id==='registration-type'){
   const oic=e.target.value==='oic_psds';
   const group=document.getElementById('register-school-field');
