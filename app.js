@@ -34,11 +34,12 @@ const knownViews=new Set(['dashboard','announcements','monitoring','documents','
 const urlView=new URLSearchParams(location.search).get('view');
 const firstView=knownViews.has(urlView)?urlView:'dashboard';
 localStorage.removeItem('srii-current-view');
-const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:arrivedFromExpiredEmailLink?'resend':'login',emailHelpReason:arrivedFromExpiredEmailLink?'expired':'',queueTicket:localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],showRemovedAccounts:false,modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],compliances:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewCompliances:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',documentDivisionStatuses:[],approverAssignments:[],announcementApproverEditing:null,transmittalEditing:false,privateDetails:null,profileRequests:[],userFeedback:[],issue:null,maintenance:{enabled:false,message:''}};
+const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:arrivedFromExpiredEmailLink?'resend':'login',emailHelpReason:arrivedFromExpiredEmailLink?'expired':'',queueTicket:localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],showRemovedAccounts:false,modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],compliances:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewCompliances:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',documentDivisionStatuses:[],approverAssignments:[],announcementApproverEditing:null,announcementEditId:null,announcementEditorData:null,announcementCancelId:null,transmittalEditing:false,privateDetails:null,profileRequests:[],userFeedback:[],issue:null,maintenance:{enabled:false,message:''}};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=x=>x?new Date(x).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}):'—';
 const short=x=>x?new Date(x).toLocaleDateString('en-PH',{dateStyle:'medium',timeZone:'Asia/Manila'}):'—';
+const phtDatetimeLocal=x=>x?new Date(new Date(x).getTime()+8*60*60*1000).toISOString().slice(0,16):'';
 const announcementName=a=>(a?.announcement_code?a.announcement_code+' — ':'')+(a?.title||'Announcement');
 const clean=x=>String(x||'').trim();
 const yesAdmin=()=>['main_admin','backup_admin'].includes(state.profile?.role);
@@ -132,7 +133,7 @@ async function load(){
   const tasks=[];
   tasks.push((async()=>{const {data,error}=await db.rpc('i_track_approver_assignments');if(error)throw error;state.approverAssignments=data||[];})());
   if(['dashboard','announcements','monitoring','verification','reports','school-files'].includes(state.view)){
-   tasks.push((async()=>{const {data,error}=await db.from('announcements').select('id,announcement_code,title,description,status,deadline_at,original_deadline_at,created_at').order('created_at',{ascending:false});if(error)throw error;state.announcements=data||[];if(!state.selectedId||!state.announcements.some(x=>x.id===state.selectedId))state.selectedId=state.announcements.find(x=>x.status!=='draft')?.id||'';})());
+   tasks.push((async()=>{const {data,error}=await db.from('announcements').select('id,announcement_code,title,description,status,deadline_at,original_deadline_at,created_at,cancelled_at,cancellation_reason').order('created_at',{ascending:false});if(error)throw error;state.announcements=data||[];if(!state.selectedId||!state.announcements.some(x=>x.id===state.selectedId))state.selectedId=state.announcements.find(x=>x.status!=='draft')?.id||'';})());
   }
   if(!isOic()&&['dashboard','documents','division'].includes(state.view)){
    tasks.push((async()=>{const {data,error}=await db.from('documents').select('id,tracking_number,subject,document_type,status,destination,created_by,origin_school_id,created_at').order('created_at',{ascending:false}).limit(200);if(error)throw error;state.docs=data||[];if(state.view==='documents')await Promise.all([loadDocumentAttachments(),loadRoutingHistory(),loadDocumentTypes(),loadSchoolSubmissionDocuments(),loadCompliances()]);
@@ -314,6 +315,20 @@ async function loadDocumentTypes(){
  state.docTypeRequests=suggestions.data||[];
 }
 async function loadRecipients(){const {data,error}=await db.rpc('i_track_recipient_directory');if(error)throw error;state.recipients=data||[];}
+async function openAnnouncementEditor(id){
+ if(!yesAdmin()||!active())throw Error('District administrator required');
+ const ann=state.announcements.find(x=>x.id===id);
+ if(!ann)throw Error('Announcement not found');
+ if(ann.status==='cancelled')throw Error('Cancelled announcements are retained as read-only records');
+ await loadRecipients();
+ const {data,error}=await db.rpc('i_track_announcement_editor_data',{p_announcement:id});
+ if(error)throw error;
+ if(!data||data.announcement_id!==id)throw Error('Unable to load announcement schools');
+ state.announcementEditId=id;
+ state.announcementEditorData=data;
+ state.modal='edit-announcement';
+ show();
+}
 async function loadMonitor(){if(!state.selectedId){state.monitor=[];return;}const {data,error}=await db.rpc('i_track_monitor',{p_announcement_id:state.selectedId});if(error)throw error;state.monitor=data||[];}
 async function loadVerification(){
  if(!active()||(!yesAdmin()&&!state.approverAssignments.some(x=>x.user_id===state.session.user.id)))throw new Error('Assigned approver or administrator access required.');
@@ -832,7 +847,7 @@ function dashboardPage(){
  if(!admin&&!oversight){
   for(const a of assigned){
    const ann=state.announcements.find(n=>n.id===a.announcement_id);
-   if(ann&&ann.status!=="draft")byAnn.set(ann.id,{...ann,assignmentId:a.id});
+   if(ann&&ann.status!=="draft"&&ann.status!=="cancelled")byAnn.set(ann.id,{...ann,assignmentId:a.id});
   }
  }
  const mine=[...byAnn.values()];
@@ -878,7 +893,7 @@ function dashboardPage(){
  }).join("")||'<div class="empty">No assigned announcements yet.</div>';
  const actionNeeded=!admin&&!oversight?state.docs.filter(d=>{const routes=documentRoutes(d.id),last=routes.at(-1);return last?.to_user_id===state.session.user.id&&(last.route_status==='awaiting_ack'||(last.route_status==='received'&&!last.processed_at));}).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,3):[];
  const actionNeededHtml=actionNeeded.map(d=>'<div class="v2-notice-item"><div class="v2-notice-copy"><strong>'+esc(d.subject)+'</strong><small>'+esc(d.tracking_number)+'</small></div><button class="btn tiny alt" data-a="detail" data-id="'+esc(d.id)+'">Review</button></div>').join('')||'<p class="note">No documents currently need your action.</p>';
- const upcoming=latest.filter(a=>a.deadline_at&&new Date(a.deadline_at)>new Date()&&a.status!=="closed")
+ const upcoming=latest.filter(a=>a.deadline_at&&new Date(a.deadline_at)>new Date()&&a.status==="open")
   .sort((a,b)=>new Date(a.deadline_at)-new Date(b.deadline_at)).slice(0,3);
  const reminders=upcoming.map(a=>'<div class="v2-reminder"><span class="v2-dot"></span><span>'+esc(short(a.deadline_at))+'</span><strong>'+esc(announcementName(a))+'</strong></div>').join("")||
   '<p class="note">No upcoming deadlines.</p>';
@@ -966,10 +981,26 @@ function exportDistrictReport(){
  setTimeout(()=>URL.revokeObjectURL(url),2000);
 }
 function announcementPage(){
- const rows=state.announcements.map(a=>`<tr><td><span class="ann-ref">${esc(a.announcement_code||'')}</span><strong>${esc(a.title)}</strong><div class="small muted">${esc(a.description||'')}</div></td><td>${pTag(a.status)}</td><td>${short(a.deadline_at)}</td><td><button class="btn tiny alt" data-a="monitor" data-id="${a.id}">Monitor</button>${yesAdmin()?` <button class="btn tiny alt" data-a="manage-approvers" data-id="${a.id}">Approvers</button>`:""}</td></tr>`);
- return `<div class="sectionhead"><div><div class="eyebrow">District requirements</div><h1>Announcements</h1><p class="sub">Official school submission requests and deadlines.</p></div>${yesAdmin()?'<button class="btn" data-a="new-announcement">+ New Announcement</button>':''}</div><div class="panel"><h3>Announcement Board</h3>${table(['Announcement','Status','Deadline',''],rows)}</div>`;
+ const rows=state.announcements.map(a=>{
+  const canManage=yesAdmin()&&a.status!=='cancelled';
+  const actions='<button class="btn tiny alt" data-a="monitor" data-id="'+esc(a.id)+'">Monitor</button>'+
+   (canManage?'<button class="btn tiny alt" data-a="edit-announcement" data-id="'+esc(a.id)+'">Edit</button>'+
+    '<button class="btn tiny alt" data-a="manage-approvers" data-id="'+esc(a.id)+'">Approvers</button>'+
+    '<button class="btn tiny danger" data-a="cancel-announcement" data-id="'+esc(a.id)+'">Cancel Announcement</button>':'');
+  const cancellation=a.status==='cancelled'?'<div class="announcement-cancelled-note"><strong>Cancelled '+esc(date(a.cancelled_at))+'</strong> · '+esc(a.cancellation_reason||'Cancelled by district administrator')+'</div>':'';
+  return '<tr><td><span class="ann-ref">'+esc(a.announcement_code||'')+'</span><strong>'+esc(a.title)+'</strong>'+
+   '<div class="small muted">'+esc(a.description||'')+'</div>'+cancellation+'</td>'+
+   '<td>'+pTag(a.status)+'</td><td>'+esc(short(a.deadline_at))+'</td>'+
+   '<td><div class="announcement-admin-actions">'+actions+'</div></td></tr>';
+ });
+ return '<div class="sectionhead"><div><div class="eyebrow">District requirements</div><h1>Announcements</h1>'+
+  '<p class="sub">Official school submission requests and deadlines. Cancelled announcements remain visible for reference, but no longer accept submissions.</p></div>'+
+  (yesAdmin()?'<button class="btn" data-a="new-announcement">+ New Announcement</button>':'')+'</div>'+
+  '<div class="panel"><h3>Announcement Board</h3>'+table(['Announcement','Status','Deadline','Actions'],rows)+'</div>';
 }
 function monitorPage(){
+ const currentAnnouncement=state.announcements.find(a=>a.id===state.selectedId);
+ const isCancelledAnnouncement=currentAnnouncement?.status==='cancelled';
  const opts=state.announcements.filter(a=>a.status!=='draft').map(a=>
   '<option value="'+esc(a.id)+'"'+(a.id===state.selectedId?' selected':'')+'>'+esc(announcementName(a))+'</option>').join('');
  const n=x=>state.monitor.filter(s=>s.submission_status===x).length;
@@ -985,15 +1016,15 @@ function monitorPage(){
  return '<div class="eyebrow">District-wide visibility</div><h1>Submission Monitoring</h1>'+
   '<p class="sub">Tap any school to view its submission status.'+
    (isAoII()?' As an approved AO II, you may submit for another school when its AO II is unavailable.':'')+
-   ' Only district administrators verify submissions and access other schools\' uploaded files.</p>'+
+   ' Only district administrators and assigned approvers can verify submissions. File access remains restricted.</p>'+
   (yesAdmin()?'<div class="school-files-monitor-link"><button type="button" class="btn alt" data-a="nav" data-page="school-files">▣ View All School Attachments</button></div>':'')+
   '<div class="panel"><div class="field"><label for="pick-ann">Announcement</label><select id="pick-ann"><option value="">Choose an announcement</option>'+opts+'</select></div></div>'+
-  (state.selectedId?'<div class="stats">'+stat('Required Schools',state.monitor.length,'For selected announcement')+
+  (state.selectedId?(isCancelledAnnouncement?'<div class="notice warn"><strong>Cancelled announcement.</strong> '+esc(currentAnnouncement?.cancellation_reason||'This announcement was cancelled by the district administrator.')+' New submissions are disabled; existing records are retained.</div>':'')+'<div class="stats">'+(isCancelledAnnouncement?stat('Status','Cancelled','No pending compliance required')+stat('Previously assigned schools',state.monitor.length,'Historical record'):stat('Required Schools',state.monitor.length,'For selected announcement')+
    stat('Verified',n('Submitted')+n('Late'),'Admin approved')+stat('Awaiting Review',n('Pending Verification'),'Pending approval')+stat('Returned',n('Returned for Correction'),'Needs correction')+
-   stat('Pending',n('Pending'),'Not yet submitted')+'</div>'+
+   stat('Pending',n('Pending'),'Not yet submitted'))+'</div>'+
    '<div class="panel"><h3>School Status</h3><div class="status-school-list">'+(rows||'<p class="empty">No required schools found.</p>')+'</div></div>':
    '<div class="panel empty">Choose an announcement to view status.</div>')+
-  '<div class="notice">Privacy: Everyone can see submission completion, but school files remain private. The uploading AO II is recorded; only district administrators can verify submissions.</div>';
+  '<div class="notice">Privacy: Everyone can see submission completion; file access remains restricted. Only district administrators and assigned approvers can verify submissions.</div>';
 }
 function monitorSchoolVisibleFilesHtml(){
  const files=state.monitorSchoolFiles||[];
@@ -1021,7 +1052,7 @@ function monitorSchoolModal(){
   '<p class="note">The actual uploader and represented school are recorded automatically. A submission requires district administrator verification; the represented school does not approve it.</p>':
   '<p class="note">'+(isOic()?'Oversight account: view status only.':
     item.announcementOpen?'Only approved AO II accounts and district administrators can submit for another school.':
-    'This announcement is closed; new submissions are unavailable.')+'</p>';
+    'This announcement is closed or cancelled; new submissions are unavailable.')+'</p>';
  const existing=!isOic()&&!yesAdmin()?'<section class="monitor-visible-files"><h4>Files You Can Access</h4>'+ 
   '<div id="monitor-visible-school-uploads">'+monitorSchoolVisibleFilesHtml()+'</div></section>':'';
  return info+adminButton+existing+action;
@@ -1389,6 +1420,37 @@ function modalHtml(){
    '<p class="note">Any one assigned approver may approve or return a school submission. District administrators retain oversight.</p>'+
    '<div class="approver-list">'+state.recipients.map(u=>'<label><input type="checkbox" class="announcement-approver-pick" value="'+esc(u.user_id)+'"> '+esc(u.display_name)+'</label>').join('')+'</div></div></form>');
   footer='<button class="btn alt" data-a="close">Cancel</button><button class="btn" type="submit" form="form-ann">Publish</button>';
+ }else if(m==='edit-announcement'){
+  const ann=state.announcements.find(x=>x.id===state.announcementEditId);
+  const editor=state.announcementEditorData||{};
+  const selected=new Set(editor.school_ids||[]);
+  const protectedIds=new Set(editor.protected_school_ids||[]);
+  const schools=state.schools.filter(x=>x.is_active);
+  const allSelected=schools.length>0&&schools.every(x=>selected.has(x.id));
+  title='Edit Announcement';
+  body='<form id="form-ann-edit">'+
+   '<p class="note"><strong>'+esc(ann?.announcement_code||'Announcement')+'</strong> · '+esc(ann?.status||'')+
+   '. Editing preserves existing submission IDs, uploaded files, and the original publication history.</p>'+
+   '<div class="field"><label for="edit-ann-title">Announcement Title</label><input id="edit-ann-title" name="title" type="text" maxlength="180" required value="'+esc(ann?.title||'')+'"></div>'+
+   '<div class="field"><label for="edit-ann-description">Description / Instructions</label><textarea id="edit-ann-description" name="description" rows="4" maxlength="5000">'+esc(ann?.description||'')+'</textarea></div>'+
+   '<div class="field"><label for="edit-ann-deadline">Submission Deadline (Philippine time)</label><input id="edit-ann-deadline" name="deadline" type="datetime-local" required value="'+esc(phtDatetimeLocal(ann?.deadline_at))+'"></div>'+
+   '<p class="note">Original deadline: '+esc(date(ann?.original_deadline_at))+' (kept in the audit record). The announcement remains '+esc(ann?.status||'open')+' after editing.</p>'+
+   '<div class="field"><label>Required Schools</label><label class="small"><input id="all-schools" type="checkbox"'+(allSelected?' checked':'')+'> Select all available schools</label>'+
+   '<p class="note">Schools that already submitted are locked to protect their compliance. To stop an entire announcement, use Cancel Announcement instead.</p>'+
+   '<div class="school-grid">'+schools.map(sc=>'<label><input type="checkbox" class="school-checkbox" value="'+esc(sc.id)+'"'+(selected.has(sc.id)?' checked':'')+(protectedIds.has(sc.id)?' disabled':'')+'> '+esc(sc.name)+(protectedIds.has(sc.id)?' <span class="small muted">(submitted — cannot remove)</span>':'')+'</label>').join('')+'</div></div>'+
+   '<div class="field"><label>Assigned Approvers (optional)</label><p class="note">Any one assigned approver may approve a school submission. Administrators retain verification rights.</p>'+
+   '<div class="approver-list">'+state.recipients.map(u=>'<label><input type="checkbox" class="announcement-approver-pick" value="'+esc(u.user_id)+'"'+((editor.approver_ids||[]).includes(u.user_id)?' checked':'')+'> '+esc(u.display_name)+'</label>').join('')+'</div></div>'+
+   '</form>';
+  footer='<button class="btn alt" data-a="close">Cancel</button><button class="btn" type="submit" form="form-ann-edit">Save Announcement Changes</button>';
+ }else if(m==='cancel-announcement'){
+  const ann=state.announcements.find(x=>x.id===state.announcementCancelId);
+  title='Cancel Announcement';
+  body='<div class="notice warn"><strong>Cancel '+esc(ann?.announcement_code||'this announcement')+'?</strong>'+
+   '<p>School submissions will stop. The announcement, existing attachments, tracking IDs, and verification history will be preserved. Cancellation cannot be reversed here.</p></div>'+
+   '<p><strong>'+esc(ann?.title||'Announcement')+'</strong></p>'+
+   '<div class="field"><label for="cancel-ann-reason">Reason for Cancellation (required)</label>'+
+   '<textarea id="cancel-ann-reason" rows="4" minlength="5" maxlength="1000" placeholder="State why this announcement is being cancelled"></textarea></div>';
+  footer='<button class="btn alt" data-a="close">Keep Announcement</button><button class="btn danger" data-a="confirm-cancel-announcement">Confirm Cancellation</button>';
  }else if(m==='announcement-approvers'){
   const ann=state.announcements.find(a=>a.id===state.announcementApproverEditing);
   title='Manage Assigned Approvers';
@@ -1728,6 +1790,29 @@ async function click(e){
   }
   if(a==='close'){const refreshStatus=state.modal==='monitor-school';state.modal=null;state.monitorSchool=null;state.monitorSchoolFiles=[];state.monitorDetail=null;state.monitorFiles=[];if(refreshStatus&&state.view==='monitoring')await loadMonitor();show();return;}
   if(a==='new-announcement'){state.modal='new-announcement';show();return;}
+  if(a==='edit-announcement'){
+   await openAnnouncementEditor(t.dataset.id);return;
+  }
+  if(a==='cancel-announcement'){
+   if(!yesAdmin())throw Error('District administrator required');
+   const ann=state.announcements.find(x=>x.id===t.dataset.id);
+   if(!ann||ann.status==='cancelled')throw Error('Announcement is already cancelled or unavailable');
+   state.announcementCancelId=ann.id;
+   state.modal='cancel-announcement';show();return;
+  }
+  if(a==='confirm-cancel-announcement'){
+   if(!yesAdmin())throw Error('District administrator required');
+   const reason=clean(document.getElementById('cancel-ann-reason')?.value);
+   if(reason.length<5||reason.length>1000)throw Error('Provide a cancellation reason between 5 and 1,000 characters.');
+   const ann=state.announcements.find(x=>x.id===state.announcementCancelId);
+   if(!ann||ann.status==='cancelled')throw Error('Announcement unavailable');
+   if(!confirm('Cancel '+ann.title+'? New submissions will stop. Existing submissions and files will remain saved.'))return;
+   const {data,error}=await db.rpc('i_track_cancel_announcement',{p_announcement:ann.id,p_reason:reason});
+   if(error)throw error;
+   state.modal=null;state.announcementCancelId=null;
+   await load();pop('Announcement cancelled; '+(data?.preserved_responses||0)+' existing compliance record(s) preserved.');return;
+  }
+
   if(a==='manage-approvers'){
    if(!yesAdmin())throw Error('District administrator required');
    state.announcementApproverEditing=t.dataset.id;state.modal='announcement-approvers';show();return;
@@ -1933,7 +2018,7 @@ async function uploadNewDocumentAttachment(documentId,file){
  }finally{clearTimeout(timeout);}
 }
 async function submit(e){
- const form=e.target;if(!['queue-join','queue-complete','login','resend-email','forgot-password','set-password','form-ann','form-doc','settings-email-form','settings-password-form','settings-profile-form','settings-private-form','settings-feedback-form'].includes(form.id))return;
+ const form=e.target;if(!['queue-join','queue-complete','login','resend-email','forgot-password','set-password','form-ann','form-ann-edit','form-doc','settings-email-form','settings-password-form','settings-profile-form','settings-private-form','settings-feedback-form'].includes(form.id))return;
  e.preventDefault();if(state.maintenance.enabled&&!yesAdmin()&&state.session){await readMaintenance();show();return;}if(state.busy)return;state.busy=true;form.querySelectorAll('button[type=submit]').forEach(x=>x.disabled=true);
  try{
   const fd=new FormData(form);
@@ -2110,6 +2195,32 @@ async function submit(e){
    state.emailHelpReason='';
    await sync();pop('Signed in.');return;
   }
+  if(form.id==='form-ann-edit'){
+   if(!yesAdmin())throw Error('District administrator required');
+   const ann=state.announcements.find(x=>x.id===state.announcementEditId);
+   if(!ann||ann.status==='cancelled')throw Error('This announcement is cancelled or unavailable');
+   const title=clean(fd.get('title')),description=clean(fd.get('description'));
+   if(title.length<2||title.length>180)throw Error('Enter a title between 2 and 180 characters.');
+   if(description.length>5000)throw Error('Description must be at most 5,000 characters.');
+   const selected=[...form.querySelectorAll('.school-checkbox:checked')].map(c=>c.value);
+   if(!selected.length)throw Error('At least one school must remain assigned.');
+   const locked=state.announcementEditorData?.protected_school_ids||[];
+   if(locked.some(id=>!selected.includes(id)))throw Error('Schools with existing submissions cannot be removed.');
+   const raw=clean(fd.get('deadline'));
+   if(!raw)throw Error('Enter the deadline.');
+   const deadline=new Date(raw+'+08:00');
+   if(Number.isNaN(deadline.getTime()))throw Error('Invalid Philippine-time deadline.');
+   const approvers=[...form.querySelectorAll('.announcement-approver-pick:checked')].map(c=>c.value);
+   const {data,error}=await db.rpc('i_track_update_announcement',{
+    p_announcement:ann.id,p_title:title,p_description:description,
+    p_deadline_at:deadline.toISOString(),p_school_ids:selected,p_approver_ids:approvers
+   });
+   if(error)throw error;
+   state.modal=null;state.announcementEditId=null;state.announcementEditorData=null;
+   await load();
+   pop('Announcement updated. '+(data?.required_school_count||selected.length)+' school(s) assigned; previous submissions preserved.');
+   return;
+  }
   if(form.id==='form-ann'){
    const selected=[...form.querySelectorAll('.school-checkbox:checked')].map(c=>c.value);
    if(!selected.length)throw new Error('Select at least one school.');
@@ -2203,7 +2314,7 @@ $.addEventListener('change',async e=>{
   }
   if(info)info.hidden=!oic;
  }
- if(e.target.id==='all-schools')document.querySelectorAll('.school-checkbox').forEach(c=>c.checked=e.target.checked);
+ if(e.target.id==='all-schools')document.querySelectorAll('.school-checkbox:not(:disabled)').forEach(c=>c.checked=e.target.checked);
  if(e.target.id==='pick-ann'){state.selectedId=e.target.value;rememberAnnouncement(state.selectedId);try{await loadMonitor();show();}catch(ex){err(ex);}}
  if(['school-files-filter-school','school-files-filter-ann','school-files-filter-versions'].includes(e.target.id)&&yesAdmin()&&state.view==='school-files'){
   if(e.target.id==='school-files-filter-school')state.schoolFilesSchool=e.target.value;

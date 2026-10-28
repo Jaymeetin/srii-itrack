@@ -693,3 +693,15 @@ tr[hidden]{display:none!important}
 .draft-current-item .btn{flex-shrink:0}
 .draft-add-divider{border-top:1px solid var(--line);margin:23px 0 19px}
 @media(max-width:600px){.draft-current-item{padding:10px;gap:7px}.draft-current-item>label{gap:9px}.draft-current-description strong{font-size:13px}}
+
+/* Administrator announcement editing and cancellation */
+.announcement-admin-actions{display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-width:240px}
+.announcement-admin-actions .btn{margin:0;white-space:nowrap}
+.announcement-cancelled-note{font-size:12px;line-height:1.45;padding:7px 9px;margin-top:7px;border-left:3px solid #a66c43;background:var(--bg);overflow-wrap:anywhere}
+.announcement-cancelled-note strong{font-weight:700}
+#form-ann-edit .school-grid{max-height:240px;overflow-y:auto}
+#form-ann-edit .school-grid label{line-height:1.4}
+#form-ann-edit .school-grid input:disabled{opacity:.68;cursor:not-allowed}
+#form-ann-edit .school-grid label:has(input:disabled){opacity:.84}
+#cancel-ann-reason{min-height:115px;max-width:100%}
+@media(max-width:620px){.announcement-admin-actions{min-width:0}.announcement-admin-actions .btn{flex:1 1 100px}}
