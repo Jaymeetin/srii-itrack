@@ -54,7 +54,7 @@ body{font:9.7pt Arial,Helvetica,sans-serif;color:#161616}
 .letterhead .district{font:9.6pt Georgia,"Times New Roman",serif}
 .separator{height:2.3mm;margin:2mm 2mm 5mm;border-top:1px solid #555;border-bottom:1px solid #555}
 h1{font-size:11.6pt;margin:5mm 0 4mm;text-align:center}
-h2{font:700 11.8pt Arial,Helvetica,sans-serif;margin:2.8mm 0 8mm;text-align:left}
+h2{font:700 11.8pt Arial,Helvetica,sans-serif;margin:2.8mm 0 8mm;text-align:center}
 .doc-date{text-align:center;margin:0 0 11mm;font-size:9.4pt}
 .intro{font-size:9.7pt;line-height:1.33;text-align:justify;text-indent:11mm;margin:0 0 5mm}
 .intro.endorse-intro{font-size:10.7pt;line-height:1.4;margin-bottom:12mm}
@@ -66,7 +66,8 @@ h2{font:700 11.8pt Arial,Helvetica,sans-serif;margin:2.8mm 0 8mm;text-align:left
 .item-id{font-size:7.2pt;color:#999}
 .signature{bottom:31mm;width:70%;line-height:1.12}
 .signature strong{font-size:9.2pt}
-.signature.ao-signature strong{text-decoration:underline}
+.signature.ao-signature{text-align:center;left:50%;right:auto;transform:translateX(-50%)}
+.signature.ao-signature strong{text-decoration:underline;text-align:center}
 .signature.endorse-signature strong{text-decoration:none}
 .signature-caption{margin-bottom:6mm}
 .sign-date{margin-top:7mm}
