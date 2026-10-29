@@ -1,10 +1,15 @@
 /* SRII i-TRACK faithful A4 print layouts. IDs belong to items, never to the visible transmittal heading. */
 (()=>{
 'use strict';
-const seal='https://www.depedantique.ph/ss_theme/DivisionLogo.jpg';
-const depedSeal='https://upload.wikimedia.org/wikipedia/commons/thumb/2/20/Department_of_Education.svg/250px-Department_of_Education.svg.png';
-const sampleFooter=new URL('./assets/endorsement-footer-sample.webp',location.href).href;
-const printFonts='<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=UnifrakturCook:wght@700&display=swap">';
+// Exact letterhead and footer artwork from the user's uploaded Word samples.
+const baseUrl=new URL('./',location.href);
+const templateAssets={
+ endorsementHeader:new URL('assets/division-sample-endorsement-header.webp',baseUrl).href,
+ endorsementFooter:new URL('assets/division-sample-endorsement-footer.webp',baseUrl).href,
+ transmittalHeader:new URL('assets/division-sample-transmittal-header.webp',baseUrl).href,
+ transmittalFooter:new URL('assets/division-sample-transmittal-footer.webp',baseUrl).href
+};
+const printFonts='';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const ENDORSER={name:'SHERILL E. CORTEJO, PhD',position:'School Principal II',office:'OIC, Office of the Public Schools District Supervisor'};
 const dt=x=>new Date(x||Date.now()).toLocaleDateString('en-PH',{year:'numeric',month:'long',day:'numeric',timeZone:'Asia/Manila'}).toUpperCase();
@@ -70,16 +75,30 @@ h2{font:700 11.8pt Arial,Helvetica,sans-serif;margin:2.8mm 0 8mm;text-align:left
 .footer .address{text-align:center}
 .footer.endorse-footer{height:23mm;border:0;padding:0;display:block}
 .footer .sample-footer{display:block;width:100%;height:23mm;object-fit:fill}
+
+/* Native header and footer artwork imported from the provided Word originals. */
+.letterhead.artwork-letterhead{margin:0 auto 2mm;text-align:center;line-height:normal}
+.artwork-letterhead .sample-head-graphic{display:block;height:auto;object-fit:contain;margin:0 auto;max-width:100%}
+.artwork-letterhead.transmittal .sample-head-graphic{width:172mm}
+.artwork-letterhead.endorsement .sample-head-graphic{width:145mm}
+.separator{display:none}
+.footer.artwork-footer{height:auto;display:block;padding:0;border:0}
+.footer.artwork-footer .sample-foot-graphic{display:block;width:100%;height:auto;object-fit:contain}
+.footer.artwork-footer.endorsement .sample-foot-graphic{height:24mm;width:100%}
+.footer.artwork-footer.transmittal .sample-foot-graphic{height:23mm;width:100%}
 `;
-function header(kind){return '<div class="letterhead"><img class="logo-head" src="'+depedSeal+'" alt="Department of Education seal">'+
-'<div class="republic">Republic of the Philippines</div><div class="deped">Department of Education</div>'+
-'<div class="region">REGION VI – WESTERN VISAYAS</div><div class="division">SCHOOLS DIVISION OF ANTIQUE</div>'+
-(kind==='endorsement'?'<div class="district">SAN REMIGIO II DISTRICT</div><div class="district">SAN REMIGIO, ANTIQUE</div>':'')+
-'</div><div class="separator"></div>';}
+function header(kind){
+ const isEnd=kind==='endorsement';
+ const url=isEnd?templateAssets.endorsementHeader:templateAssets.transmittalHeader;
+ return '<div class="letterhead artwork-letterhead '+(isEnd?'endorsement':'transmittal')+'">'+
+  '<img class="sample-head-graphic" src="'+url+'" alt="Original Department of Education letterhead from Word sample"></div>';
+}
 function footer(kind){
-if(kind==='endorsement')return '<div class="footer endorse-footer"><img class="sample-footer" src="'+sampleFooter+'" alt="Original Bugo footer with three official logos"></div>';
-return '<div class="footer"><img class="seal" src="'+seal+'" alt="Schools Division of Antique seal">'+
-'<div class="address">Address: Binirayan Hills, San Jose, Antique<div>Contact Information: (036) 540 9837 / 0917 566 4491 / 0998 981 9337</div></div></div>';}
+ const isEnd=kind==='endorsement';
+ const url=isEnd?templateAssets.endorsementFooter:templateAssets.transmittalFooter;
+ return '<div class="footer artwork-footer '+(isEnd?'endorsement':'transmittal')+'">'+
+  '<img class="sample-foot-graphic" src="'+url+'" alt="Original '+(isEnd?'Bugo District':'Schools Division of Antique')+' footer from Word sample"></div>';
+}
 function render(t,items,kind,people=[],schools=[]){
  const submitter=people.find(p=>p.id===t.assigned_submitter)||{
   name:items.find(i=>i.ao_sender_is_submitted)?.ao_sender_name||'',
