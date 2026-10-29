@@ -2,8 +2,9 @@
 (()=>{
 'use strict';
 const seal='https://www.depedantique.ph/ss_theme/DivisionLogo.jpg';
-const matatag='https://deped-ddo.com/deped_matatag.png';
-const logos='https://training.deped.gov.ph/pluginfile.php/5015292/coursecat/description/%5BLOGO%5D%20DepEd-Bagong%20Pilipinas%20-_Colored%20%281%29.png?time=1747709247717';
+const depedSeal='https://upload.wikimedia.org/wikipedia/commons/thumb/2/20/Department_of_Education.svg/250px-Department_of_Education.svg.png';
+const sampleFooter=new URL('./assets/endorsement-footer-sample.webp',location.href).href;
+const printFonts='<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=UnifrakturCook:wght@700&display=swap">';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const ENDORSER={name:'SHERILL E. CORTEJO, PhD',position:'School Principal II',office:'OIC, Office of the Public Schools District Supervisor'};
 const dt=x=>new Date(x||Date.now()).toLocaleDateString('en-PH',{year:'numeric',month:'long',day:'numeric',timeZone:'Asia/Manila'}).toUpperCase();
@@ -35,17 +36,50 @@ h2{font-size:11.3pt;margin:19px 0 12px;text-align:center}
 .footer .seal{height:15mm;width:15mm}
 .footer .address{flex:1}
 @media screen{body{background:#dedede;padding:14px}.sheet{width:210mm;padding:12mm 16mm;background:white;margin:0 auto 20px;box-shadow:0 2px 14px #0002;height:297mm}.footer{left:16mm;right:16mm;bottom:12mm}.signature{left:50%;right:auto;transform:translateX(-50%)}}
+
+/* Sample-matched print layout: the original Word reference uses compact
+   blackletter DepEd headers, plain numbered lines, and a distant signatory. */
+body{font:9.7pt Arial,Helvetica,sans-serif;color:#161616}
+.sheet{height:273mm}
+.letterhead{font:9.8pt Georgia,"Times New Roman",serif;line-height:1.12;margin:0 auto 2mm}
+.logo-head{width:18mm;height:18mm;object-fit:contain;margin:0 auto 1mm}
+.letterhead .republic{font:700 12.5pt "UnifrakturCook","Old English Text MT",Georgia,serif}
+.letterhead .deped{font:700 18.8pt "UnifrakturCook","Old English Text MT",Georgia,serif}
+.letterhead .region,.letterhead .division{font:10.2pt Georgia,"Times New Roman",serif;font-weight:400}
+.letterhead .district{font:9.6pt Georgia,"Times New Roman",serif}
+.separator{height:2.3mm;margin:2mm 2mm 5mm;border-top:1px solid #555;border-bottom:1px solid #555}
+h1{font-size:11.6pt;margin:5mm 0 4mm;text-align:center}
+h2{font:700 11.8pt Arial,Helvetica,sans-serif;margin:2.8mm 0 8mm;text-align:left}
+.doc-date{text-align:center;margin:0 0 11mm;font-size:9.4pt}
+.intro{font-size:9.7pt;line-height:1.33;text-align:justify;text-indent:11mm;margin:0 0 5mm}
+.intro.endorse-intro{font-size:10.7pt;line-height:1.4;margin-bottom:12mm}
+.category{font-weight:700;margin:5mm 0 2mm;font-size:9.7pt}
+.list-heading{font-size:9.6pt;font-weight:400;margin:5mm 0 4mm}
+.item{line-height:1.28;padding-left:5mm;margin:1mm 0;break-inside:avoid}
+.item strong{font-weight:400}
+.item-sender{font-size:7.8pt;line-height:1.15;margin:0 0 1.5mm 6mm}
+.item-id{font-size:7.2pt;color:#999}
+.signature{bottom:31mm;width:70%;line-height:1.12}
+.signature strong{font-size:9.2pt}
+.signature.ao-signature strong{text-decoration:underline}
+.signature.endorse-signature strong{text-decoration:none}
+.signature-caption{margin-bottom:6mm}
+.sign-date{margin-top:7mm}
+.footer{height:17mm;border-top:1px solid #222;padding-top:2mm;gap:8mm;font-size:8.4pt}
+.footer .seal{height:15mm;width:16mm}
+.footer .address{text-align:center}
+.footer.endorse-footer{height:23mm;border:0;padding:0;display:block}
+.footer .sample-footer{display:block;width:100%;height:23mm;object-fit:fill}
 `;
-function header(kind){return '<div class="letterhead"><img class="logo-head" src="'+seal+'" alt="Schools Division of Antique seal">'+
-'<div>Republic of the Philippines</div><div class="deped">Department of Education</div>'+
-'<div>Region VI – Western Visayas</div><div class="division">SCHOOLS DIVISION OF ANTIQUE</div>'+
-(kind==='endorsement'?'<div class="district">SAN REMIGIO II DISTRICT</div><div>SAN REMIGIO, ANTIQUE</div>':'')+
+function header(kind){return '<div class="letterhead"><img class="logo-head" src="'+depedSeal+'" alt="Department of Education seal">'+
+'<div class="republic">Republic of the Philippines</div><div class="deped">Department of Education</div>'+
+'<div class="region">REGION VI – WESTERN VISAYAS</div><div class="division">SCHOOLS DIVISION OF ANTIQUE</div>'+
+(kind==='endorsement'?'<div class="district">SAN REMIGIO II DISTRICT</div><div class="district">SAN REMIGIO, ANTIQUE</div>':'')+
 '</div><div class="separator"></div>';}
-function footer(kind,school){return '<div class="footer">'+(kind==='endorsement'?'<img class="brand-pair" src="'+matatag+'"><img class="brand-pair" src="'+logos+'">':'')+
-'<img class="seal" src="'+seal+'"><div class="address"><b>Address:</b> '+
-(kind==='endorsement'?'Bugo, San Remigio, Antique':'Binirayan Hills, San Jose, Antique')+
-(kind==='transmittal'?'<div><b>Contact Information:</b> (036) 540 9837 / 0917 566 4491 / 0998 981 9337</div>':'')+
-'</div></div>';}
+function footer(kind){
+if(kind==='endorsement')return '<div class="footer endorse-footer"><img class="sample-footer" src="'+sampleFooter+'" alt="Original Bugo footer with three official logos"></div>';
+return '<div class="footer"><img class="seal" src="'+seal+'" alt="Schools Division of Antique seal">'+
+'<div class="address">Address: Binirayan Hills, San Jose, Antique<div>Contact Information: (036) 540 9837 / 0917 566 4491 / 0998 981 9337</div></div></div>';}
 function render(t,items,kind,people=[],schools=[]){
  const submitter=people.find(p=>p.id===t.assigned_submitter)||{
   name:items.find(i=>i.ao_sender_is_submitted)?.ao_sender_name||'',
