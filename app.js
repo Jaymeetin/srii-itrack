@@ -23,18 +23,30 @@ function expiredEmailLinkFromUrl(){
  }catch(e){console.warn('Expired-link redirect could not be cleaned',e);}
  return true;
 }
+// Private queue access links use a URL fragment so the secret is never sent
+// to GitHub Pages or another server in the HTTP request. Remove it from the
+// address bar immediately after importing it, before Supabase processes URLs.
+function portableQueueTicketFromUrl(){
+ const hash=location.hash.replace(/^#\??/,'');
+ const ticket=new URLSearchParams(hash).get('queue')||'';
+ if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(ticket))return '';
+ history.replaceState(history.state,'',location.pathname+location.search);
+ return ticket;
+}
+const importedQueueTicket=portableQueueTicketFromUrl();
 const arrivedFromExpiredEmailLink=expiredEmailLinkFromUrl();
 const db=window.supabase?.createClient(C.url,C.publishableKey,{auth:{persistSession:true,detectSessionInUrl:true,autoRefreshToken:true}});
 // Reuse one authenticated client across tracking, upload and download screens.
 // Multiple clients refreshing the same mobile session can reset upload forms.
 window.ITRACK_DB=db;
+if(importedQueueTicket)localStorage.setItem('srii-registration-queue-ticket',importedQueueTicket);
 const knownViews=new Set(['dashboard','announcements','notifications','monitoring','documents','reports','school-files','verification','approvals','archive','division','retrieval','district','document-types','settings']);
 // The manifest launches at ./ (Home). Navigation keeps the page in the URL,
 // so a real refresh returns to that page without persistent cross-launch state.
 const urlView=new URLSearchParams(location.search).get('view');
 const firstView=knownViews.has(urlView)?urlView:'dashboard';
 localStorage.removeItem('srii-current-view');
-const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:arrivedFromExpiredEmailLink?'resend':'login',emailHelpReason:arrivedFromExpiredEmailLink?'expired':'',queueTicket:localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],showRemovedAccounts:false,modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],districtHistory:[],documentDistrictStatuses:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],compliances:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewCompliances:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],notificationLimit:50,notificationHasMore:false,divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',districtData:{eligible:[],transmittals:[],items:[],claimable:[],people:[]},districtPicked:new Set(),districtSubmitPicked:new Set(),districtSelected:'',districtSchoolId:'',adminDocumentTypes:{types:[],requests:[]},documentDivisionStatuses:[],approverAssignments:[],announcementApproverEditing:null,announcementEditId:null,announcementEditorData:null,announcementCancelId:null,transmittalEditing:false,retrievalData:{},retrievalPicked:new Set(),retrievalTurnoverPicked:new Set(),retrievalDistrictPicked:new Set(),retrievalSearch:'',privateDetails:null,profileRequests:[],userFeedback:[],issue:null,maintenance:{enabled:false,message:''}};
+const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:arrivedFromExpiredEmailLink?'resend':importedQueueTicket?'queue':'login',emailHelpReason:arrivedFromExpiredEmailLink?'expired':'',queueTicket:importedQueueTicket||localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],showRemovedAccounts:false,modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],districtHistory:[],documentDistrictStatuses:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],compliances:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewCompliances:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],notificationLimit:50,notificationHasMore:false,divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',districtData:{eligible:[],transmittals:[],items:[],claimable:[],people:[]},districtPicked:new Set(),districtSubmitPicked:new Set(),districtSelected:'',districtSchoolId:'',adminDocumentTypes:{types:[],requests:[]},documentDivisionStatuses:[],approverAssignments:[],announcementApproverEditing:null,announcementEditId:null,announcementEditorData:null,announcementCancelId:null,transmittalEditing:false,retrievalData:{},retrievalPicked:new Set(),retrievalTurnoverPicked:new Set(),retrievalDistrictPicked:new Set(),retrievalSearch:'',privateDetails:null,profileRequests:[],userFeedback:[],issue:null,maintenance:{enabled:false,message:''}};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=x=>x?new Date(x).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}):'—';
@@ -108,6 +120,11 @@ async function initial(){
   setTimeout(sync,0);
  });
  const {data:{session}}=await db.auth.getSession();state.session=session;await sync();
+ if(importedQueueTicket&&!session){
+  try{await queueRead();}
+  catch(e){queueClear();state.authMode='register';show();
+   pop('This private queue link is no longer valid. Ask the District Administrator for a replacement link.',true);}
+ }
  if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('./sw.js').catch(()=>{});
 }
 async function readMaintenance(){if(!state.session)return;const {data,error}=await db.from('system_maintenance').select('enabled,message').eq('id',true).maybeSingle();if(!error&&data)state.maintenance=data;}
@@ -668,6 +685,23 @@ async function queueRead(){
  state.queueInfo=info;
  state.authMode='queue';show();
 }
+function queueAccessLink(ticket=state.queueTicket){
+ if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(ticket||'')))
+  throw Error('No private queue access ticket is available.');
+ const url=new URL(location.origin+location.pathname);
+ url.hash='queue='+encodeURIComponent(ticket);
+ return url.toString();
+}
+async function copyPrivateQueueLink(ticket){
+ const url=queueAccessLink(ticket);
+ try{
+  if(!navigator.clipboard?.writeText)throw Error('Clipboard unavailable');
+  await navigator.clipboard.writeText(url);
+  pop('Private queue access link copied. Share only with the applicant.');
+ }catch(e){
+  prompt('Copy this PRIVATE queue link. Do not post it in a group chat.',url);
+ }
+}
 function queueTimeText(x){
  if(!x)return '—';
  const remaining=Math.max(0,new Date(x).getTime()-Date.now());
@@ -707,9 +741,11 @@ function queueCard(){
    ((upcoming||ready||claimed)?'<button type="button" class="btn alt" data-a="queue-check">Check Queue</button>':'')+
    (upcoming?'<button type="button" class="btn alt" data-a="queue-reminder">Add Phone Reminder</button>':'')+
    (upcoming?'<button type="button" class="btn tiny alt" data-a="queue-cancel">Cancel Queue Place</button>':'')+
+   ((upcoming||ready||claimed)?'<button type="button" class="btn alt" data-a="queue-copy-link">Copy My Private Queue Link</button>':'')+
    (expired?'<button type="button" class="btn" data-a="queue-rejoin">Join a New Queue</button>':'')+
    (completed?'<button type="button" class="btn" data-a="back-to-login">Sign In</button>':'')+
   '</div>'+
+  ((upcoming||ready||claimed)?'<p class="small muted">Keep your private queue link safe. It lets you return on another phone or browser. Anyone with the link can access this registration place, so never share it publicly.</p>':'')+
   (upcoming?'<p class="small muted">The reminder is a calendar file with an alarm 5 minutes before the estimated time. Import it into your phone calendar and enable alerts. It cannot push notifications while this website is closed.</p>':'')+
  '</div>';
 }
@@ -741,7 +777,7 @@ function authPage(){
   completing?'Complete Registration':forgot?'Forgot Password':
   resending?'Resend Confirmation Email':registering?'Join the Registration Queue':'Sign In';
  const intro=recovering?'Use the secure link you received by email to choose a new password.':
-  queued?'Your queue number and return time are saved on this device. No password was collected when joining.':
+  queued?'Your queue number is saved on this device. Copy the private access link to resume on another phone; no password was collected when joining.':
   completing?'Your registration window is open. Set your password to create an account.':
   forgot?'Enter your registered address to request a password-reset link.':
   resending?'Already registered but not verified? Request another confirmation email when sending is available.':
@@ -798,6 +834,7 @@ function authPage(){
    pendingText+verificationNotice+
    (queued?queueCard():('<form id="'+formId+'">'+formContents+
     '<button type="submit" class="btn block">'+actionLabel+'</button></form>'))+
+   (registering&&!state.queueTicket?'<p class="note queue-recovery-help">Already received a queue number but cannot reopen it? Do not register again. Ask the District Administrator to privately send a replacement queue access link. The number alone is not enough to access your ticket.</p>':'')+
    footer+
    '<p class="note">Tap the district logo to save its original high-resolution image. Queue positions and alarm times are approximate. Passwords are never stored in the queue. Email confirmation and administrator approval remain separate requirements.</p>'+
   '</div></main></div>';
@@ -1499,7 +1536,7 @@ function approvalPage(){
   '<div class="panel">'+table(['Name','School / Office','Status','Role','Email verification','Actions'],rows)+'</div>'+
   '<section class="panel"><h3>Registration Email Queue</h3>'+
   '<p class="note">Waiting-list tickets are not registered accounts and cannot be approved here. These are estimated two-per-hour signup windows, not confirmed email deliveries. The provider email quota is also used for password resets and other messages.</p>'+
-  table(['Queue #','Applicant / Email','School','Status','Estimated Time (PHT)'],
+  table(['Queue #','Applicant / Email','School','Status','Estimated Time (PHT)','Recovery'],
   state.adminRegistrationQueue.map(q=>{
    const current=String(q.queue_status||'waiting');
    const status=current==='waiting'&&new Date(q.ready_at)<=new Date()?'Ready to register':label(current);
@@ -1507,7 +1544,9 @@ function approvalPage(){
     '<td><strong>'+esc(q.full_name)+'</strong><div class="small muted">'+esc(q.email)+'</div></td>'+
     '<td>'+esc(q.school_name)+'</td>'+
     '<td>'+esc(status)+'</td>'+
-    '<td>'+esc(date(q.ready_at))+'</td></tr>';
+    '<td>'+esc(date(q.ready_at))+'</td>'+
+    '<td>'+((['waiting','claimed'].includes(current)&&Number.isFinite(Date.parse(q.ready_at))&&Date.parse(q.ready_at)+30*60000>Date.now())?
+    '<button type="button" class="btn tiny alt" data-a="queue-admin-reissue" data-queue-number="'+esc(q.queue_number)+'">Reissue Private Link</button>':'—')+'</td></tr>';
   }))+'</section>';
 }
 function archivePage(){return `<div class="eyebrow">Administrator controls</div><h1>Archive Documents</h1><p class="sub">Two-month archival to an SSD after verification.</p><div class="panel"><div class="notice warn"><b>Not yet enabled.</b> This will prepare downloadable archives, verify copies, and require administrator confirmation before any Drive files are deleted.</div><button class="btn" disabled>Archive Documents</button><p class="note" style="margin-top:12px">Submission metadata and audit history will remain in Supabase after archiving.</p></div>`;}
@@ -2111,6 +2150,18 @@ async function click(e){
    if(state.authMode==='login'&&state.queueTicket){await queueRead();return;}
    state.authMode=state.authMode==='login'?'register':'login';show();return;
   }
+  if(a==='queue-copy-link'){await copyPrivateQueueLink();return;}
+  if(a==='queue-admin-reissue'){
+   if(!yesAdmin())throw Error('Only approved district administrators may reissue queue links.');
+   const number=Number(t.dataset.queueNumber);
+   const item=state.adminRegistrationQueue.find(x=>Number(x.queue_number)===number);
+   if(!item)throw Error('Queue record is no longer on the administrator screen. Refresh Account Approvals.');
+   if(!confirm('Reissue PRIVATE access for queue #'+number+' ('+item.full_name+')? The old private link will stop working. Only share the replacement with the correct applicant.'))return;
+   const {data,error}=await db.rpc('i_track_admin_reissue_queue_access',{p_queue_number:number});
+   if(error)throw error;
+   await copyPrivateQueueLink(String(data));
+   return;
+  }
   if(a==='queue-check'){await queueRead();return;}
   if(a==='queue-rejoin'){queueClear();state.authMode='register';show();return;}
   if(a==='queue-reminder'){queueReminder();pop('Calendar reminder prepared. Import it into your calendar and allow notifications.');return;}
@@ -2560,7 +2611,10 @@ async function submit(e){
     p_email:email,p_full_name:name,p_position_title:position,p_registration_type:role,
     p_school_id:role==='oic_psds'?null:school
    });
-   if(error)throw error;
+   if(error){
+    if(/already queued/i.test(error.message||''))throw Error('This email already has a queue place. Do not register again. Open your original private queue link, or ask the District Administrator to reissue a private link.');
+    throw error;
+   }
    if(!data)throw Error('No registration ticket was created. Please try again.');
    state.queueTicket=String(data);
    localStorage.setItem('srii-registration-queue-ticket',state.queueTicket);
