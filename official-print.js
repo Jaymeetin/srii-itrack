@@ -121,7 +121,7 @@ const RETRIEVAL_CSS=`
 .rslip-list{border-collapse:collapse;width:100%;table-layout:fixed}
 .rslip-list th,.rslip-list td{border:1px solid #666;padding:2px 6px}
 .rslip-list th{font-size:8.2pt;background:#f1f1f1;height:7mm}
-.rslip-list td{height:7.5mm;vertical-align:middle;font-size:8pt;line-height:1.12}
+.rslip-list td{height:7mm;vertical-align:middle;font-size:7.9pt;line-height:1.1}
 .rslip-list td:first-child{width:69%}
 .rslip-list td:last-child,.rslip-list th:last-child{width:31%;text-align:center}
 .rslip-item-line{display:flex;align-items:baseline;gap:7px;min-width:0;overflow:hidden}
@@ -129,7 +129,7 @@ const RETRIEVAL_CSS=`
 .rslip-item-id{font-size:6.8pt;color:#555;white-space:nowrap;flex-shrink:0}
 .rslip-sender{font-size:7.1pt;color:#444;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:2px 0 0 17px}
 .rslip-sigline{border-top:1px solid #555;margin:3mm 7px 0}
-.rslip-retriever{position:absolute;bottom:23mm;left:50%;transform:translateX(-50%);width:61%;text-align:center;font-size:8.4pt}
+.rslip-retriever{position:absolute;bottom:21mm;left:50%;transform:translateX(-50%);width:61%;text-align:center;font-size:8.4pt}
 .rslip-retriever .line{border-top:1px solid #222;margin:9mm 0 4px}
 .rslip-retriever strong{display:block;font-size:9pt}
 .rslip-retriever .tiny{font-size:7.4pt;margin-top:3px}
@@ -166,7 +166,7 @@ function renderRetrievalSlip(turnover,items){
    footer('transmittal')+'</section>');
  }
  return '<!doctype html><html><head><meta charset="utf-8"><title>District Document Turnover and Release Slip</title>'+
-  '<style>'+CSS+RETRIEVAL_CSS+'</style></head><body>'+pages.join('')+'</body></html>';
+  printFonts+'<style>'+CSS+RETRIEVAL_CSS+'</style></head><body>'+pages.join('')+'</body></html>';
 }
 window.ITRACK_PRINT={render,renderRetrievalSlip};
 })();
