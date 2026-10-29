@@ -754,3 +754,6 @@ tr[hidden]{display:none!important}
  .retrieval-claim-row .btn{padding:6px}
  .retrieval-bottom-bar .retrieval-recipient{max-width:100%;width:100%}
 }
+
+/* Queue recovery: concise help shown only on the public registration screen. */
+.queue-recovery-help{margin-top:15px;line-height:1.6;background:var(--light);border:1px solid var(--line);padding:10px 12px;border-radius:10px}
