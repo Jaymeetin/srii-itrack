@@ -1877,7 +1877,7 @@ async function click(e){
    await Promise.all([...win.document.images].map(img=>img.complete?Promise.resolve():new Promise(resolve=>{
     img.onload=resolve;img.onerror=resolve;setTimeout(resolve,3500);
    })));
-   win.focus();win.print();return;
+   await win.document.fonts?.ready;win.focus();win.print();return;
   }
   if(a==='types-refresh'){if(!yesAdmin())throw Error('Administrator required');await load();return;}
   if(a==='types-review'){
@@ -2137,7 +2137,7 @@ async function click(e){
      Object.assign(t,{signer_name:edits.p_name,signer_position:edits.p_position,signer_office:edits.p_office,authorized_school_name:edits.p_school});
    }
    let qrImage='';if(window.QRCode){const div=document.createElement('div');div.style.cssText='position:absolute;left:-9999px';document.body.append(div);try{new QRCode(div,{text:location.origin+location.pathname+'?view=division&transmittal='+encodeURIComponent(t.id),width:160,height:160,correctLevel:QRCode.CorrectLevel.M});qrImage=div.querySelector('canvas')?.toDataURL('image/png')||'';}finally{div.remove();}}const kind=document.getElementById('division-print-kind')?.value||'both';if(!window.ITRACK_PRINT?.render)throw Error('Official print templates are not loaded. Refresh SRII i-TRACK.');const html=window.ITRACK_PRINT.render(t,state.divisionData.items.filter(i=>i.transmittal_id===t.id),kind,state.divisionData.people||[],state.schools);
-   if(a==='division-word'){const link=document.createElement('a'),url=URL.createObjectURL(new Blob(['\\ufeff'+html],{type:'application/msword'}));link.href=url;link.download=t.transmittal_number+'.doc';link.click();setTimeout(()=>URL.revokeObjectURL(url),2000);}else{const w=window.open('','_blank');if(!w)throw Error('Allow popups for printing.');w.document.write(html);w.document.close();await Promise.all([...w.document.images].map(img=>img.complete?Promise.resolve():new Promise(done=>{img.onload=done;img.onerror=done;setTimeout(done,3500);})));w.focus();w.print();}return;
+   if(a==='division-word'){const link=document.createElement('a'),url=URL.createObjectURL(new Blob(['\\ufeff'+html],{type:'application/msword'}));link.href=url;link.download=t.transmittal_number+'.doc';link.click();setTimeout(()=>URL.revokeObjectURL(url),2000);}else{const w=window.open('','_blank');if(!w)throw Error('Allow popups for printing.');w.document.write(html);w.document.close();await Promise.all([...w.document.images].map(img=>img.complete?Promise.resolve():new Promise(done=>{img.onload=done;img.onerror=done;setTimeout(done,3500);})));await w.document.fonts?.ready;w.focus();w.print();}return;
   }
   if(a==='division-act'){
    const action=t.dataset.act,trans=state.divisionData.transmittals.find(x=>x.id===state.divisionSelected)||state.divisionData.transmittals[0];if(!trans&&!t.dataset.trans)throw Error('Select a transmittal.');
