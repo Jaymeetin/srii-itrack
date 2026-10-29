@@ -96,19 +96,19 @@ function render(t,items,kind,people=[],schools=[]){
    const signer=esc(actor.name),position=esc(actor.position),office=esc(actor.office);
    const body=list.map(i=>{
     const cat=String(i.document_type||'DOCUMENTS').toUpperCase();
-    const category=cat===lastCat?'':'<div class="category">'+esc(cat)+'</div>';lastCat=cat;
+    const category=type==='endorsement'&&cat!==lastCat?'<div class="category">'+esc(cat)+'</div>':'';lastCat=cat;
     const origin=schools.find(s=>s.id===i.school_id)?.name||'';
     return category+'<div class="item">'+(++number)+'. <strong>'+esc(origin?origin+' — '+i.document_label:i.document_label)+'</strong><span class="item-id">'+esc(i.tracking_number||'')+'</span>'+
      (type==='transmittal'?'<div class="item-sender">'+(i.ao_sender_is_submitted?'Submitted by: ':'AO of record: ')+esc(i.ao_sender_name||'Not recorded')+'</div>':'')+'</div>';
    }).join('');
-   const signature=idx===chunks.length-1?'<div class="signature">'+(type==='transmittal'?'<div class="signature-caption">Prepared and Submitted By:</div>':'')+'<strong>'+signer+'</strong>'+position+'<div>'+office+'</div>'+(type==='transmittal'?'<div class="sign-date">'+dt(t.created_at)+'<div>Date</div></div>':'')+'</div>':'';
+   const signature=idx===chunks.length-1?'<div class="signature '+(type==='endorsement'?'endorse-signature':'ao-signature')+'">'+(type==='transmittal'?'<div class="signature-caption">Prepared and Submitted By:</div>':'')+'<strong>'+signer+'</strong>'+position+'<div>'+office+'</div>'+(type==='transmittal'?'<div class="sign-date">'+dt(t.created_at)+'<div>Date</div></div>':'')+'</div>':'';
    const content=type==='endorsement'?
-    '<h1>ENDORSEMENT</h1><div class="doc-date">Date: '+dt(t.created_at)+'</div><p class="intro">Respectfully forwarded from the District of San Remigio II to the Schools Division Office, herein authorizing <strong>'+esc(submitter.name||'________________')+'</strong>, '+esc(submitter.position||'Administrative Officer II')+' of <strong>'+esc(school)+'</strong>, San Remigio, Antique the following documents:</p>':
-    '<h2>Transmittal of Documents for Submission to the Division Office</h2><p class="intro">This is to certify that I personally checked the documents coming from our school/district for submission to the Division Office. This ensures that the undersigned did the document checking/examination in terms of completeness and accuracy, utilization of SDO prescribed templates/forms, and schedule of submission of documents, to wit:</p><div class="category">LIST OF DOCUMENTS FOR SUBMISSION:</div>';
-   pages.push('<section class="sheet">'+header(type)+content+body+signature+footer(type,schoolAddress)+'</section>');
+    '<h1>ENDORSEMENT</h1><div class="doc-date">Date: '+dt(t.created_at)+'</div><p class="intro endorse-intro">Respectfully forwarded from the District of San Remigio II to the Schools Division Office, herein authorizing <strong>'+esc(submitter.name||'________________')+'</strong>, '+esc(submitter.position||'Administrative Officer II')+' of <strong>'+esc(school)+'</strong>, San Remigio, Antique the following documents:</p>':
+    '<h2>Transmittal of Documents for Submission to the Division Office</h2><p class="intro">This is to certify that I personally checked the documents coming from our school/district for submission to the Division Office. This ensures that the undersigned did the document checking/examination in terms of completeness and accuracy, utilization of SDO prescribed templates/forms, and schedule of submission of documents, to wit:</p><div class="list-heading">LIST OF DOCUMENTS FOR SUBMISSION:</div>';
+   pages.push('<section class="sheet">'+header(type)+content+body+signature+footer(type)+'</section>');
   });
  }
- return '<!doctype html><html><head><meta charset="utf-8"><title>Official Forms — SRII i-TRACK</title><style>'+CSS+'</style></head><body>'+pages.join('')+'</body></html>';
+ return '<!doctype html><html><head><meta charset="utf-8"><title>Official Forms — SRII i-TRACK</title>'+printFonts+'<style>'+CSS+'</style></head><body>'+pages.join('')+'</body></html>';
 }
 // Retrieval uses the exact header and footer of the outgoing Division transmittal.
 // Recorded AO of each item and individual receiver signatures remain visible.
