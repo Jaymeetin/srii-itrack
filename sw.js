@@ -1,5 +1,5 @@
 /* SRII i-TRACK app shell cache v2: assets only, always prefer the network. */
-const CACHE_NAME="srii-itrack-exact-word-samples-v55";
+const CACHE_NAME="srii-itrack-exact-word-samples-v56";
 const CORE_ASSETS=[
  "./","./index.html","./styles.css","./mobile.css",
  "./app.js","./compact-notices.css","./retrieval-ui.js","./district-ui.js","./district-print.js","./document-types-ui.js","./district.css","./official-print.js","./mobile-shell.js","./upload-ui.css","./upload-ui.js","./download-ui.js","./config.js",
