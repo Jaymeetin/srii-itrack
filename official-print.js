@@ -139,8 +139,8 @@ const RETRIEVAL_CSS=`
 .rslip-intro{font-size:8.2pt;line-height:1.2;margin:0 0 10px;text-align:justify}
 .rslip-list{border-collapse:collapse;width:100%;table-layout:fixed}
 .rslip-list th,.rslip-list td{border:1px solid #666;padding:2px 6px}
-.rslip-list th{font-size:8.2pt;background:#f1f1f1;height:7mm}
-.rslip-list td{height:7mm;vertical-align:middle;font-size:7.9pt;line-height:1.1}
+.rslip-list th{font-size:8pt;background:#f1f1f1;height:6.2mm}
+.rslip-list td{height:5.8mm;vertical-align:middle;font-size:7.7pt;line-height:1.05}
 .rslip-list td:first-child{width:69%}
 .rslip-list td:last-child,.rslip-list th:last-child{width:31%;text-align:center}
 .rslip-item-line{display:flex;align-items:baseline;gap:7px;min-width:0;overflow:hidden}
@@ -148,8 +148,8 @@ const RETRIEVAL_CSS=`
 .rslip-item-id{font-size:6.8pt;color:#555;white-space:nowrap;flex-shrink:0}
 .rslip-sender{font-size:7.1pt;color:#444;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:2px 0 0 17px}
 .rslip-sigline{border-top:1px solid #555;margin:3mm 7px 0}
-.rslip-retriever{position:absolute;bottom:21mm;left:50%;transform:translateX(-50%);width:61%;text-align:center;font-size:8.4pt}
-.rslip-retriever .line{border-top:1px solid #222;margin:9mm 0 4px}
+.rslip-retriever{position:absolute;bottom:28mm;left:50%;transform:translateX(-50%);width:61%;text-align:center;font-size:8.4pt}
+.rslip-retriever .line{border-top:1px solid #222;margin:5mm 0 3px}
 .rslip-retriever strong{display:block;font-size:9pt}
 .rslip-retriever .tiny{font-size:7.4pt;margin-top:3px}
 .rslip-pages{font-size:7.5pt;color:#666;text-align:center;position:absolute;right:0;bottom:20mm}
@@ -172,7 +172,7 @@ function renderRetrievalSlip(turnover,items){
   const retriever='<div class="rslip-retriever"><div>Retrieved / Handed Over By:</div>'+
    '<div class="line"></div><strong>'+esc(turnover.retriever_name||'________________________')+'</strong>'+
    '<div>'+esc(turnover.retriever_position||'Retriever')+'</div>'+
-   '<div class="tiny">Signature over Printed Name</div><div class="tiny">Date: ___________________</div></div>';
+   '</div>';
   pages.push('<section class="sheet">'+header('transmittal')+
    '<h1 class="rslip-title">DOCUMENT TURNOVER AND RELEASE SLIP</h1>'+
    '<p class="rslip-subtitle">San Remigio II District · Schools Division of Antique</p>'+
