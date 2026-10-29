@@ -140,7 +140,7 @@ const RETRIEVAL_CSS=`
 .rslip-list{border-collapse:collapse;width:100%;table-layout:fixed}
 .rslip-list th,.rslip-list td{border:1px solid #666;padding:2px 6px}
 .rslip-list th{font-size:8pt;background:#f1f1f1;height:6.2mm}
-.rslip-list td{height:5.8mm;vertical-align:middle;font-size:7.7pt;line-height:1.05}
+.rslip-list td{height:5.2mm;vertical-align:middle;font-size:7.6pt;line-height:1.0}
 .rslip-list td:first-child{width:69%}
 .rslip-list td:last-child,.rslip-list th:last-child{width:31%;text-align:center}
 .rslip-item-line{display:flex;align-items:baseline;gap:7px;min-width:0;overflow:hidden}
@@ -148,8 +148,8 @@ const RETRIEVAL_CSS=`
 .rslip-item-id{font-size:6.8pt;color:#555;white-space:nowrap;flex-shrink:0}
 .rslip-sender{font-size:7.1pt;color:#444;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:2px 0 0 17px}
 .rslip-sigline{border-top:1px solid #555;margin:3mm 7px 0}
-.rslip-retriever{position:absolute;bottom:28mm;left:50%;transform:translateX(-50%);width:61%;text-align:center;font-size:8.4pt}
-.rslip-retriever .line{border-top:1px solid #222;margin:5mm 0 3px}
+.rslip-retriever{position:absolute;bottom:40mm;left:50%;transform:translateX(-50%);width:61%;text-align:center;font-size:8.4pt}
+.rslip-retriever .line{border-top:1px solid #222;margin:3mm 0 3px}
 .rslip-retriever strong{display:block;font-size:9pt}
 .rslip-retriever .tiny{font-size:7.4pt;margin-top:3px}
 .rslip-pages{font-size:7.5pt;color:#666;text-align:center;position:absolute;right:0;bottom:20mm}
