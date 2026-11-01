@@ -176,6 +176,10 @@ async function load(){
    })());
   }
   if(state.view==='notifications')state.notificationHasMore=false;
+  if(state.view==='system-recovery'&&yesAdmin())tasks.push((async()=>{
+   const {data,error}=await db.rpc('i_track_integrity_overview');
+   if(error)throw error;state.integrityOverview=data||null;
+  })());
   tasks.push((async()=>{const {data,error}=await db.rpc('i_track_approver_assignments');if(error)throw error;state.approverAssignments=data||[];})());
   if(['dashboard','announcements','monitoring','verification','reports','school-files'].includes(state.view)){
    tasks.push((async()=>{const {data,error}=await db.from('announcements').select('id,announcement_code,title,description,status,deadline_at,original_deadline_at,created_at,cancelled_at,cancellation_reason').order('created_at',{ascending:false});if(error)throw error;state.announcements=data||[];if(!state.selectedId||!state.announcements.some(x=>x.id===state.selectedId))state.selectedId=state.announcements.find(x=>x.status!=='draft')?.id||'';})());
@@ -977,7 +981,7 @@ function appPage(){
  const nav=[...menu,...(!isOic()?[['documents','▣ My Documents'],['division','▤ Division Transmittals'],['district','▤ District Transmittals'],['retrieval','✓ Division Retrieval']]:[]),...(districtOversight()?[['reports','▥ District Reports'],['system-recovery','◷ Record Recovery']]:[]),...(yesAdmin()?[['feedback-admin','✎ Reports & Suggestions']]:[['feedback','✎ Report / Suggest']]),[['system-updates','↻ System Updates']],...(!yesAdmin()?[['settings','⚙ Personal Settings']]:[]),...((yesAdmin()||state.approverAssignments.some(x=>x.user_id===state.session.user.id))?[['verification','✓ Submission Verification']]:[]),...(yesAdmin()?[['school-files','▣ School Attachments'],['approvals','♙ Account Approvals'],['document-types','▦ Document Types'],['archive','▤ Archive Documents']]:[])].map(([id,title])=>`<button class="${state.view===id?'active':''}" data-a="nav" data-page="${id}">${title}</button>`).join('');
  const title={dashboard:'Home',announcements:'Announcements',notifications:'Notifications',monitoring:'Submission Monitoring',documents:'My Documents',division:'Division Transmittals',district:'District Transmittals','document-types':'Document Types',retrieval:'Division Retrieval',settings:'Personal Settings',reports:'District Reports','system-recovery':'Record Recovery','system-updates':'System Updates',feedback:'Report / Suggest','feedback-admin':'Reports & Suggestions','school-files':'School Attachments',verification:'Submission Verification',approvals:'Account Management',archive:'Document Archiving'}[state.view]||'Overview';
  const school=state.schools.find(x=>x.id===state.profile.school_id)?.name||'District Office';
- const name=state.profile.display_name||(isOic()?'OIC-PSDS':'District Administrator');
+ const name=state.profile.display_name||(isOic()?'OIC-PSDS':yesAdmin()?'District Administrator':'School Personnel');
  let body={dashboard:dashboardPage,announcements:announcementPage,notifications:notificationsPage,monitoring:monitorPage,documents:documentPage,division:divisionPage,district:districtPage,'document-types':documentTypesAdminPage,retrieval:retrievalPage,settings:settingsPage,reports:districtReportPage,'system-updates':systemUpdatesPage,'system-recovery':systemRecoveryPage,feedback:feedbackPage,'feedback-admin':feedbackAdminPage,'school-files':schoolAttachmentsPage,verification:verificationPage,approvals:approvalPage,archive:archivePage}[state.view]?.()||dashboardPage();
  if(state.view==='dashboard')body=systemUpdatePanel()+body;
  if(state.view==='dashboard'&&yesAdmin())body='<section class="panel" style="padding:20px;margin:16px 0;border:2px solid #d7bd6b"><h3>🔧 System Maintenance</h3><p class="note">Pause access for regular users while admins continue working.</p><p><strong>Status: '+(state.maintenance.enabled?'MAINTENANCE ON':'Running normally')+'</strong></p><button class="btn" data-a="maintenance-toggle">'+(state.maintenance.enabled?'Turn OFF Maintenance — Reopen App':'Turn ON Maintenance — Pause Users')+'</button></section>'+body;
@@ -1222,6 +1226,9 @@ function systemRecoveryPage(){
  if(!districtOversight())return '<div class="notice danger">District oversight account required.</div>';
  const results=state.recoveryScan;
  const misfiled=state.misfiledReview;
+ const integrity=yesAdmin()?state.integrityOverview:null;
+ const unlinked=integrity?.unlinked_file_compliances||[];
+ const openTests=integrity?.open_test_announcements||[];
  const suspectRows=(misfiled?.items||[]).map(x=>{
   const targetChoices=(x.target_options||[]).map(opt=>
     '<option value="'+esc(opt.assignment_id)+'">'+esc(opt.announcement_code+' — '+opt.announcement)+'</option>').join('');
@@ -1246,7 +1253,15 @@ function systemRecoveryPage(){
  return '<div class="sectionhead"><div><div class="eyebrow">District record integrity</div><h1>Check & Recover Missing Records</h1>'+
  '<p class="sub">Read-only checks for administrators and OIC-PSDS. Only administrators may approve a verified repair.</p></div>'+
  '<button type="button" class="btn" data-a="recovery-scan">Check Missing Records</button></div>'+
- '<div class="notice warn"><strong>Scan scope:</strong> Supabase upload attempts and announcement associations. It cannot locate files absent from the upload log or verify private Drive contents. Test-announcement matches are suggestions only.</div>'+
+ '<div class="notice warn"><strong>Scan scope:</strong> Supabase upload attempts and announcement associations. It cannot locate files absent from the upload log or verify private Drive contents. Suspected misfilings require administrator review.</div>'+
+ (integrity?'<section class="panel"><h3>Data Integrity Overview</h3><p class="note">Live read-only checks. No records are changed.</p>'+
+  '<div class="recovery-stats"><div><strong>'+esc(integrity.active_school_count||0)+'</strong><small>Active school entries</small></div>'+
+  '<div><strong>'+esc(integrity.latest_operational_required_schools||0)+'</strong><small>Latest operational requirements</small></div>'+
+  '<div><strong>'+esc(unlinked.length)+'</strong><small>Unlinked compliance records</small></div>'+
+  '<div><strong>'+esc(integrity.unnamed_active_accounts||0)+'</strong><small>Unnamed active accounts</small></div></div>'+
+  (unlinked.length?'<h4>Records requiring review</h4>'+unlinked.map(x=>'<div class="recovery-finding"><div><strong>'+esc(x.school_name)+' · '+esc(x.announcement_code)+'</strong><div class="small muted">'+esc(x.compliance_number||'')+' · '+esc(x.file_count)+' stored file(s), not linked to the compliance record</div></div></div>').join(''):'<p class="note">No unlinked school compliance records.</p>')+
+  (openTests.length?'<p class="notice warn">'+esc(openTests.length)+' old test announcement(s) remain open. Review real submissions before cancelling.</p>':'')+
+  '<p class="note">Failed upload attempts: '+esc(integrity.failed_upload_attempts||0)+'</p></section>':'')+
  (results?'<section class="panel"><p class="small muted">Checked '+esc(date(results.checked_at))+'</p>'+
  '<div class="recovery-stats"><div><strong>'+esc(results.total_attempts||0)+'</strong><small>Upload attempts</small></div>'+
  '<div><strong>'+esc(results.linked_attempts||0)+'</strong><small>Linked records</small></div>'+
@@ -1932,6 +1947,8 @@ function approvalPage(){
   (state.connectedFilter==='pending'?'<div class="connected-filter-banner"><strong>Pending account approvals</strong><button class="btn tiny alt" data-a="connected-clear">Show All Accounts</button></div>':'')+
   '<div class="account-delete-toolbar"><button type="button" class="btn alt tiny" data-a="toggle-removed-users">'+
    (state.showRemovedAccounts?'Hide Deleted Accounts':'Show Deleted Accounts ('+removedCount+')')+'</button></div>'+
+  '<div class="toolbar"><button type="button" class="btn alt" data-a="admin-set-display-name">Set My Official Display Name</button></div>'+
+  (state.profile.display_name?'':'<div class="notice warn">Your administrator profile needs an official display name so earlier activity can be attributed accurately.</div>')+
   '<div class="panel">'+table(['Name','School / Office','Status','Role','Email verification','Actions'],rows)+'</div>'+
   '<section class="panel"><h3>Registration Email Queue</h3>'+
   '<p class="note">Waiting-list tickets are not registered accounts and cannot be approved here. These are estimated two-per-hour signup windows, not confirmed email deliveries. The provider email quota is also used for password resets and other messages.</p>'+
@@ -2187,13 +2204,15 @@ async function click(e){
    if(!districtOversight()||state.view!=='system-recovery')throw Error('District oversight required.');
    state.busy=true;
    try{
-    const [standard,misfiled]=await Promise.all([
+    const [standard,misfiled,integrity]=await Promise.all([
      db.rpc('i_track_recovery_scan'),
-     db.rpc('i_track_recovery_review_assignments')
+     db.rpc('i_track_recovery_review_assignments'),
+     yesAdmin()?db.rpc('i_track_integrity_overview'):Promise.resolve({data:null,error:null})
     ]);
-    if(standard.error||misfiled.error)throw standard.error||misfiled.error;
+    if(standard.error||misfiled.error||integrity.error)throw standard.error||misfiled.error||integrity.error;
     state.recoveryScan=standard.data;
     state.misfiledReview=misfiled.data;
+    if(yesAdmin())state.integrityOverview=integrity.data||null;
     show();
     pop('Record and announcement-assignment checks completed. No files or records were changed.');
    }finally{state.busy=false;}
@@ -2978,6 +2997,17 @@ async function click(e){
     state.busy=false;t.disabled=false;
    }
    return;
+  }
+  if(a==='admin-set-display-name'){
+   if(!yesAdmin())throw Error('Administrator account required.');
+   const proposed=prompt('Enter your official name for SRII i-TRACK:',state.profile.display_name||'');
+   if(proposed===null)return;
+   const clean=proposed.trim().replace(/\s+/g,' ');
+   if(clean.length<3||clean.length>120)throw Error('Name must be 3 to 120 characters.');
+   if(!confirm('Use "'+clean+'" as your official administrator name? Existing records remain linked to the same account.'))return;
+   const {error}=await db.rpc('i_track_admin_set_self_display_name',{p_display_name:clean});
+   if(error)throw error;
+   await sync();pop('Official administrator name updated.');return;
   }
   if(a==='account-approve'||a==='reject'){
    const user=state.profiles.find(p=>p.id===t.dataset.id);if(!user)return;
