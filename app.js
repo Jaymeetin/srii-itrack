@@ -40,13 +40,13 @@ const db=window.supabase?.createClient(C.url,C.publishableKey,{auth:{persistSess
 // Multiple clients refreshing the same mobile session can reset upload forms.
 window.ITRACK_DB=db;
 if(importedQueueTicket)localStorage.setItem('srii-registration-queue-ticket',importedQueueTicket);
-const knownViews=new Set(['dashboard','announcements','notifications','monitoring','documents','reports','school-files','verification','approvals','archive','division','retrieval','district','document-types','settings']);
+const knownViews=new Set(['dashboard','announcements','notifications','monitoring','documents','reports','school-files','verification','approvals','archive','division','retrieval','district','document-types','settings','system-recovery','system-updates']);
 // The manifest launches at ./ (Home). Navigation keeps the page in the URL,
 // so a real refresh returns to that page without persistent cross-launch state.
 const urlView=new URLSearchParams(location.search).get('view');
 const firstView=knownViews.has(urlView)?urlView:'dashboard';
 localStorage.removeItem('srii-current-view');
-const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],monitorSchoolDetails:null,oversightUploads:[],oversightShowAllUploads:false,connectedFilter:'',monitorStatusFilter:'',reportFilter:'',navTrail:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:arrivedFromExpiredEmailLink?'resend':importedQueueTicket?'queue':'login',emailHelpReason:arrivedFromExpiredEmailLink?'expired':'',queueTicket:importedQueueTicket||localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],showRemovedAccounts:false,modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],districtHistory:[],documentDistrictStatuses:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],compliances:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewCompliances:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],notificationLimit:50,notificationHasMore:false,divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',districtData:{eligible:[],transmittals:[],items:[],claimable:[],people:[]},districtPicked:new Set(),districtSubmitPicked:new Set(),districtSelected:'',districtSchoolId:'',adminDocumentTypes:{types:[],requests:[]},documentDivisionStatuses:[],approverAssignments:[],announcementApproverEditing:null,announcementEditId:null,announcementEditorData:null,announcementCancelId:null,transmittalEditing:false,retrievalData:{},retrievalPicked:new Set(),retrievalTurnoverPicked:new Set(),retrievalDistrictPicked:new Set(),retrievalSearch:'',privateDetails:null,profileRequests:[],userFeedback:[],issue:null,maintenance:{enabled:false,message:''}};
+const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],monitorSchoolDetails:null,oversightUploads:[],oversightShowAllUploads:false,connectedFilter:'',monitorStatusFilter:'',reportFilter:'',navTrail:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:arrivedFromExpiredEmailLink?'resend':importedQueueTicket?'queue':'login',emailHelpReason:arrivedFromExpiredEmailLink?'expired':'',queueTicket:importedQueueTicket||localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],showRemovedAccounts:false,modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],districtHistory:[],documentDistrictStatuses:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],compliances:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewCompliances:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],notificationLimit:50,notificationHasMore:false,divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',districtData:{eligible:[],transmittals:[],items:[],claimable:[],people:[]},districtPicked:new Set(),districtSubmitPicked:new Set(),districtSelected:'',districtSchoolId:'',adminDocumentTypes:{types:[],requests:[]},documentDivisionStatuses:[],approverAssignments:[],announcementApproverEditing:null,announcementEditId:null,announcementEditorData:null,announcementCancelId:null,transmittalEditing:false,retrievalData:{},retrievalPicked:new Set(),retrievalTurnoverPicked:new Set(),retrievalDistrictPicked:new Set(),retrievalSearch:'',privateDetails:null,profileRequests:[],userFeedback:[],issue:null,maintenance:{enabled:false,message:''},systemUpdates:[],recoveryScan:null,recoveryChecking:false};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=x=>x?new Date(x).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}):'—';
@@ -157,10 +157,10 @@ async function sync(){
   if(error)throw error;
   state.profile=data;
   if(active())await readMaintenance();
-  if(isOic()&&!['dashboard','announcements','notifications','monitoring','reports','settings'].includes(state.view))rememberView('dashboard');
+  if(isOic()&&!['dashboard','announcements','notifications','monitoring','reports','settings','system-recovery','system-updates'].includes(state.view))rememberView('dashboard');
   if(!yesAdmin()&&['school-files','verification','approvals','archive','document-types'].includes(state.view))rememberView('dashboard');
   if(yesAdmin()&&state.view==='settings')rememberView('dashboard');
-  if(!districtOversight()&&state.view==='reports')rememberView('dashboard');
+  if(!districtOversight()&&['reports','system-recovery'].includes(state.view))rememberView('dashboard');
   if(active())await load();else show();
  }catch(e){state.issue=e.message;show();}
 }
@@ -168,6 +168,13 @@ async function load(){
  if(!active()){show();return;}
  try{
   const tasks=[];
+  if(['dashboard','system-updates','system-recovery'].includes(state.view)){
+   tasks.push((async()=>{
+    const {data,error}=await db.rpc('i_track_system_updates');
+    if(error)throw error;
+    state.systemUpdates=data||[];
+   })());
+  }
   if(state.view==='notifications')state.notificationHasMore=false;
   tasks.push((async()=>{const {data,error}=await db.rpc('i_track_approver_assignments');if(error)throw error;state.approverAssignments=data||[];})());
   if(['dashboard','announcements','monitoring','verification','reports','school-files'].includes(state.view)){
@@ -907,11 +914,12 @@ function pendingPage(){
 }
 const menu=[['dashboard','⌂ Home'],['announcements','▤ Announcements'],['notifications','◉ Notifications'],['monitoring','▥ Submission Status']];
 function appPage(){
- const nav=[...menu,...(!isOic()?[['documents','▣ My Documents'],['division','▤ Division Transmittals'],['district','▤ District Transmittals'],['retrieval','✓ Division Retrieval']]:[]),...(districtOversight()?[['reports','▥ District Reports']]:[]),...(!yesAdmin()?[['settings','⚙ Personal Settings']]:[]),...((yesAdmin()||state.approverAssignments.some(x=>x.user_id===state.session.user.id))?[['verification','✓ Submission Verification']]:[]),...(yesAdmin()?[['school-files','▣ School Attachments'],['approvals','♙ Account Approvals'],['document-types','▦ Document Types'],['archive','▤ Archive Documents']]:[])].map(([id,title])=>`<button class="${state.view===id?'active':''}" data-a="nav" data-page="${id}">${title}</button>`).join('');
- const title={dashboard:'Home',announcements:'Announcements',notifications:'Notifications',monitoring:'Submission Monitoring',documents:'My Documents',division:'Division Transmittals',district:'District Transmittals','document-types':'Document Types',retrieval:'Division Retrieval',settings:'Personal Settings',reports:'District Reports','school-files':'School Attachments',verification:'Submission Verification',approvals:'Account Management',archive:'Document Archiving'}[state.view]||'Overview';
+ const nav=[...menu,...(!isOic()?[['documents','▣ My Documents'],['division','▤ Division Transmittals'],['district','▤ District Transmittals'],['retrieval','✓ Division Retrieval']]:[]),...(districtOversight()?[['reports','▥ District Reports'],['system-recovery','◷ Record Recovery']]:[]),[['system-updates','↻ System Updates']],...(!yesAdmin()?[['settings','⚙ Personal Settings']]:[]),...((yesAdmin()||state.approverAssignments.some(x=>x.user_id===state.session.user.id))?[['verification','✓ Submission Verification']]:[]),...(yesAdmin()?[['school-files','▣ School Attachments'],['approvals','♙ Account Approvals'],['document-types','▦ Document Types'],['archive','▤ Archive Documents']]:[])].map(([id,title])=>`<button class="${state.view===id?'active':''}" data-a="nav" data-page="${id}">${title}</button>`).join('');
+ const title={dashboard:'Home',announcements:'Announcements',notifications:'Notifications',monitoring:'Submission Monitoring',documents:'My Documents',division:'Division Transmittals',district:'District Transmittals','document-types':'Document Types',retrieval:'Division Retrieval',settings:'Personal Settings',reports:'District Reports','system-recovery':'Record Recovery','system-updates':'System Updates','school-files':'School Attachments',verification:'Submission Verification',approvals:'Account Management',archive:'Document Archiving'}[state.view]||'Overview';
  const school=state.schools.find(x=>x.id===state.profile.school_id)?.name||'District Office';
  const name=state.profile.display_name||(isOic()?'OIC-PSDS':'District Administrator');
- let body={dashboard:dashboardPage,announcements:announcementPage,notifications:notificationsPage,monitoring:monitorPage,documents:documentPage,division:divisionPage,district:districtPage,'document-types':documentTypesAdminPage,retrieval:retrievalPage,settings:settingsPage,reports:districtReportPage,'school-files':schoolAttachmentsPage,verification:verificationPage,approvals:approvalPage,archive:archivePage}[state.view]?.()||dashboardPage();
+ let body={dashboard:dashboardPage,announcements:announcementPage,notifications:notificationsPage,monitoring:monitorPage,documents:documentPage,division:divisionPage,district:districtPage,'document-types':documentTypesAdminPage,retrieval:retrievalPage,settings:settingsPage,reports:districtReportPage,'system-updates':systemUpdatesPage,'system-recovery':systemRecoveryPage,'school-files':schoolAttachmentsPage,verification:verificationPage,approvals:approvalPage,archive:archivePage}[state.view]?.()||dashboardPage();
+ if(state.view==='dashboard')body=systemUpdatePanel()+body;
  if(state.view==='dashboard'&&yesAdmin())body='<section class="panel" style="padding:20px;margin:16px 0;border:2px solid #d7bd6b"><h3>🔧 System Maintenance</h3><p class="note">Pause access for regular users while admins continue working.</p><p><strong>Status: '+(state.maintenance.enabled?'MAINTENANCE ON':'Running normally')+'</strong></p><button class="btn" data-a="maintenance-toggle">'+(state.maintenance.enabled?'Turn OFF Maintenance — Reopen App':'Turn ON Maintenance — Pause Users')+'</button></section>'+body;
  // Read-only presentation context for the upload panel. Not an authorization
  // mechanism: Supabase RLS and the Edge Function enforce permissions.
@@ -1013,6 +1021,52 @@ function notificationsPage(){
    '<p class="note">No notifications recorded for your account yet. Official school requests are listed under Announcements.</p>')+
   (state.notificationHasMore?'<button class="btn alt block itrack-more-notices" data-a="notifications-more">Load Older Notifications</button>':'')+
   '</section>';
+}
+function systemUpdatePanel(){
+ const recent=(state.systemUpdates||[])[0];
+ return '<section class="panel itrack-system-update"><div class="sectionhead"><div><h3>System Updates</h3><p class="note">Current web version: 61 · Completed updates are listed below.</p></div>'+
+ (districtOversight()?'<button type="button" class="btn alt" data-a="nav" data-page="system-recovery">Check Missing Records</button>':'')+'</div>'+
+ (recent?'<div class="system-event"><strong>'+esc(recent.title)+'</strong><span>'+esc(date(recent.created_at))+'</span><p>'+esc(recent.summary)+'</p></div>':'<p class="note">No completed recovery or published update has been recorded yet.</p>')+
+ '<button type="button" class="btn tiny alt" data-a="nav" data-page="system-updates">View Update History</button></section>';
+}
+function systemUpdatesPage(){
+ const records=state.systemUpdates||[];
+ return '<div class="sectionhead"><div><div class="eyebrow">Application history</div><h1>System Updates</h1>'+
+ '<p class="sub">Current web version 61. Only published updates and completed recoveries appear here. Checking for missing records does not count as an update.</p></div>'+
+ (districtOversight()?'<button type="button" class="btn alt" data-a="nav" data-page="system-recovery">Check Missing Records</button>':'')+'</div>'+
+ '<section class="panel">'+(records.length?records.map(x=>'<div class="system-event"><div><strong>'+esc(x.title)+'</strong> '+pTag(x.event_kind)+'</div>'+
+ '<small>'+esc(date(x.created_at))+'</small><p>'+esc(x.summary)+'</p></div>').join(''):
+ '<p class="empty">No completed recoveries or published system updates have been recorded.</p>')+'</section>';
+}
+function systemRecoveryPage(){
+ if(!districtOversight())return '<div class="notice danger">District oversight account required.</div>';
+ const results=state.recoveryScan;
+ const rows=(results?.findings||[]).map(x=>
+  '<div class="recovery-finding"><div><strong>'+esc(x.school||'District Office')+' · '+esc(x.target)+'</strong>'+
+  (yesAdmin()&&x.file_name?'<div class="small">'+esc(x.file_name)+'</div>':'')+
+  '<div class="small muted">'+esc(x.issue==='missing_database_record'?'Drive ID saved in log but database file record is missing':'Upload not confirmed; inspect before retrying')+
+  ' · '+esc(date(x.receipt_at))+'</div>'+
+  (yesAdmin()&&x.drive_file_id?'<div class="small muted">Drive ID: '+esc(x.drive_file_id)+'</div>':'')+
+  '</div>'+
+  (yesAdmin()&&x.recoverable?'<button type="button" class="btn tiny" data-a="recovery-approve" data-id="'+esc(x.id)+'">Review & Recover</button>':
+   '<span class="tag warn">'+(x.issue==='missing_database_record'?'Manual review':'Not confirmed')+'</span>')+
+  '</div>').join('');
+ return '<div class="sectionhead"><div><div class="eyebrow">District record integrity</div><h1>Check & Recover Missing Records</h1>'+
+ '<p class="sub">Read-only checks for administrators and OIC-PSDS. Only administrators may approve a verified repair.</p></div>'+
+ '<button type="button" class="btn" data-a="recovery-scan">Check Missing Records</button></div>'+
+ '<div class="notice warn"><strong>Scan scope:</strong> Supabase upload attempts compared with recorded announcements and document attachments. It does not search files that never entered the upload log or verify current Drive contents.</div>'+
+ (results?'<section class="panel"><p class="small muted">Checked '+esc(date(results.checked_at))+'</p>'+
+ '<div class="recovery-stats"><div><strong>'+esc(results.total_attempts||0)+'</strong><small>Upload attempts</small></div>'+
+ '<div><strong>'+esc(results.linked_attempts||0)+'</strong><small>Linked records</small></div>'+
+ '<div><strong>'+esc(results.missing_database_records||0)+'</strong><small>Potential missing records</small></div>'+
+ '<div><strong>'+esc(results.unconfirmed_attempts||0)+'</strong><small>Unconfirmed attempts</small></div></div>'+
+ '<h3>Items requiring review</h3>'+(rows||'<p class="note">No missing or unconfirmed upload attempts in the available log.</p>')+'</section>':
+ '<section class="panel"><p class="note">Tap Check Missing Records to run a fresh integrity scan without changing any files or records.</p></section>')+
+ (yesAdmin()?'<section class="panel"><h3>Publish Completed System Update</h3><p class="note">Share verified releases or completed maintenance with all active users. Do not publish planned work as completed.</p>'+
+ '<div class="field"><label for="recovery-update-title">Update title</label><input id="recovery-update-title" maxlength="160" placeholder="e.g., Mobile navigation update"></div>'+
+ '<div class="field"><label for="recovery-update-summary">Update description</label><textarea id="recovery-update-summary" maxlength="500" rows="3" placeholder="Describe what is confirmed live"></textarea></div>'+
+ '<button type="button" class="btn alt" data-a="recovery-publish">Publish Update</button></section>':'')+
+ '<button type="button" class="btn tiny alt" data-a="nav" data-page="system-updates">View Completed Update History</button>';
 }
 function dashboardPage(){
  const name=state.profile.display_name||"District User";
@@ -1915,6 +1969,49 @@ async function click(e){
  const t=e.target.closest('[data-a]');if(!t||state.busy)return;
  const a=t.dataset.a;
  try{
+  if(a==='recovery-scan'){
+   if(!districtOversight()||state.view!=='system-recovery')throw Error('District oversight required.');
+   state.busy=true;
+   try{
+    const {data,error}=await db.rpc('i_track_recovery_scan');
+    if(error)throw error;
+    state.recoveryScan=data;
+    show();
+    pop('Upload log scan completed. No files or records were changed.');
+   }finally{state.busy=false;}
+   return;
+  }
+  if(a==='recovery-approve'){
+   if(!yesAdmin()||state.view!=='system-recovery')throw Error('Administrator required.');
+   const item=(state.recoveryScan?.findings||[]).find(x=>x.id===t.dataset.id&&x.recoverable);
+   if(!item)throw Error('Item no longer eligible. Run the scan again.');
+   if(!confirm('Have you personally verified that the original file still exists in the private district Drive, with the correct uploader and destination? Do not proceed without checking.'))return;
+   const reason=prompt('Describe how you verified the Drive file and original submission (minimum 10 characters):');
+   if(!reason||reason.trim().length<10)return;
+   if(!confirm('Recover ONLY this verified record? The original tracking and receipt time will be preserved. Announcement approvals remain pending.'))return;
+   state.busy=true;
+   try{
+    const {error}=await db.rpc('i_track_recovery_apply',{p_attempt_id:item.id,p_confirm_drive:true,p_reason:reason.trim()});
+    if(error)throw error;
+    const [scan,updates]=await Promise.all([db.rpc('i_track_recovery_scan'),db.rpc('i_track_system_updates')]);
+    if(scan.error||updates.error)throw scan.error||updates.error;
+    state.recoveryScan=scan.data;state.systemUpdates=updates.data||[];
+    show();pop('Verified record recovered. Review the corresponding document and approval status.');
+   }finally{state.busy=false;}
+   return;
+  }
+  if(a==='recovery-publish'){
+   if(!yesAdmin()||state.view!=='system-recovery')throw Error('Administrator required.');
+   const title=document.getElementById('recovery-update-title')?.value.trim()||'';
+   const summary=document.getElementById('recovery-update-summary')?.value.trim()||'';
+   if(title.length<3||summary.length<3)throw Error('Enter the update title and completed change details.');
+   if(!confirm('Publish this update to all active SRII i-TRACK users? Only publish changes already verified live.'))return;
+   const {error}=await db.rpc('i_track_system_publish_update',{p_title:title,p_summary:summary});
+   if(error)throw error;
+   const updates=await db.rpc('i_track_system_updates');if(updates.error)throw updates.error;
+   state.systemUpdates=updates.data||[];show();pop('Verified system update published.');
+   return;
+  }
   if(a==='maintenance-refresh'){await readMaintenance();show();return;}
   if(a==='maintenance-toggle'){if(!yesAdmin())throw Error('Admin only');const next=!state.maintenance.enabled;if(!confirm(next?'Turn ON Maintenance Mode? Regular users will see a maintenance notice.':'Turn OFF Maintenance Mode and reopen the app for regular users?'))return;const {error}=await db.rpc('i_track_set_maintenance',{p_enabled:next});if(error)throw error;await readMaintenance();show();pop(next?'Maintenance Mode enabled.':'Maintenance Mode disabled.');return;}
   if(state.maintenance.enabled&&!yesAdmin()&&a!=='logout'){await readMaintenance();show();return;}
@@ -2370,9 +2467,9 @@ async function click(e){
    if(!knownViews.has(t.dataset.page))throw new Error('Unknown navigation destination.');
    if(['school-files','approvals','archive'].includes(t.dataset.page)&&!yesAdmin())throw new Error('District administrator access required.');
    if(t.dataset.page==='verification'&&!yesAdmin()&&!state.approverAssignments.some(x=>x.user_id===state.session.user.id))throw new Error('Not an assigned approver.');
-   if(t.dataset.page==='reports'&&!districtOversight())throw new Error('District oversight access required.');
+   if(['reports','system-recovery'].includes(t.dataset.page)&&!districtOversight())throw new Error('District oversight access required.');
    if(t.dataset.page==='settings'&&yesAdmin())throw new Error('Personal Settings in this redesign are for Normal User accounts.');
-   if(isOic()&&!['dashboard','announcements','notifications','monitoring','reports','settings'].includes(t.dataset.page))throw new Error('This OIC-PSDS account is read-only.');
+   if(isOic()&&!['dashboard','announcements','notifications','monitoring','reports','settings','system-recovery','system-updates'].includes(t.dataset.page))throw new Error('This OIC-PSDS account is read-only.');
    rememberView(t.dataset.page);state.connectedFilter=a==='connected-nav'?(t.dataset.filter||''):'';
    if(t.dataset.page==='monitoring')state.monitorStatusFilter='';
    state.modal=null;await load();return;
