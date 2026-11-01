@@ -919,7 +919,7 @@ function appPage(){
  const school=state.schools.find(x=>x.id===state.profile.school_id)?.name||'District Office';
  const name=state.profile.display_name||(isOic()?'OIC-PSDS':'District Administrator');
  let body={dashboard:dashboardPage,announcements:announcementPage,notifications:notificationsPage,monitoring:monitorPage,documents:documentPage,division:divisionPage,district:districtPage,'document-types':documentTypesAdminPage,retrieval:retrievalPage,settings:settingsPage,reports:districtReportPage,'system-updates':systemUpdatesPage,'system-recovery':systemRecoveryPage,'school-files':schoolAttachmentsPage,verification:verificationPage,approvals:approvalPage,archive:archivePage}[state.view]?.()||dashboardPage();
- if(state.view==='dashboard')body+=systemUpdatePanel();
+ if(state.view==='dashboard')body=systemUpdatePanel()+body;
  if(state.view==='dashboard'&&yesAdmin())body='<section class="panel" style="padding:20px;margin:16px 0;border:2px solid #d7bd6b"><h3>🔧 System Maintenance</h3><p class="note">Pause access for regular users while admins continue working.</p><p><strong>Status: '+(state.maintenance.enabled?'MAINTENANCE ON':'Running normally')+'</strong></p><button class="btn" data-a="maintenance-toggle">'+(state.maintenance.enabled?'Turn OFF Maintenance — Reopen App':'Turn ON Maintenance — Pause Users')+'</button></section>'+body;
  // Read-only presentation context for the upload panel. Not an authorization
  // mechanism: Supabase RLS and the Edge Function enforce permissions.
