@@ -873,3 +873,9 @@ tr[hidden]{display:none!important}
 .version-row-meta a{font-weight:700}
 @media(max-width:850px){.version-list{grid-template-columns:1fr}.version-history-overview-top{align-items:center}}
 @media(max-width:520px){.version-history-overview-top{flex-direction:column}.version-current{text-align:left}.version-milestone{flex-direction:column;gap:4px}.version-milestone strong{flex:auto}.version-milestone span{flex:auto}}
+
+/* v67: readable early-version development notes, distinct from confirmed release notes */
+.version-row.is-unverified{background:var(--paper);border-style:dashed}
+.version-row.is-unverified .version-row-title{font-weight:750;font-size:13px;color:var(--text)}
+.version-row.is-unverified p{font-size:12px;line-height:1.5;color:var(--muted);margin:5px 0}
+.version-row.is-unverified .version-row-heading small{color:var(--muted);font-weight:700;font-size:10px}
