@@ -10,7 +10,7 @@ const settings=window.ITRACK_CONFIG;
 const db=window.ITRACK_DB;
 if(!root||!db||!settings?.url||!settings?.publishableKey)return;
 // Frontend display gate only. Supabase Edge Functions + database RLS enforce access.
-const PILOT_SCHOOL_IDS=new Set([
+const LEGACY_SCHOOL_EXCEPTION_IDS=new Set([
  "68ece6a5-941c-4385-8062-5e4223877b60", // SINUNDOLAN ES
  "d526729d-ee5e-4c1a-87f9-77f513c8778b"  // BUGO CS
 ]);
@@ -84,7 +84,7 @@ function markPanel(){
  if(conn){
    const paragraphs=conn.querySelectorAll("p");
    if(paragraphs.length>=3){
-     paragraphs[1].innerHTML='<span class="tag warn">PILOT</span> DepEd Google Drive uploads';
+     paragraphs[1].innerHTML='<span class="tag good">AVAILABLE</span> DepEd Google Drive uploads';
      paragraphs[2].textContent="Authorized routed-document attachments are available district-wide. School announcement submissions still follow role-based permissions.";
    }
  }
@@ -115,7 +115,7 @@ function markPanel(){
    '<img class="iu-image" alt="Preview of selected screenshot" hidden>'+
    '<div class="iu-actions"><button type="button" class="btn alt iu-compress" disabled>Compress File</button>'+
     '<button type="button" class="btn iu-upload" disabled>Upload to Google Drive</button></div><div class="iu-progress" hidden role="status" aria-live="polite"><span class="iu-progress-label">Preparing upload…</span><progress class="iu-progress-bar" max="100"></progress></div>'+
-   '<p class="iu-limits">Maximum 4 MB per file. Compression is optional and applies to images only. For PDF and Word files, the original is preserved. Avoid uploading confidential documents while this pilot is being tested.</p>'+
+   '<p class="iu-limits">Maximum 4 MB per file. Compression is optional and applies to images only. For PDF and Word files, the original is preserved. Upload only authorized school documents. Avoid unnecessary personal or confidential information.</p>'+
    '<div class="iu-history" aria-live="polite"><h4>Submission history</h4><div class="iu-history-list">Select a requirement to view its records.</div></div>'+
   '</div>'+
   '<div class="iu-message" hidden aria-live="polite"></div>';
@@ -198,7 +198,7 @@ async function initialize(node,kind){
     throw Error("Only approved school personnel or district administrators can upload files.");
    // Any active school user may attach to an authorized routed document.
    // RLS limits the document picker; the upload server independently verifies involvement.
-   if(kind==="announcement"&&!aoII&&!PILOT_SCHOOL_IDS.has(profile.school_id))
+   if(kind==="announcement"&&!aoII&&!LEGACY_SCHOOL_EXCEPTION_IDS.has(profile.school_id))
     throw Error("Submitting announcement requirements for other schools requires an approved AO II account.");
   }
   let options=[];
