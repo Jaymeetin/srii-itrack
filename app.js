@@ -46,7 +46,7 @@ const knownViews=new Set(['dashboard','announcements','notifications','monitorin
 const urlView=new URLSearchParams(location.search).get('view');
 const firstView=knownViews.has(urlView)?urlView:'dashboard';
 localStorage.removeItem('srii-current-view');
-const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:arrivedFromExpiredEmailLink?'resend':importedQueueTicket?'queue':'login',emailHelpReason:arrivedFromExpiredEmailLink?'expired':'',queueTicket:importedQueueTicket||localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],showRemovedAccounts:false,modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],districtHistory:[],documentDistrictStatuses:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],compliances:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewCompliances:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],notificationLimit:50,notificationHasMore:false,divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',districtData:{eligible:[],transmittals:[],items:[],claimable:[],people:[]},districtPicked:new Set(),districtSubmitPicked:new Set(),districtSelected:'',districtSchoolId:'',adminDocumentTypes:{types:[],requests:[]},documentDivisionStatuses:[],approverAssignments:[],announcementApproverEditing:null,announcementEditId:null,announcementEditorData:null,announcementCancelId:null,transmittalEditing:false,retrievalData:{},retrievalPicked:new Set(),retrievalTurnoverPicked:new Set(),retrievalDistrictPicked:new Set(),retrievalSearch:'',privateDetails:null,profileRequests:[],userFeedback:[],issue:null,maintenance:{enabled:false,message:''}};
+const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],oversightUploads:[],oversightShowAllUploads:false,monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:arrivedFromExpiredEmailLink?'resend':importedQueueTicket?'queue':'login',emailHelpReason:arrivedFromExpiredEmailLink?'expired':'',queueTicket:importedQueueTicket||localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],showRemovedAccounts:false,modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],districtHistory:[],documentDistrictStatuses:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],compliances:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewCompliances:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],notificationLimit:50,notificationHasMore:false,divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',districtData:{eligible:[],transmittals:[],items:[],claimable:[],people:[]},districtPicked:new Set(),districtSubmitPicked:new Set(),districtSelected:'',districtSchoolId:'',adminDocumentTypes:{types:[],requests:[]},documentDivisionStatuses:[],approverAssignments:[],announcementApproverEditing:null,announcementEditId:null,announcementEditorData:null,announcementCancelId:null,transmittalEditing:false,retrievalData:{},retrievalPicked:new Set(),retrievalTurnoverPicked:new Set(),retrievalDistrictPicked:new Set(),retrievalSearch:'',privateDetails:null,profileRequests:[],userFeedback:[],issue:null,maintenance:{enabled:false,message:''}};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=x=>x?new Date(x).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}):'—';
@@ -255,7 +255,16 @@ async function load(){
      state.schoolSubmissions=submissions||[];
    })());
   }
-  if(state.view==='reports'&&districtOversight())tasks.push((async()=>{const {data,error}=await db.rpc('i_track_district_report');if(error)throw error;state.districtReport=data||[];})());
+  if(state.view==='reports'&&districtOversight())tasks.push((async()=>{
+   const [report,uploads]=await Promise.all([
+    db.rpc('i_track_district_report'),
+    db.rpc('i_track_oversight_announcement_uploads',{p_announcement_id:null})
+   ]);
+   if(report.error)throw report.error;
+   if(uploads.error)throw uploads.error;
+   state.districtReport=report.data||[];
+   state.oversightUploads=uploads.data||[];
+  })());
   await Promise.all(tasks);
   if(state.view==='monitoring')await loadMonitor();
   if(state.view==='verification'&&(yesAdmin()||state.approverAssignments.some(x=>x.user_id===state.session.user.id)))await loadVerification();
@@ -400,7 +409,19 @@ async function openAnnouncementEditor(id){
  state.modal='edit-announcement';
  show();
 }
-async function loadMonitor(){if(!state.selectedId){state.monitor=[];return;}const {data,error}=await db.rpc('i_track_monitor',{p_announcement_id:state.selectedId});if(error)throw error;state.monitor=data||[];}
+async function loadMonitor(){
+ if(!state.selectedId){state.monitor=[];state.oversightUploads=[];return;}
+ const selected=state.selectedId;
+ const [monitor,uploads]=await Promise.all([
+  db.rpc('i_track_monitor',{p_announcement_id:selected}),
+  districtOversight()?db.rpc('i_track_oversight_announcement_uploads',{p_announcement_id:selected}):Promise.resolve({data:[],error:null})
+ ]);
+ if(monitor.error)throw monitor.error;
+ if(uploads.error)throw uploads.error;
+ if(state.selectedId!==selected)return;
+ state.monitor=monitor.data||[];
+ state.oversightUploads=uploads.data||[];
+}
 async function loadVerification(){
  if(!active()||(!yesAdmin()&&!state.approverAssignments.some(x=>x.user_id===state.session.user.id)))throw new Error('Assigned approver or administrator access required.');
  const announcements=state.announcements.filter(a=>['open','closed'].includes(a.status)&&
@@ -1046,6 +1067,16 @@ function dashboardPage(){
 function districtReportPage(){
  if(!districtOversight())return '<div class="notice danger">District oversight access required.</div>';
  const reports=state.districtReport||[];
+ const uploads=state.oversightUploads||[];
+ const showAll=state.oversightShowAllUploads;
+ const uploadRows=(showAll?uploads:uploads.slice(0,20)).map(f=>
+  '<tr><td><strong>'+esc(f.announcement_code||'')+'</strong><div class="small muted">'+esc(f.announcement_title||'')+'</div></td>'+
+  '<td>'+esc(f.school_name||'District Office')+'</td>'+
+  '<td><strong>'+esc(f.original_filename||'Attachment')+'</strong><div class="small muted">Version '+esc(f.version_number||1)+'</div></td>'+
+  '<td>'+esc(date(f.uploaded_at))+'</td>'+
+  '<td>'+esc(f.uploader_name||'Unknown uploader')+'</td>'+
+  '<td>'+pTag(f.verification_status||'pending')+'</td></tr>'
+ ).join('');
  const total=reports.reduce((sum,r)=>({
   required:sum.required+Number(r.required_schools||0),
   onTime:sum.onTime+Number(r.submitted_count||0),
@@ -1065,7 +1096,7 @@ function districtReportPage(){
     '<td>'+esc(pending)+'</td><td><strong>'+esc(percent)+'%</strong></td></tr>';
  });
  return '<div class="sectionhead"><div><div class="eyebrow">District-wide reporting</div>'+
-  '<h1>District Reports</h1><p class="sub">Read-only compliance summaries for official oversight. Submission files and individual upload times are not included.</p></div>'+
+  '<h1>District Reports</h1><p class="sub">Read-only compliance summaries and individual announcement upload times in Philippine time (PHT). File contents remain permission-controlled.</p></div>'+
   '<button class="btn alt" data-a="export-district-report"'+(!reports.length?' disabled':'')+'>↧ Export CSV</button></div>'+
   '<div class="stats">'+stat('Announcements',reports.length,'Published district requests')+
   stat('School requirements',total.required,'Across all announcements')+
@@ -1075,7 +1106,12 @@ function districtReportPage(){
   stat('Completion',complete+'%','Submitted on time or late')+'</div>'+
   '<section class="panel"><h3>Announcement Compliance Summary</h3>'+
   table(['Announcement','Deadline','Required','On Time','Late','Pending','Completion'],rows)+
-  '<p class="note">Counts are based on each school’s first securely received submission and the current official deadline. No school’s file or submission timestamp is shown.</p></section>';
+  '<p class="note">Counts are based on each school’s first securely received submission and the current official deadline.</p></section>'+
+  '<section class="panel"><div class="sectionhead"><h3>Announcement File Upload History</h3>'+
+  (uploads.length>20?'<button type="button" class="btn tiny alt" data-a="oversight-toggle-uploads">'+(showAll?'Show Latest 20':'Show All ('+uploads.length+')')+'</button>':'')+
+  '</div><p class="note">Exact upload date and time (PHT), uploader, filename and version for every recorded file. Previous versions are retained. Read-only metadata; file access remains restricted.</p>'+
+  (uploads.length?table(['Announcement','School','File / Version','Uploaded (PHT)','Uploaded By','Verification'],uploadRows):
+   '<p class="empty">No announcement attachments have been uploaded yet.</p>')+'</section>';
 }
 function exportDistrictReport(){
  if(!districtOversight())throw new Error('District oversight access required.');
@@ -1130,9 +1166,13 @@ function monitorPage(){
   const status=String(x.submission_status||'Pending');
   const school=state.schools.find(s=>s.name===x.school_name);
   if(!school)return '';
+  const uploads=districtOversight()?state.oversightUploads.filter(f=>f.school_id===school.id):[];
+  const latest=uploads[0];
   return '<button type="button" class="status-school-row" data-a="monitor-school" data-school-id="'+esc(school.id)+'" '+
    'aria-label="Open '+esc(school.name)+' — '+esc(status)+'">'+
-   '<span class="status-school-name">'+esc(school.name)+'</span>'+pTag(status)+
+   '<span class="status-school-name">'+esc(school.name)+
+   (districtOversight()?'<small class="oversight-upload-time">'+(latest?'Latest file: '+esc(date(latest.uploaded_at))+' · '+uploads.length+' version(s)':'No file uploaded')+'</small>':'')+
+   '</span>'+pTag(status)+
    '<span class="status-school-chevron" aria-hidden="true">›</span></button>';
  }).join('');
  return '<div class="eyebrow">District-wide visibility</div><h1>Submission Monitoring</h1>'+
@@ -1161,6 +1201,15 @@ function monitorSchoolVisibleFilesHtml(){
 function monitorSchoolModal(){
  const item=state.monitorSchool;
  if(!item)return '<p class="notice">School status is not available.</p>';
+ const oversightHistory=districtOversight()?(state.oversightUploads||[]).filter(f=>f.school_id===item.schoolId&&f.announcement_id===item.announcementId):[];
+ const oversightFiles=districtOversight()?'<section class="monitor-visible-files"><h4>Announcement File Upload History ('+oversightHistory.length+')</h4>'+
+  '<p class="note">Upload times use Philippine time (PHT). This is read-only upload metadata, not file access.</p>'+
+  (oversightHistory.length?oversightHistory.map(f=>
+   '<div class="monitor-visible-file"><div><strong>'+esc(f.original_filename||'Attachment')+'</strong>'+
+   '<div class="small muted">Version '+esc(f.version_number||1)+' · Uploaded '+esc(date(f.uploaded_at))+
+   ' · By '+esc(f.uploader_name||'Unknown uploader')+' · '+esc(label(f.verification_status||'pending'))+
+   (f.storage_status==='archived'?' · Archived':'')+'</div></div></div>').join(''):
+   '<p class="note">No file attached to this announcement by this school. A submission may have been recorded without a file.</p>')+'</section>':'';
  const info='<div class="monitor-file-summary">'+
   '<div><span class="small muted">School</span><strong>'+esc(item.schoolName)+'</strong></div>'+
   '<div><span class="small muted">Submission Status</span><span id="monitor-school-current-status">'+pTag(item.status)+'</span></div>'+
@@ -1177,7 +1226,7 @@ function monitorSchoolModal(){
     'This announcement is closed or cancelled; new submissions are unavailable.')+'</p>';
  const existing=!isOic()&&!yesAdmin()?'<section class="monitor-visible-files"><h4>Files You Can Access</h4>'+ 
   '<div id="monitor-visible-school-uploads">'+monitorSchoolVisibleFilesHtml()+'</div></section>':'';
- return info+adminButton+existing+action;
+ return info+oversightFiles+adminButton+existing+action;
 }
 async function openMonitorSchool(schoolId){
  if(!active()||state.view!=='monitoring')throw new Error('Open Submission Monitoring first.');
@@ -2054,6 +2103,7 @@ async function click(e){
   }
   if(a==='division-forward'){if(!confirm('Forward this acknowledged document to the Division transmittal queue? Only its current recipient may do this.'))return;const {error}=await db.rpc('i_track_division_forward',{p_document:t.dataset.id});if(error)throw error;pop('Document forwarded to Division queue. Open Division Transmittals to prepare it.');return;}
   if(a==='open-self-division'){state.modal=null;rememberView('division');await load();return;}
+  if(a==='oversight-toggle-uploads'){if(!districtOversight()||state.view!=='reports')throw Error('District oversight reports required.');state.oversightShowAllUploads=!state.oversightShowAllUploads;show();return;}
   if(a==='division-refresh'){await load();return;}
   if(a==='transmittal-save-signer'){
    const t=state.divisionData.transmittals.find(x=>x.id===state.divisionSelected)||state.divisionData.transmittals[0];
