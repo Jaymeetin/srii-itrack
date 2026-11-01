@@ -1076,7 +1076,7 @@ function districtReportPage(){
   '<td>'+esc(date(f.uploaded_at))+'</td>'+
   '<td>'+esc(f.uploader_name||'Unknown uploader')+'</td>'+
   '<td>'+pTag(f.verification_status||'pending')+'</td></tr>'
- ).join('');
+ );
  const total=reports.reduce((sum,r)=>({
   required:sum.required+Number(r.required_schools||0),
   onTime:sum.onTime+Number(r.submitted_count||0),
