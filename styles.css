@@ -832,3 +832,11 @@ tr[hidden]{display:none!important}
 .feedback-toolbar{margin-bottom:14px}.feedback-toolbar select{min-height:40px}
 @media(max-width:850px){.feedback-edit{grid-template-columns:1fr}.feedback-edit .btn{width:100%}}
 @media(max-width:730px){.feedback-shortcut{flex-direction:column;align-items:stretch}.feedback-shortcut .btn{width:100%}.feedback-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* v65: ordinary consolidation also shows explicitly attributed administrator entries. */
+.feedback-source{font-size:11px;font-weight:750;color:var(--muted);margin:3px 0 0;line-height:1.4}
+.feedback-admin-add{padding:15px 18px;margin:0 0 18px}
+.feedback-admin-add summary{cursor:pointer;font-size:15px;font-weight:850;color:var(--blue)}
+.feedback-admin-add form{margin-top:18px;max-width:750px}
+.feedback-card-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+@media(max-width:850px){.feedback-card-actions{flex-direction:column;align-items:stretch}}
