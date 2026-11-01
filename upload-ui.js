@@ -98,7 +98,7 @@ function markPanel(){
  newPanel.innerHTML=
   '<div class="iu-heading"><div><span class="iu-kicker">DEPED GOOGLE DRIVE</span>'+
   '<h3>'+ (host?"Submit for This School":kind==="announcement"?"Submit a Requirement":"Attach a Document") +'</h3></div>'+
-  '<span class="iu-pilot">TRIAL</span></div>'+
+  '<span class="iu-workspace-label">DISTRICT</span></div>'+
   '<p class="iu-description">'+(kind==="announcement"?
    (host?'Upload for this school using your own AO II account. Your identity and the represented school are recorded; only district administrators verify the submission.':'Choose an assigned requirement and upload a PDF, Word file, or image. Revised submissions keep their version history.'):
    'Attach a file to a document you created, sent, or received through routing. Files remain private to authorized participants.'
