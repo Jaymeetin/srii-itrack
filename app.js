@@ -947,7 +947,7 @@ function authPage(){
  $.innerHTML='<div class="auth"><aside class="auth-aside">'+brand()+
   '<div><h1>Connecting Schools.<br><em>Tracking Documents.</em><br>Ensuring Accountability.</h1>'+
    '<p>San Remigio II District — integrated announcements, document routing and compliance monitoring.</p></div>'+
-  '<small>SAN REMIGIO II · OFFICIAL WORKSPACE TRIAL</small></aside>'+
+  '<small>SAN REMIGIO II · OFFICIAL DISTRICT WORKSPACE</small></aside>'+
   '<main class="auth-content"><div class="auth-card">'+
    '<div class="auth-top"><button class="btn alt tiny" data-a="theme">◐ Light / Dark</button></div>'+
    '<div class="eyebrow">Welcome to SRII i-TRACK</div><h1>'+heading+'</h1><p class="sub">'+intro+'</p>'+
@@ -3222,7 +3222,7 @@ async function submit(e){
    });
    if(error){
     if(error.code==='over_email_send_rate_limit'||error.status===429){
-     // A failed Supabase email attempt still consumes the trial quota.
+     // A failed Supabase email attempt may count against the configured email sending limit.
      // Put the applicant back into a later numbered slot, without saving
      // or resending the password.
      const retry=await db.rpc('i_track_registration_queue_retry',{p_ticket:state.queueTicket});
