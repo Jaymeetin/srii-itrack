@@ -1091,7 +1091,7 @@ function notificationsPage(){
 }
 function systemUpdatePanel(){
  const recent=(state.systemUpdates||[])[0];
- return '<section class="panel itrack-system-update"><div class="sectionhead"><div><h3>System Updates</h3><p class="note">Current web version: 62 · Completed updates are listed below.</p></div>'+
+ return '<section class="panel itrack-system-update"><div class="sectionhead"><div><h3>System Updates</h3><p class="note">Current web version: 64 · Completed updates are listed below.</p></div>'+
  (districtOversight()?'<button type="button" class="btn alt" data-a="nav" data-page="system-recovery">Check Missing Records</button>':'')+'</div>'+
  (recent?'<div class="system-event"><strong>'+esc(recent.title)+'</strong><span>'+esc(date(recent.created_at))+'</span><p>'+esc(recent.summary)+'</p></div>':'<p class="note">No completed recovery or published update has been recorded yet.</p>')+
  '<button type="button" class="btn tiny alt" data-a="nav" data-page="system-updates">View Update History</button></section>';
@@ -1099,7 +1099,7 @@ function systemUpdatePanel(){
 function systemUpdatesPage(){
  const records=state.systemUpdates||[];
  return '<div class="sectionhead"><div><div class="eyebrow">Application history</div><h1>System Updates</h1>'+
- '<p class="sub">Current web version 62. Only published updates and completed recoveries appear here. Checking for missing records does not count as an update.</p></div>'+
+ '<p class="sub">Current web version 64. Only published updates and completed recoveries appear here. Checking for missing records does not count as an update.</p></div>'+
  (districtOversight()?'<button type="button" class="btn alt" data-a="nav" data-page="system-recovery">Check Missing Records</button>':'')+'</div>'+
  '<section class="panel">'+(records.length?records.map(x=>'<div class="system-event"><div><strong>'+esc(x.title)+'</strong> '+pTag(x.event_kind)+'</div>'+
  '<small>'+esc(date(x.created_at))+'</small><p>'+esc(x.summary)+'</p></div>').join(''):
