@@ -46,7 +46,7 @@ const knownViews=new Set(['dashboard','announcements','notifications','monitorin
 const urlView=new URLSearchParams(location.search).get('view');
 const firstView=knownViews.has(urlView)?urlView:'dashboard';
 localStorage.removeItem('srii-current-view');
-const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],monitorSchoolDetails:null,oversightUploads:[],oversightShowAllUploads:false,connectedFilter:'',monitorStatusFilter:'',reportFilter:'',navTrail:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:arrivedFromExpiredEmailLink?'resend':importedQueueTicket?'queue':'login',emailHelpReason:arrivedFromExpiredEmailLink?'expired':'',queueTicket:importedQueueTicket||localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],showRemovedAccounts:false,modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],districtHistory:[],documentDistrictStatuses:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],compliances:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewCompliances:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],notificationLimit:50,notificationHasMore:false,divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',districtData:{eligible:[],transmittals:[],items:[],claimable:[],people:[]},districtPicked:new Set(),districtSubmitPicked:new Set(),districtSelected:'',districtSchoolId:'',adminDocumentTypes:{types:[],requests:[]},documentDivisionStatuses:[],approverAssignments:[],announcementApproverEditing:null,announcementEditId:null,announcementEditorData:null,announcementCancelId:null,transmittalEditing:false,retrievalData:{},retrievalPicked:new Set(),retrievalTurnoverPicked:new Set(),retrievalDistrictPicked:new Set(),retrievalSearch:'',privateDetails:null,profileRequests:[],userFeedback:[],feedbackInbox:[],adminFeedbackEntries:[],feedbackAuthors:[],feedbackFilter:'all',feedbackType:'all',versionHistoryLatestFirst:false,versionHistoryDocumentedOnly:false,issue:null,maintenance:{enabled:false,message:''},systemUpdates:[],recoveryScan:null,misfiledReview:null,recoveryChecking:false};
+const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],monitorSchoolDetails:null,oversightUploads:[],oversightShowAllUploads:false,connectedFilter:'',monitorStatusFilter:'',reportFilter:'',navTrail:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:arrivedFromExpiredEmailLink?'resend':importedQueueTicket?'queue':'login',emailHelpReason:arrivedFromExpiredEmailLink?'expired':'',queueTicket:importedQueueTicket||localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],showRemovedAccounts:false,modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],districtHistory:[],documentDistrictStatuses:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],compliances:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewCompliances:[],reviewAllCompliances:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],notificationLimit:50,notificationHasMore:false,divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',districtData:{eligible:[],transmittals:[],items:[],claimable:[],people:[]},districtPicked:new Set(),districtSubmitPicked:new Set(),districtSelected:'',districtSchoolId:'',adminDocumentTypes:{types:[],requests:[]},documentDivisionStatuses:[],approverAssignments:[],announcementApproverEditing:null,announcementEditId:null,announcementEditorData:null,announcementCancelId:null,transmittalEditing:false,retrievalData:{},retrievalPicked:new Set(),retrievalTurnoverPicked:new Set(),retrievalDistrictPicked:new Set(),retrievalSearch:'',privateDetails:null,profileRequests:[],userFeedback:[],feedbackInbox:[],adminFeedbackEntries:[],feedbackAuthors:[],feedbackFilter:'all',feedbackType:'all',versionHistoryLatestFirst:false,versionHistoryDocumentedOnly:false,issue:null,maintenance:{enabled:false,message:''},systemUpdates:[],recoveryScan:null,misfiledReview:null,recoveryChecking:false};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=x=>x?new Date(x).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}):'—';
@@ -482,6 +482,13 @@ async function loadMonitor(){
 }
 async function loadVerification(){
  if(!active()||(!yesAdmin()&&!state.approverAssignments.some(x=>x.user_id===state.session.user.id)))throw new Error('Assigned approver or administrator access required.');
+ // District administrators need an all-announcement inbox rather than
+ // depending on the one selected announcement.
+ if(yesAdmin()){
+  const {data,error}=await db.rpc('i_track_compliance_list',{p_announcement:null});
+  if(error)throw error;
+  state.reviewAllCompliances=Array.isArray(data)?data:[];
+ }else state.reviewAllCompliances=[];
  const announcements=state.announcements.filter(a=>['open','closed'].includes(a.status)&&
   (yesAdmin()||state.approverAssignments.some(x=>x.announcement_id===a.id&&x.user_id===state.session.user.id)));
  if(!state.reviewSelectedId||!announcements.some(a=>a.id===state.reviewSelectedId))
@@ -678,6 +685,38 @@ function verificationPage(){
  const options=notices.map(a=>'<option value="'+esc(a.id)+'"'+(a.id===state.reviewSelectedId?' selected':'')+'>'+esc(announcementName(a))+'</option>').join('');
  const uploadedSchools=state.reviewRows.length;
  const complianceRows=(state.reviewCompliances||[]).map(c=>'<tr><td>'+esc(c.school_name)+'<div class="small muted">'+esc(c.number)+'</div></td><td>'+esc(c.has_attachment?'With attachment':'No attachment')+(c.current_submission_id?'<div class="verify-file-actions"><button type="button" class="btn tiny alt iu-file-action" data-mode="view" data-kind="announcement" data-id="'+esc(c.current_submission_id)+'" data-name="Submission attachment">View</button> <button type="button" class="btn tiny alt iu-file-action" data-mode="download" data-kind="announcement" data-id="'+esc(c.current_submission_id)+'" data-name="Submission attachment">Download</button></div>':'')+'</td><td>'+pTag(c.status)+'</td><td>'+(c.status==='pending_verification'?'<button class="btn tiny" data-a="compliance-verify" data-id="'+esc(c.id)+'">Approve</button> <button class="btn tiny alt" data-a="compliance-return" data-id="'+esc(c.id)+'">Return</button>':'<span class="small muted">'+esc(date(c.verified_at||c.submitted_at))+'</span>')+'</td></tr>');
+ const globalRecords=yesAdmin()?(state.reviewAllCompliances||[]).slice().sort((a,b)=>
+  new Date(b.submitted_at||0)-new Date(a.submitted_at||0)):[];
+ const globalPending=globalRecords.filter(c=>c.status==='pending_verification');
+ const globalVerified=globalRecords.filter(c=>c.status==='verified');
+ const globalPendingRows=globalPending.map(c=>{
+  const ann=state.announcements.find(a=>a.id===c.announcement_id);
+  const annName=ann?announcementName(ann):c.announcement_title||'Announcement';
+  return '<div class="verify-global-entry"><div class="verify-global-main"><strong>'+esc(c.school_name)+'</strong>'+
+   '<p class="verify-global-announcement">'+esc(annName)+'</p>'+
+   '<div class="small muted">Submission '+esc(c.number)+' · '+esc(date(c.submitted_at))+
+   ' · '+(c.has_attachment?'File uploaded':'No attachment')+'</div>'+
+   (ann?.announcement_code==='ANN-2026-001'&&c.has_attachment?'<div class="verify-assignment-warning">Check assignment: submitted under the SYSTEM TEST announcement.</div>':'')+
+   '</div><div class="verify-global-actions"><span class="verify-status verify-status-pending">Awaiting review</span>'+
+   '<button type="button" class="btn tiny" data-a="review-pending" data-id="'+esc(c.id)+'">Review</button></div></div>';
+ }).join('');
+ const allRecordRows=globalRecords.map(c=>{
+  const ann=state.announcements.find(a=>a.id===c.announcement_id);
+  return '<tr><td><strong>'+esc(c.school_name)+'</strong><div class="small muted">'+esc(c.number)+'</div></td>'+
+   '<td>'+esc(ann?announcementName(ann):c.announcement_title||'Announcement')+'</td>'+
+   '<td>'+pTag(c.status)+'</td><td>'+esc(date(c.submitted_at))+'</td>'+
+   '<td><button type="button" class="btn tiny alt" data-a="review-pending" data-id="'+esc(c.id)+'">Open</button></td></tr>';
+ });
+ const allAnnouncementOverview='<section class="panel verification-global-panel">'+
+  '<div class="sectionhead"><div><h3>Pending Submission Approvals — All Announcements</h3>'+
+  '<p class="note">Every announcement is included here. Account Approvals is only for personnel accounts.</p></div>'+
+  '<div class="verify-global-tally"><strong>'+esc(globalPending.length)+'</strong><span>Awaiting verification</span></div></div>'+
+  '<div class="verify-global-summary">'+esc(globalVerified.length)+' verified · '+esc(globalRecords.length)+' recorded school responses</div>'+
+  (globalPendingRows||'<p class="note">No school submissions are waiting for approval across the available announcements.</p>')+
+  '<details class="verify-global-history"><summary>Show all recorded responses ('+esc(globalRecords.length)+')</summary>'+
+  (allRecordRows.length?table(['School / Submission ID','Announcement','Status','Submitted','Open'],allRecordRows):
+  '<p class="note">No school compliance responses have been recorded.</p>')+
+  '</details></section>';
  const awaitingNow=state.reviewRows.filter(s=>s.verification_status==='pending').length;
  const oldPending=state.reviewRows.reduce((count,s)=>count+s.versions.slice(1).filter(f=>f.verification_status==='pending').length,0);
  const currentVerified=state.reviewRows.filter(s=>s.verification_status==='verified').length;
@@ -726,12 +765,14 @@ function verificationPage(){
   table(['School / Submission ID','Evidence','Status','Review'],complianceRows)+'</section>';
  return '<div class="sectionhead"><div><div class="eyebrow">District administrator</div>'+
   '<h1>Submission Verification</h1>'+
-  '<p class="sub">Review the latest upload, compare it with the latest verified version, and inspect every earlier version.</p></div>'+
+  '<p class="sub">See submissions from all announcements, then inspect and verify the correct requirement and school.</p></div>'+
   '<button class="btn alt" data-a="refresh-verification">↻ Refresh</button></div>'+
-  '<section class="panel"><h3>School Compliance Verification</h3><p class="note">Verify school responses with or without uploaded files. Every response has a permanent ID.</p>'+table(['School / Submission ID','Evidence','Status','Action'],complianceRows)+'</section>'+ 
-  '<section class="panel verify-panel"><div class="verify-picker"><div class="field">'+
-  '<label for="review-ann">Announcement to review</label><select id="review-ann">'+options+'</select></div>'+
-  '<div class="verify-summary"><strong>'+awaitingNow+'</strong><span>Latest uploads awaiting review</span>'+
+  allAnnouncementOverview+
+  '<section class="panel"><div class="field"><label for="review-ann">Announcement to review</label>'+
+  '<select id="review-ann">'+options+'</select></div><p class="note">Choose a requirement to inspect uploaded files and earlier versions. Pending approvals across all announcements are shown above.</p></section>'+
+  '<section class="panel"><h3>School Compliance Verification — Selected Announcement</h3><p class="note">Verify school responses with or without uploaded files. Every response has a permanent ID.</p>'+table(['School / Submission ID','Evidence','Status','Action'],complianceRows)+'</section>'+ 
+  '<section class="panel verify-panel" id="verification-selected-panel"><div class="verify-picker">'+
+  '<div class="verify-summary"><strong>'+awaitingNow+'</strong><span>Latest uploads awaiting review for selected announcement</span>'+
   '<small>'+currentVerified+' current versions verified · '+uploadedSchools+' schools with uploads · '+state.reviewRequired+' required assignments</small></div></div>'+
   '<div class="notice">Verify or reject the latest submitted version only. Approval does not change the submission deadline or timeliness.</div>'+
   (oldPending?'<p class="verify-historical-note"><strong>'+oldPending+' earlier version'+(oldPending===1?' is':'s are')+' still marked Pending.</strong> '+
@@ -1503,8 +1544,15 @@ function monitorSchoolModal(){
   '</div>';
  const adminButton=yesAdmin()&&['Submitted','Late'].includes(item.status)?
   '<div class="toolbar"><button class="btn alt" data-a="monitor-submission" data-school-id="'+esc(item.schoolId)+'">View Uploaded Files (Admin)</button></div>':'';
+ const alreadyHasSubmission=oversightHistory.length>0||
+  !!oversightDetails?.submitted_at||
+  (state.monitorSchoolFiles||[]).length>0||
+  ['Submitted','Late','Pending Verification','Verified'].includes(item.status);
  const action=item.canSubmit?
-  '<div class="panel"><h3>Submit Compliance</h3><p class="note">No attachment required. Administrator verification is still required.</p><button class="btn" data-a="mark-compliance" data-assignment="'+esc(item.assignmentId)+'">Mark as Submitted</button></div>'+ 
+  '<div class="panel"><h3>Submit Compliance</h3>'+
+  (alreadyHasSubmission?'<p class="notice">A submission for this school and announcement is already recorded. Its files and verification history are retained. Do not mark it as submitted again; wait for review or upload a corrected version if needed.</p>':
+   '<p class="note">For compliance without an attachment. Administrator verification is required.</p><button class="btn" data-a="mark-compliance" data-assignment="'+esc(item.assignmentId)+'">Mark as Submitted</button>')+
+  '</div>'+ 
   '<div id="monitor-school-upload-host" data-announcement-id="'+esc(item.announcementId)+'" data-school-id="'+esc(item.schoolId)+'" data-assignment-id="'+esc(item.assignmentId)+'" data-school-name="'+esc(item.schoolName)+'"></div>'+
   '<p class="note">The actual uploader and represented school are recorded automatically. A submission requires district administrator verification; the represented school does not approve it.</p>':
   '<p class="note">'+(isOic()?'Oversight account: view status only.':
@@ -1875,6 +1923,7 @@ function approvalPage(){
  });
  return '<div class="eyebrow">Administrator controls</div><h1>Account Approvals</h1>'+
   '<p class="sub">Approve personnel, check who is awaiting email verification, or send a password-reset link. Resetting a password preserves all documents and account history. The Main Administrator approves OIC-PSDS accounts.</p>'+
+  '<div class="notice"><strong>Looking for school announcement submissions?</strong> This page approves personnel accounts only. Open <button type="button" class="btn tiny alt" data-a="nav" data-page="verification">Submission Verification</button> to review pending reports from every announcement.</div>'+
   '<div class="notice warn"><strong>Approval and email verification are separate.</strong> An approved account marked “Email verification pending” cannot sign in until the user verifies their email. Use <strong>Resend Verification</strong> to request a fresh link if the previous one expired. Do not delete or recreate the account.</div>'+
   '<div class="notice">Delete User removes SRII i-TRACK access and retains the historical account ID, document routing, uploader attribution, and all Google Drive files. It does not erase the underlying Supabase Auth login record or free the email address. Do not use Delete User for forgotten passwords.</div>'+
   (state.connectedFilter==='pending'?'<div class="connected-filter-banner"><strong>Pending account approvals</strong><button class="btn tiny alt" data-a="connected-clear">Show All Accounts</button></div>':'')+
@@ -2722,6 +2771,17 @@ async function click(e){
    if(!yesAdmin()&&!state.approverAssignments.some(x=>x.user_id===state.session.user.id))throw new Error('Assigned approver required.');
    await loadVerification();show();pop('Verification list refreshed.');return;
   }
+  if(a==='review-pending'){
+   if(!yesAdmin()||state.view!=='verification')throw Error('District administrator access required.');
+   const c=(state.reviewAllCompliances||[]).find(x=>x.id===t.dataset.id);
+   if(!c)throw Error('School submission is not in the current list. Refresh the page.');
+   if(!state.announcements.some(x=>x.id===c.announcement_id))throw Error('Announcement is not accessible.');
+   state.reviewSelectedId=c.announcement_id;
+   rememberAnnouncement(state.reviewSelectedId,true);
+   await loadVerification();show();
+   document.getElementById('verification-selected-panel')?.scrollIntoView({behavior:'smooth',block:'start'});
+   return;
+  }
   if(a==='verify-submission'||a==='reject-submission'){
    if(!yesAdmin()||state.view!=='verification')throw new Error('Administrator access required.');
    const submission=state.reviewRows.find(x=>x.id===t.dataset.id);
@@ -2733,7 +2793,14 @@ async function click(e){
    if(!confirm(confirmation))return;
    state.busy=true;t.disabled=true;
    try{
-    const {error}=await db.rpc('i_track_verify_submission',{p_submission_id:submission.id,p_approved:approving});
+    const compliance=(state.reviewCompliances||[]).find(c=>
+     c.current_submission_id===submission.id&&c.status==='pending_verification');
+    const reason=approving||!compliance?null:prompt('Reason for rejecting/returning this school compliance:');
+    if(compliance&&!approving&&!reason?.trim())return;
+    // Keep the linked compliance status synchronized with the file review.
+    const {error}=compliance?
+      await db.rpc('i_track_verify_compliance',{p_compliance:compliance.id,p_approve:approving,p_reason:reason||null}):
+      await db.rpc('i_track_verify_submission',{p_submission_id:submission.id,p_approved:approving});
     if(error)throw error;
     await loadVerification();show();
     pop(approving?'Submission verified.':'Submission rejected. A corrected version can be uploaded.');
