@@ -46,7 +46,7 @@ const knownViews=new Set(['dashboard','announcements','notifications','monitorin
 const urlView=new URLSearchParams(location.search).get('view');
 const firstView=knownViews.has(urlView)?urlView:'dashboard';
 localStorage.removeItem('srii-current-view');
-const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],monitorSchoolDetails:null,oversightUploads:[],oversightShowAllUploads:false,connectedFilter:'',monitorStatusFilter:'',reportFilter:'',navTrail:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:arrivedFromExpiredEmailLink?'resend':importedQueueTicket?'queue':'login',emailHelpReason:arrivedFromExpiredEmailLink?'expired':'',queueTicket:importedQueueTicket||localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],showRemovedAccounts:false,modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],districtHistory:[],documentDistrictStatuses:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],compliances:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewCompliances:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],notificationLimit:50,notificationHasMore:false,divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',districtData:{eligible:[],transmittals:[],items:[],claimable:[],people:[]},districtPicked:new Set(),districtSubmitPicked:new Set(),districtSelected:'',districtSchoolId:'',adminDocumentTypes:{types:[],requests:[]},documentDivisionStatuses:[],approverAssignments:[],announcementApproverEditing:null,announcementEditId:null,announcementEditorData:null,announcementCancelId:null,transmittalEditing:false,retrievalData:{},retrievalPicked:new Set(),retrievalTurnoverPicked:new Set(),retrievalDistrictPicked:new Set(),retrievalSearch:'',privateDetails:null,profileRequests:[],userFeedback:[],feedbackInbox:[],adminFeedbackEntries:[],feedbackAuthors:[],feedbackFilter:'all',feedbackType:'all',issue:null,maintenance:{enabled:false,message:''},systemUpdates:[],recoveryScan:null,misfiledReview:null,recoveryChecking:false};
+const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],monitorSchoolDetails:null,oversightUploads:[],oversightShowAllUploads:false,connectedFilter:'',monitorStatusFilter:'',reportFilter:'',navTrail:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:arrivedFromExpiredEmailLink?'resend':importedQueueTicket?'queue':'login',emailHelpReason:arrivedFromExpiredEmailLink?'expired':'',queueTicket:importedQueueTicket||localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],showRemovedAccounts:false,modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],districtHistory:[],documentDistrictStatuses:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],compliances:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewCompliances:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],notificationLimit:50,notificationHasMore:false,divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',districtData:{eligible:[],transmittals:[],items:[],claimable:[],people:[]},districtPicked:new Set(),districtSubmitPicked:new Set(),districtSelected:'',districtSchoolId:'',adminDocumentTypes:{types:[],requests:[]},documentDivisionStatuses:[],approverAssignments:[],announcementApproverEditing:null,announcementEditId:null,announcementEditorData:null,announcementCancelId:null,transmittalEditing:false,retrievalData:{},retrievalPicked:new Set(),retrievalTurnoverPicked:new Set(),retrievalDistrictPicked:new Set(),retrievalSearch:'',privateDetails:null,profileRequests:[],userFeedback:[],feedbackInbox:[],adminFeedbackEntries:[],feedbackAuthors:[],feedbackFilter:'all',feedbackType:'all',versionHistoryLatestFirst:false,versionHistoryDocumentedOnly:false,issue:null,maintenance:{enabled:false,message:''},systemUpdates:[],recoveryScan:null,misfiledReview:null,recoveryChecking:false};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=x=>x?new Date(x).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}):'—';
@@ -1118,19 +1118,62 @@ function notificationsPage(){
 }
 function systemUpdatePanel(){
  const recent=(state.systemUpdates||[])[0];
- return '<section class="panel itrack-system-update"><div class="sectionhead"><div><h3>System Updates</h3><p class="note">Current web version: 65 · Completed updates are listed below.</p></div>'+
+ const catalog=window.ITRACK_VERSION_CATALOG;
+ const current=catalog?.currentVersion||66;
+ return '<section class="panel itrack-system-update"><div class="sectionhead"><div><h3>System Updates</h3>'+
+ '<p class="note">Current version: '+esc(current)+' · Official live start: '+esc(catalog?.officialGoLive||'12 October 2026')+'.</p></div>'+
  (districtOversight()?'<button type="button" class="btn alt" data-a="nav" data-page="system-recovery">Check Missing Records</button>':'')+'</div>'+
- (recent?'<div class="system-event"><strong>'+esc(recent.title)+'</strong><span>'+esc(date(recent.created_at))+'</span><p>'+esc(recent.summary)+'</p></div>':'<p class="note">No completed recovery or published update has been recorded yet.</p>')+
- '<button type="button" class="btn tiny alt" data-a="nav" data-page="system-updates">View Update History</button></section>';
+ (recent?'<div class="system-event"><strong>'+esc(recent.title)+'</strong><span>'+esc(date(recent.created_at))+'</span><p>'+esc(recent.summary)+'</p></div>':
+ '<p class="note">No completed recovery or published update has been recorded yet.</p>')+
+ '<button type="button" class="btn tiny alt" data-a="nav" data-page="system-updates">View Full Version History (1–'+esc(current)+')</button></section>';
+}
+function systemVersionDirectory(){
+ const history=window.ITRACK_VERSION_CATALOG;
+ if(!history||!history.versions?.length)return '<section class="panel"><p class="notice">The historical version directory could not be loaded. Refresh the page to try again.</p></section>';
+ const count=history.versions.length;
+ const known=history.versions.filter(x=>x.documented).length;
+ const onlyKnown=!!state.versionHistoryDocumentedOnly;
+ const list=history.versions.filter(x=>!onlyKnown||x.documented);
+ if(state.versionHistoryLatestFirst)list.reverse();
+ const items=list.map(v=>'<div class="version-row'+(v.documented?' is-documented':' is-unverified')+'">'+
+ '<div class="version-row-heading"><strong>Version '+esc(v.number)+'</strong>'+
+ (v.documented?'<small>Source-documented</small>':'<small>Version details not separately archived</small>')+'</div>'+
+ '<div class="version-row-title">'+esc(v.title)+'</div>'+
+ (v.documented?'<p>'+esc(v.description)+'</p>':'')+
+ '<div class="version-row-meta">'+
+ (v.date?'<span>'+esc(v.date)+'</span>':'<span>No confirmed version-specific date</span>')+
+ (v.url?'<a href="'+esc(v.url)+'" target="_blank" rel="noopener noreferrer">View source changes</a>':'')+
+ '</div></div>').join('');
+ const milestoneHtml=(history.milestones||[]).map(m=>'<div class="version-milestone"><strong>'+esc(m.date)+'</strong>'+
+ '<span>'+esc(m.summary)+'</span>'+
+ (m.url?'<a target="_blank" rel="noopener noreferrer" href="'+esc(m.url)+'">Source</a>':'')+'</div>').join('');
+ return '<section class="panel version-history-overview">'+
+ '<div class="version-history-overview-top"><div><span class="eyebrow">OFFICIAL DISTRICT GO-LIVE</span>'+
+ '<h2>'+esc(history.officialGoLive)+'</h2><p class="note">'+esc(history.dateAttribution)+'.</p></div>'+
+ '<div class="version-current"><span>Current web version</span><strong>v'+esc(history.currentVersion)+'</strong></div></div>'+
+ '<p class="version-history-note">The district-provided go-live date is separate from the GitHub record. The earliest source commit in the repository is dated '+esc(history.firstSourceCommit)+'. Earlier numbered builds are included for completeness, but individual details and dates are shown only where source records support them.</p>'+
+ '</section>'+
+ '<section class="panel version-history-docs"><details><summary>Dated development milestones <span>(from GitHub source history)</span></summary>'+
+ '<div class="version-milestones">'+milestoneHtml+'</div></details></section>'+
+ '<section class="panel version-directory"><div class="sectionhead"><div><h3>Full Version History — v1 to v'+esc(history.currentVersion)+'</h3>'+
+ '<p class="note">'+esc(count)+' numbered versions · '+esc(known)+' with source-linked details · '+esc(count-known)+' without individually archived release notes.</p></div>'+
+ '<div class="toolbar">'+
+ '<button type="button" class="btn tiny alt" data-a="version-order">'+(state.versionHistoryLatestFirst?'Show Oldest First':'Show Latest First')+'</button>'+
+ '<button type="button" class="btn tiny alt" data-a="version-docs-only">'+(onlyKnown?'Show All Versions':'Show Documented Only')+'</button></div></div>'+
+ '<div class="version-list">'+items+'</div></section>';
 }
 function systemUpdatesPage(){
  const records=state.systemUpdates||[];
- return '<div class="sectionhead"><div><div class="eyebrow">Application history</div><h1>System Updates</h1>'+
- '<p class="sub">Current web version 65. Only published updates and completed recoveries appear here. Checking for missing records does not count as an update.</p></div>'+
+ const history=window.ITRACK_VERSION_CATALOG;
+ return '<div class="sectionhead"><div><div class="eyebrow">Application history</div><h1>System Updates & Version History</h1>'+
+ '<p class="sub">Versions 1–'+esc(history?.currentVersion||66)+', district-recorded official go-live date, source-linked development history, and actual published operational events.</p></div>'+
  (districtOversight()?'<button type="button" class="btn alt" data-a="nav" data-page="system-recovery">Check Missing Records</button>':'')+'</div>'+
- '<section class="panel">'+(records.length?records.map(x=>'<div class="system-event"><div><strong>'+esc(x.title)+'</strong> '+pTag(x.event_kind)+'</div>'+
+ systemVersionDirectory()+
+ '<section class="panel"><h3>Recorded Operational Updates & Recoveries</h3>'+
+ '<p class="note">These entries preserve the actual database timestamps for completed updates and corrections. The historical version index above does not generate or backdate operational events.</p>'+
+ (records.length?records.map(x=>'<div class="system-event"><div><strong>'+esc(x.title)+'</strong> '+pTag(x.event_kind)+'</div>'+
  '<small>'+esc(date(x.created_at))+'</small><p>'+esc(x.summary)+'</p></div>').join(''):
- '<p class="empty">No completed recoveries or published system updates have been recorded.</p>')+'</section>';
+ '<p class="empty">No completed recovery events or published system updates have been recorded.</p>')+'</section>';
 }
 function systemRecoveryPage(){
  if(!districtOversight())return '<div class="notice danger">District oversight account required.</div>';
@@ -2597,6 +2640,16 @@ async function click(e){
   if(a==='connected-clear'){state.connectedFilter='';show();return;}
   if(a==='monitor-stat'){if(state.view!=='monitoring')throw Error('Open Submission Monitoring first.');state.monitorStatusFilter=t.dataset.filter==='all'?'':t.dataset.filter||'';show();return;}
   if(a==='report-stat'){if(state.view!=='reports')throw Error('Open District Reports first.');state.reportFilter=t.dataset.filter==='all'?'':t.dataset.filter||'';show();return;}
+  if(a==='version-order'){
+   if(state.view!=='system-updates')throw Error('Open System Updates first.');
+   state.versionHistoryLatestFirst=!state.versionHistoryLatestFirst;
+   show();return;
+  }
+  if(a==='version-docs-only'){
+   if(state.view!=='system-updates')throw Error('Open System Updates first.');
+   state.versionHistoryDocumentedOnly=!state.versionHistoryDocumentedOnly;
+   show();return;
+  }
   if(a==='feedback-filter'){
    if(!yesAdmin()||state.view!=='feedback-admin')throw Error('Administrator access required.');
    state.feedbackFilter=t.dataset.filter||'all';show();return;
