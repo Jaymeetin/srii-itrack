@@ -1,0 +1,52 @@
+/* SRII i-TRACK compact name/status-first layouts */
+.itrack-compact-list{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--paper);margin:8px 0 12px}
+.itrack-row-count{font-size:11px;font-weight:750;color:var(--muted);padding:8px 12px;border-bottom:1px solid var(--line);background:var(--bg)}
+.itrack-compact-entry{min-width:0;margin:0!important;padding:0!important;background:var(--paper)!important;border:0!important;border-bottom:1px solid var(--line)!important;border-radius:0!important;box-shadow:none!important}
+.itrack-compact-entry:last-child{border-bottom:0!important}
+.itrack-row-summary{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;min-height:43px;padding:8px 11px;list-style:none;cursor:pointer;color:var(--text)}
+.itrack-row-summary::-webkit-details-marker{display:none}
+.itrack-row-summary:hover,.itrack-row-summary:focus-visible{background:var(--light);outline-offset:-2px}
+.itrack-row-title{display:block;font-size:13px;font-weight:700;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.itrack-row-right{display:flex;align-items:center;gap:9px;flex-shrink:0;max-width:45%}
+.itrack-row-right .tag,.itrack-row-right .verify-status,.itrack-row-status{font-size:10px!important;font-weight:750;line-height:1.2;white-space:nowrap;border-radius:999px;padding:4px 7px;background:var(--light);color:var(--text)}
+.itrack-row-chevron{font-size:21px;line-height:1;color:var(--blue);transition:transform .15s}
+.itrack-compact-entry[open]>.itrack-row-summary .itrack-row-chevron{transform:rotate(90deg)}
+.itrack-row-detail{padding:12px 13px 14px;background:var(--bg);border-top:1px solid var(--line);min-width:0;overflow-wrap:anywhere}
+.itrack-row-detail .itrack-row-field{padding:8px 0;border-bottom:1px solid var(--line);display:grid;grid-template-columns:minmax(95px,25%) minmax(0,1fr);gap:10px;align-items:start}
+.itrack-row-detail .itrack-row-field:last-child{border-bottom:0}
+.itrack-row-field-name{font-size:11px;color:var(--muted);font-weight:750}
+.itrack-row-field-value{font-size:13px;min-width:0;overflow-wrap:anywhere}
+.itrack-row-field-value .btn{margin:2px}
+.itrack-row-detail .feedback-edit{margin-top:8px}
+.itrack-compact-card{display:block}
+.itrack-compact-card>.itrack-row-detail{padding:12px}
+.itrack-compact-card .feedback-entry-heading{margin-bottom:8px}
+.itrack-compact-card .feedback-details{white-space:pre-wrap}
+.status-school-row{border-radius:0!important;min-height:43px!important;padding:8px 12px!important}
+.status-school-list{gap:0!important;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.status-school-name{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;overflow-wrap:normal}
+.status-school-name .oversight-upload-time{display:none!important}
+.compact-doc-row{grid-template-columns:minmax(0,1fr) auto 15px!important;min-height:43px!important;padding:8px 12px!important;gap:9px!important;border-radius:8px!important}
+.compact-doc-id[hidden],.compact-doc-row .doc-division-tag{display:none!important}
+.compact-doc-name{font-size:13px!important;font-weight:700}
+.itrack-doc-status{max-width:140px;overflow:hidden;text-overflow:ellipsis}
+.itrack-selectable-row{cursor:pointer}
+.itrack-selectable-row:hover{background:var(--light)}
+.itrack-selectable-row:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}
+.district-list th:nth-child(2),.district-list td:nth-child(2),.district-list th:nth-child(4),.district-list td:nth-child(4),
+.retrieval-table th:nth-child(2),.retrieval-table td:nth-child(2),.retrieval-table th:nth-child(4),.retrieval-table td:nth-child(4){display:none!important}
+.district-list tr.itrack-selectable-expanded td:nth-child(2),.district-list tr.itrack-selectable-expanded td:nth-child(4),
+.retrieval-table tr.itrack-selectable-expanded td:nth-child(2),.retrieval-table tr.itrack-selectable-expanded td:nth-child(4){display:table-cell!important}
+.district-list .district-name,.retrieval-table .retrieval-name{font-weight:700}
+@media(max-width:730px){
+ .itrack-row-summary{gap:7px;padding:8px 9px;min-height:42px}
+ .itrack-row-title{font-size:12px}
+ .itrack-row-right{gap:5px;max-width:50%}
+ .itrack-row-right .tag,.itrack-row-right .verify-status,.itrack-row-status{font-size:9px!important;padding:3px 6px}
+ .itrack-row-detail .itrack-row-field{grid-template-columns:1fr;gap:3px}
+ .status-school-row{padding:8px 9px!important;font-size:12px!important}
+ .compact-doc-row{padding:8px 9px!important}
+ .itrack-doc-status{max-width:104px}
+ .district-list tr.itrack-selectable-expanded td:nth-child(2),.district-list tr.itrack-selectable-expanded td:nth-child(4),
+ .retrieval-table tr.itrack-selectable-expanded td:nth-child(2),.retrieval-table tr.itrack-selectable-expanded td:nth-child(4){display:table-cell!important}
+}
