@@ -46,7 +46,7 @@ const knownViews=new Set(['dashboard','announcements','notifications','monitorin
 const urlView=new URLSearchParams(location.search).get('view');
 const firstView=knownViews.has(urlView)?urlView:'dashboard';
 localStorage.removeItem('srii-current-view');
-const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],oversightUploads:[],oversightShowAllUploads:false,monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:arrivedFromExpiredEmailLink?'resend':importedQueueTicket?'queue':'login',emailHelpReason:arrivedFromExpiredEmailLink?'expired':'',queueTicket:importedQueueTicket||localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],showRemovedAccounts:false,modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],districtHistory:[],documentDistrictStatuses:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],compliances:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewCompliances:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],notificationLimit:50,notificationHasMore:false,divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',districtData:{eligible:[],transmittals:[],items:[],claimable:[],people:[]},districtPicked:new Set(),districtSubmitPicked:new Set(),districtSelected:'',districtSchoolId:'',adminDocumentTypes:{types:[],requests:[]},documentDivisionStatuses:[],approverAssignments:[],announcementApproverEditing:null,announcementEditId:null,announcementEditorData:null,announcementCancelId:null,transmittalEditing:false,retrievalData:{},retrievalPicked:new Set(),retrievalTurnoverPicked:new Set(),retrievalDistrictPicked:new Set(),retrievalSearch:'',privateDetails:null,profileRequests:[],userFeedback:[],issue:null,maintenance:{enabled:false,message:''}};
+const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],monitorSchoolDetails:null,oversightUploads:[],oversightShowAllUploads:false,monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:arrivedFromExpiredEmailLink?'resend':importedQueueTicket?'queue':'login',emailHelpReason:arrivedFromExpiredEmailLink?'expired':'',queueTicket:importedQueueTicket||localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],showRemovedAccounts:false,modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],districtHistory:[],documentDistrictStatuses:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],compliances:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewCompliances:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],notificationLimit:50,notificationHasMore:false,divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',districtData:{eligible:[],transmittals:[],items:[],claimable:[],people:[]},districtPicked:new Set(),districtSubmitPicked:new Set(),districtSelected:'',districtSchoolId:'',adminDocumentTypes:{types:[],requests:[]},documentDivisionStatuses:[],approverAssignments:[],announcementApproverEditing:null,announcementEditId:null,announcementEditorData:null,announcementCancelId:null,transmittalEditing:false,retrievalData:{},retrievalPicked:new Set(),retrievalTurnoverPicked:new Set(),retrievalDistrictPicked:new Set(),retrievalSearch:'',privateDetails:null,profileRequests:[],userFeedback:[],issue:null,maintenance:{enabled:false,message:''}};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=x=>x?new Date(x).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}):'—';
@@ -1202,6 +1202,7 @@ function monitorSchoolModal(){
  const item=state.monitorSchool;
  if(!item)return '<p class="notice">School status is not available.</p>';
  const oversightHistory=districtOversight()?(state.oversightUploads||[]).filter(f=>f.school_id===item.schoolId&&f.announcement_id===item.announcementId):[];
+ const oversightDetails=districtOversight()?state.monitorSchoolDetails:null;
  const oversightFiles=districtOversight()?'<section class="monitor-visible-files"><h4>Announcement File Upload History ('+oversightHistory.length+')</h4>'+
   '<p class="note">Upload times use Philippine time (PHT). This is read-only upload metadata, not file access.</p>'+
   (oversightHistory.length?oversightHistory.map(f=>
@@ -1214,7 +1215,10 @@ function monitorSchoolModal(){
   '<div><span class="small muted">School</span><strong>'+esc(item.schoolName)+'</strong></div>'+
   '<div><span class="small muted">Submission Status</span><span id="monitor-school-current-status">'+pTag(item.status)+'</span></div>'+
   '<div><span class="small muted">Announcement</span><strong>'+esc(item.announcementName)+'</strong></div>'+
-  '<div><span class="small muted">Deadline</span><strong>'+esc(date(item.deadlineAt))+'</strong></div></div>';
+  '<div><span class="small muted">Deadline</span><strong>'+esc(date(item.deadlineAt))+'</strong></div>'+
+  (districtOversight()?'<div><span class="small muted">Submitted On (PHT)</span><strong>'+esc(oversightDetails?.submitted_at?date(oversightDetails.submitted_at):'Not recorded')+'</strong></div>'+
+   '<div><span class="small muted">Submitted By</span><strong>'+esc(oversightDetails?.submitted_at?oversightDetails.submitted_by_name||'Unknown submitter':'—')+'</strong></div>':'')+
+  '</div>';
  const adminButton=yesAdmin()&&['Submitted','Late'].includes(item.status)?
   '<div class="toolbar"><button class="btn alt" data-a="monitor-submission" data-school-id="'+esc(item.schoolId)+'">View Uploaded Files (Admin)</button></div>':'';
  const action=item.canSubmit?
@@ -1242,6 +1246,14 @@ async function openMonitorSchool(schoolId){
   assignmentId=data?.[0]?.assignment_id||null;
  }
  state.monitorSchoolFiles=[];
+ state.monitorSchoolDetails=null;
+ if(districtOversight()){
+  const {data,error}=await db.rpc('i_track_oversight_school_submission_details',{
+   p_announcement_id:ann.id,p_school_id:school.id
+  });
+  if(error)throw error;
+  state.monitorSchoolDetails=(data||[])[0]||null;
+ }
  if(!isOic()&&!yesAdmin()){
   const {data,error}=await db.rpc('i_track_my_school_submission_documents');
   if(error)throw error;
