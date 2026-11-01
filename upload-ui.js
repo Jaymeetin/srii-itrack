@@ -105,7 +105,9 @@ function markPanel(){
   )+'</p>'+
   '<div class="iu-loading iu-message">Checking your approved account and available '+(kind==="announcement"?"requirements":"documents")+'…</div>'+
   '<div class="iu-controls" hidden>'+
-   '<div class="field iu-target"><label for="iu-target-'+kind+'">'+(kind==="announcement"?"Assigned requirement":"Routed document")+'</label><select id="iu-target-'+kind+'" class="iu-select"></select></div>'+
+   '<div class="field iu-target"><label for="iu-target-'+kind+'">'+(kind==="announcement"?"Select the correct announcement":"Routed document")+'</label><select id="iu-target-'+kind+'" class="iu-select"></select></div>'+
+   (kind==="announcement"?'<div class="iu-announcement-review" aria-live="polite">Choose an announcement to view its school and title before uploading.</div>'+
+     '<label class="iu-confirm-row"><input type="checkbox" class="iu-confirm-input" disabled> <span>I checked the <strong>school and announcement</strong> above. This is the correct destination for my file.</span></label>':'')+
    '<div class="iu-date" aria-live="polite"></div>'+
    '<div class="iu-file"><span class="iu-file-icon" aria-hidden="true">↥</span><div class="iu-file-inner"><label for="iu-file-'+kind+'">Choose a PDF, Word or image file</label>'+
     '<input id="iu-file-'+kind+'" class="iu-input" type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp" aria-label="Select document to upload"></div></div>'+
@@ -133,7 +135,9 @@ function markPanel(){
 }
 function setProcessing(node,yes){
  node.dataset.processing=yes?"yes":"no";
- const ready=!yes&&!!node._iuFile&&!!node.querySelector(".iu-select")?.value&&node._iuFile.size<=MB;
+ const hasTarget=!!node.querySelector(".iu-select")?.value;
+ const confirmed=node._iuKind!=="announcement"||node._iuConfirmed===true;
+ const ready=!yes&&!!node._iuFile&&hasTarget&&confirmed&&node._iuFile.size<=MB;
  const upload=node.querySelector(".iu-upload");
  if(upload){upload.disabled=!ready;upload.textContent=yes?"Uploading, please wait…":"Upload to Google Drive";}
  const comp=node.querySelector(".iu-compress");
@@ -207,7 +211,8 @@ async function initialize(node,kind){
    }),"Selected school permission check");
    if(error)throw error;
    options=(data||[]).filter(x=>x.assignment_id===delegated.assignmentId)
-    .map(x=>({id:x.assignment_id,label:x.school_name+" — "+x.announcement_name,deadline:x.deadline_at}));
+    .map(x=>({id:x.assignment_id,label:x.school_name+" — "+x.announcement_name,
+      schoolName:x.school_name,announcementTitle:x.announcement_name,announcementCode:"",deadline:x.deadline_at}));
   }else if(kind==="announcement"){
    const a=await withDeadline(db.from("announcement_assignments")
     .select("id,announcement_id,school_id,assigned_user_id").eq("obligation_status","required"),
@@ -217,10 +222,23 @@ async function initialize(node,kind){
     .select("id,announcement_code,title,status,deadline_at").eq("status","open").order("created_at",{ascending:false}),
     "Announcement loading");
    if(n.error)throw n.error;
+   // Resolve the actual school for every option. The upload form must not guess
+   // the school or present a default announcement when a user opens the screen.
+   const schoolIds=[...new Set((a.data||[]).map(x=>x.school_id).filter(Boolean))];
+   let schoolNames=new Map();
+   if(schoolIds.length){
+    const schools=await withDeadline(db.from("schools").select("id,name").in("id",schoolIds),
+      "Announcement school lookup");
+    if(schools.error)throw schools.error;
+    schoolNames=new Map((schools.data||[]).map(s=>[s.id,s.name]));
+   }
    options=(a.data||[]).filter(a=>a.assigned_user_id===user.id||
     (!!profile.school_id && a.school_id===profile.school_id)).map(a=>{
     const ann=(n.data||[]).find(x=>x.id===a.announcement_id);
-    return ann?{id:a.id,label:(ann.announcement_code?ann.announcement_code+" — ":"")+ann.title,deadline:ann.deadline_at}:null;
+    const schoolName=a.school_id?schoolNames.get(a.school_id):"District Office";
+    if(!ann||!schoolName)return null;
+    return {id:a.id,label:schoolName+" — "+(ann.announcement_code?ann.announcement_code+" — ":"")+ann.title,
+      schoolName,announcementTitle:ann.title,announcementCode:ann.announcement_code||"",deadline:ann.deadline_at};
    }).filter(Boolean);
   }else{
    const d=await withDeadline(db.from("documents")
@@ -240,11 +258,23 @@ async function initialize(node,kind){
   }
   node._iuOptions=options;
   const select=node.querySelector(".iu-select");
-  select.innerHTML=options.map(x=>'<option value="'+esc(x.id)+'">'+esc(x.label)+'</option>').join("");
+  select.innerHTML=(kind==="announcement"?'<option value="" selected disabled>— Choose the announcement first —</option>':"")+
+    options.map(x=>'<option value="'+esc(x.id)+'">'+esc(x.label)+'</option>').join("");
+  if(kind==="announcement")select.value="";
+  node._iuConfirmed=false;
+  const checkbox=node.querySelector(".iu-confirm-input");
+  if(checkbox){checkbox.checked=false;checkbox.disabled=true;
+    checkbox.addEventListener("change",()=>{
+      node._iuConfirmed=checkbox.checked;
+      setProcessing(node,false);
+    });
+  }
   node.querySelector(".iu-controls").hidden=false;
   const saved=node._iuDelegated?null:liveDrafts.get(kind);
   if(saved?.owner===user.id){
-    if(saved.targetId&&options.some(x=>x.id===saved.targetId))select.value=saved.targetId;
+    // Only document uploads may restore their previous target. Announcement
+    // uploads always require an explicit choice, even after page navigation.
+    if(kind!=="announcement"&&saved.targetId&&options.some(x=>x.id===saved.targetId))select.value=saved.targetId;
     node._iuOriginal=saved.original||null;
     node._iuFile=saved.file||null;
   }else{
@@ -254,6 +284,11 @@ async function initialize(node,kind){
   input.addEventListener("change",()=>{
    const file=input.files?.[0]||null;
    node._iuOriginal=file;node._iuFile=file;
+   if(kind==="announcement"){
+    node._iuConfirmed=false;
+    const check=node.querySelector(".iu-confirm-input");
+    if(check)check.checked=false;
+   }
    const mime=file&&mimeFor(file);
    if(file&&!mime){
     node._iuFile=null;notify(node,"Unsupported file extension. Choose PDF, Word, JPG, PNG or WebP.","error");
@@ -277,6 +312,18 @@ async function updateTarget(node,kind){
  const opt=node._iuOptions?.find(x=>x.id===id);
  const extra=node.querySelector(".iu-date");
  extra.textContent=opt?.deadline?"Deadline: "+displayTime(opt.deadline)+" (Philippine time)":"";
+ if(kind==="announcement"){
+  node._iuConfirmed=false;
+  const check=node.querySelector(".iu-confirm-input");
+  if(check){check.checked=false;check.disabled=!opt;}
+  const summary=node.querySelector(".iu-announcement-review");
+  if(summary)summary.innerHTML=opt?
+   '<span class="iu-review-kicker">Confirm the destination</span>'+
+   '<span class="iu-review-school">School: <strong>'+esc(opt.schoolName)+'</strong></span>'+
+   '<span class="iu-review-code">'+esc(opt.announcementCode||"Announcement requirement")+'</span>'+
+   '<strong class="iu-review-title">'+esc(opt.announcementTitle)+'</strong>':
+   '<span class="iu-review-empty">Choose an announcement to view its school and title before uploading.</span>';
+ }
  await refreshHistory(node,kind);
  if(node._iuOwner&&node._iuKind&&!node._iuDelegated){
    const previous=liveDrafts.get(node._iuKind)||{};
@@ -364,10 +411,17 @@ async function upload(node,kind){
  const f=node._iuFile,id=node.querySelector(".iu-select")?.value;
  const target=node._iuOptions?.find(x=>x.id===id);
  if(!f||!id||!target){notify(node,"Choose both a requirement and a file.","error");return;}
+ if(kind==="announcement"&&!node._iuConfirmed){
+   notify(node,"Please confirm the school and announcement before uploading.","error");return;
+ }
  if(f.size>MB||f.size<1){notify(node,"File must be between 1 byte and 4 MB. Compress screenshots first if needed.","error");return;}
  const mime=mimeFor(f);
  if(!mime){notify(node,"File extension is not supported.","error");return;}
- if(!confirm("Upload "+f.name+" ("+size(f.size)+") for "+target.label+" to the private district Google Drive?"))return;
+ const destination=kind==="announcement"?
+  "School: "+target.schoolName+"\nAnnouncement: "+(target.announcementCode?target.announcementCode+" — ":"")+target.announcementTitle:
+  target.label;
+ if(!confirm("FINAL UPLOAD CONFIRMATION\n\nFile: "+f.name+" ("+size(f.size)+")\n\n"+destination+
+   "\n\nUpload this file to the private district Google Drive for exactly this destination?"))return;
  setProcessing(node,true);
  updateUploadPhase(node,"Checking your account…");
  notify(node,"Preparing to upload. Keep this page open.");
@@ -398,6 +452,11 @@ async function upload(node,kind){
   if(!reply.ok||!body.ok)throw Error(body.error||"Upload was not accepted. Status "+reply.status);
   updateUploadPhase(node,"File upload confirmed and recorded.",100);
   node._iuFile=null;node._iuOriginal=null;node.querySelector(".iu-input").value="";
+  if(kind==="announcement"){
+   node._iuConfirmed=false;
+   const checkbox=node.querySelector(".iu-confirm-input");
+   if(checkbox)checkbox.checked=false;
+  }
   updateFile(node);
   await refreshHistory(node,kind);
   // Update the inline attachment beside Open without rebuilding the upload form.
