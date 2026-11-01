@@ -46,7 +46,7 @@ const knownViews=new Set(['dashboard','announcements','notifications','monitorin
 const urlView=new URLSearchParams(location.search).get('view');
 const firstView=knownViews.has(urlView)?urlView:'dashboard';
 localStorage.removeItem('srii-current-view');
-const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],monitorSchoolDetails:null,oversightUploads:[],oversightShowAllUploads:false,connectedFilter:'',monitorStatusFilter:'',reportFilter:'',navTrail:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:arrivedFromExpiredEmailLink?'resend':importedQueueTicket?'queue':'login',emailHelpReason:arrivedFromExpiredEmailLink?'expired':'',queueTicket:importedQueueTicket||localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],showRemovedAccounts:false,modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],districtHistory:[],documentDistrictStatuses:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],compliances:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewCompliances:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],notificationLimit:50,notificationHasMore:false,divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',districtData:{eligible:[],transmittals:[],items:[],claimable:[],people:[]},districtPicked:new Set(),districtSubmitPicked:new Set(),districtSelected:'',districtSchoolId:'',adminDocumentTypes:{types:[],requests:[]},documentDivisionStatuses:[],approverAssignments:[],announcementApproverEditing:null,announcementEditId:null,announcementEditorData:null,announcementCancelId:null,transmittalEditing:false,retrievalData:{},retrievalPicked:new Set(),retrievalTurnoverPicked:new Set(),retrievalDistrictPicked:new Set(),retrievalSearch:'',privateDetails:null,profileRequests:[],userFeedback:[],issue:null,maintenance:{enabled:false,message:''},systemUpdates:[],recoveryScan:null,recoveryChecking:false};
+const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],monitorSchoolDetails:null,oversightUploads:[],oversightShowAllUploads:false,connectedFilter:'',monitorStatusFilter:'',reportFilter:'',navTrail:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:arrivedFromExpiredEmailLink?'resend':importedQueueTicket?'queue':'login',emailHelpReason:arrivedFromExpiredEmailLink?'expired':'',queueTicket:importedQueueTicket||localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],showRemovedAccounts:false,modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],districtHistory:[],documentDistrictStatuses:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],compliances:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewCompliances:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],notificationLimit:50,notificationHasMore:false,divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',districtData:{eligible:[],transmittals:[],items:[],claimable:[],people:[]},districtPicked:new Set(),districtSubmitPicked:new Set(),districtSelected:'',districtSchoolId:'',adminDocumentTypes:{types:[],requests:[]},documentDivisionStatuses:[],approverAssignments:[],announcementApproverEditing:null,announcementEditId:null,announcementEditorData:null,announcementCancelId:null,transmittalEditing:false,retrievalData:{},retrievalPicked:new Set(),retrievalTurnoverPicked:new Set(),retrievalDistrictPicked:new Set(),retrievalSearch:'',privateDetails:null,profileRequests:[],userFeedback:[],issue:null,maintenance:{enabled:false,message:''},systemUpdates:[],recoveryScan:null,misfiledReview:null,recoveryChecking:false};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=x=>x?new Date(x).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}):'—';
@@ -1024,7 +1024,7 @@ function notificationsPage(){
 }
 function systemUpdatePanel(){
  const recent=(state.systemUpdates||[])[0];
- return '<section class="panel itrack-system-update"><div class="sectionhead"><div><h3>System Updates</h3><p class="note">Current web version: 61 · Completed updates are listed below.</p></div>'+
+ return '<section class="panel itrack-system-update"><div class="sectionhead"><div><h3>System Updates</h3><p class="note">Current web version: 62 · Completed updates are listed below.</p></div>'+
  (districtOversight()?'<button type="button" class="btn alt" data-a="nav" data-page="system-recovery">Check Missing Records</button>':'')+'</div>'+
  (recent?'<div class="system-event"><strong>'+esc(recent.title)+'</strong><span>'+esc(date(recent.created_at))+'</span><p>'+esc(recent.summary)+'</p></div>':'<p class="note">No completed recovery or published update has been recorded yet.</p>')+
  '<button type="button" class="btn tiny alt" data-a="nav" data-page="system-updates">View Update History</button></section>';
@@ -1032,7 +1032,7 @@ function systemUpdatePanel(){
 function systemUpdatesPage(){
  const records=state.systemUpdates||[];
  return '<div class="sectionhead"><div><div class="eyebrow">Application history</div><h1>System Updates</h1>'+
- '<p class="sub">Current web version 61. Only published updates and completed recoveries appear here. Checking for missing records does not count as an update.</p></div>'+
+ '<p class="sub">Current web version 62. Only published updates and completed recoveries appear here. Checking for missing records does not count as an update.</p></div>'+
  (districtOversight()?'<button type="button" class="btn alt" data-a="nav" data-page="system-recovery">Check Missing Records</button>':'')+'</div>'+
  '<section class="panel">'+(records.length?records.map(x=>'<div class="system-event"><div><strong>'+esc(x.title)+'</strong> '+pTag(x.event_kind)+'</div>'+
  '<small>'+esc(date(x.created_at))+'</small><p>'+esc(x.summary)+'</p></div>').join(''):
@@ -1041,6 +1041,18 @@ function systemUpdatesPage(){
 function systemRecoveryPage(){
  if(!districtOversight())return '<div class="notice danger">District oversight account required.</div>';
  const results=state.recoveryScan;
+ const misfiled=state.misfiledReview;
+ const suspectRows=(misfiled?.items||[]).map(x=>{
+  const targetChoices=(x.target_options||[]).map(opt=>
+    '<option value="'+esc(opt.assignment_id)+'">'+esc(opt.announcement_code+' — '+opt.announcement)+'</option>').join('');
+  return '<div class="recovery-finding"><div><strong>'+esc(x.school_name||'School')+'</strong>'+
+    '<div class="small">'+esc(x.filename||'Attachment')+'</div>'+
+    '<div class="small muted">Currently under '+esc(x.source_title||'Unknown announcement')+' · '+esc(date(x.first_received_at))+'</div>'+
+    '</div>'+(targetChoices?'<div class="recovery-reassign-controls"><label class="small" for="repair-dest-'+esc(x.submission_id)+'">Correct announcement</label>'+
+      '<select id="repair-dest-'+esc(x.submission_id)+'"><option value="">Choose destination…</option>'+targetChoices+'</select>'+
+      '<button type="button" class="btn tiny alt" data-a="recovery-reassign" data-id="'+esc(x.submission_id)+'">Review & Correct</button></div>':
+      '<span class="tag warn">No empty matching requirement — manual review</span>')+'</div>';
+ }).join('');
  const rows=(results?.findings||[]).map(x=>
   '<div class="recovery-finding"><div><strong>'+esc(x.school||'District Office')+' · '+esc(x.target)+'</strong>'+
   (yesAdmin()&&x.file_name?'<div class="small">'+esc(x.file_name)+'</div>':'')+
@@ -1054,7 +1066,7 @@ function systemRecoveryPage(){
  return '<div class="sectionhead"><div><div class="eyebrow">District record integrity</div><h1>Check & Recover Missing Records</h1>'+
  '<p class="sub">Read-only checks for administrators and OIC-PSDS. Only administrators may approve a verified repair.</p></div>'+
  '<button type="button" class="btn" data-a="recovery-scan">Check Missing Records</button></div>'+
- '<div class="notice warn"><strong>Scan scope:</strong> Supabase upload attempts compared with recorded announcements and document attachments. It does not search files that never entered the upload log or verify current Drive contents.</div>'+
+ '<div class="notice warn"><strong>Scan scope:</strong> Supabase upload attempts and announcement associations. It cannot locate files absent from the upload log or verify private Drive contents. Test-announcement matches are suggestions only.</div>'+
  (results?'<section class="panel"><p class="small muted">Checked '+esc(date(results.checked_at))+'</p>'+
  '<div class="recovery-stats"><div><strong>'+esc(results.total_attempts||0)+'</strong><small>Upload attempts</small></div>'+
  '<div><strong>'+esc(results.linked_attempts||0)+'</strong><small>Linked records</small></div>'+
@@ -1062,6 +1074,12 @@ function systemRecoveryPage(){
  '<div><strong>'+esc(results.unconfirmed_attempts||0)+'</strong><small>Unconfirmed attempts</small></div></div>'+
  '<h3>Items requiring review</h3>'+(rows||'<p class="note">No missing or unconfirmed upload attempts in the available log.</p>')+'</section>':
  '<section class="panel"><p class="note">Tap Check Missing Records to run a fresh integrity scan without changing any files or records.</p></section>')+
+ (misfiled?'<section class="panel"><h3>Review Possibly Misfiled Uploads</h3>'+
+ '<p class="note">This checks pending files uploaded under a test announcement. A filename can suggest the wrong destination, but it is not proof. No files are moved by the scan.</p>'+
+ '<p><strong>'+esc(misfiled.potentially_misfiled_count||0)+'</strong> possible incorrect associations found in the available upload history.</p>'+
+ (yesAdmin()?(suspectRows||'<p class="note">No pending test uploads need assignment review.</p>'):
+  '<p class="note">Oversight can see the number of flagged records, but private filenames and correction controls remain administrator-only.</p>')+
+ '</section>':'')+
  (yesAdmin()?'<section class="panel"><h3>Publish Completed System Update</h3><p class="note">Share verified releases or completed maintenance with all active users. Do not publish planned work as completed.</p>'+
  '<div class="field"><label for="recovery-update-title">Update title</label><input id="recovery-update-title" maxlength="160" placeholder="e.g., Mobile navigation update"></div>'+
  '<div class="field"><label for="recovery-update-summary">Update description</label><textarea id="recovery-update-summary" maxlength="500" rows="3" placeholder="Describe what is confirmed live"></textarea></div>'+
@@ -1973,11 +1991,43 @@ async function click(e){
    if(!districtOversight()||state.view!=='system-recovery')throw Error('District oversight required.');
    state.busy=true;
    try{
-    const {data,error}=await db.rpc('i_track_recovery_scan');
-    if(error)throw error;
-    state.recoveryScan=data;
+    const [standard,misfiled]=await Promise.all([
+     db.rpc('i_track_recovery_scan'),
+     db.rpc('i_track_recovery_review_assignments')
+    ]);
+    if(standard.error||misfiled.error)throw standard.error||misfiled.error;
+    state.recoveryScan=standard.data;
+    state.misfiledReview=misfiled.data;
     show();
-    pop('Upload log scan completed. No files or records were changed.');
+    pop('Record and announcement-assignment checks completed. No files or records were changed.');
+   }finally{state.busy=false;}
+   return;
+  }
+  if(a==='recovery-reassign'){
+   if(!yesAdmin()||state.view!=='system-recovery')throw Error('Administrator required.');
+   const item=(state.misfiledReview?.items||[]).find(x=>x.submission_id===t.dataset.id);
+   if(!item)throw Error('Run the missing-record check again.');
+   const destination=document.getElementById('repair-dest-'+item.submission_id)?.value||'';
+   const target=(item.target_options||[]).find(x=>x.assignment_id===destination);
+   if(!target)throw Error('Select the correct available announcement before continuing.');
+   if(!confirm('Confirm the existing file "'+item.filename+'" belongs under '+target.announcement_code+' — '+target.announcement+' for '+item.school_name+'? Do not move a real submission without reviewing it.'))return;
+   const reason=prompt('Explain why this file belongs to the selected announcement (at least 15 characters):');
+   if(!reason||reason.trim().length<15)return;
+   if(!confirm('Correct the announcement association without reuploading? Original receipt time and pending-verification status remain unchanged.'))return;
+   state.busy=true;
+   try{
+    const move=await db.rpc('i_track_recovery_reassign',{
+     p_submission_id:item.submission_id,p_target_assignment_id:destination,p_reason:reason.trim()
+    });
+    if(move.error)throw move.error;
+    const [normal,recheck,updates]=await Promise.all([
+      db.rpc('i_track_recovery_scan'),
+      db.rpc('i_track_recovery_review_assignments'),
+      db.rpc('i_track_system_updates')
+    ]);
+    if(normal.error||recheck.error||updates.error)throw normal.error||recheck.error||updates.error;
+    state.recoveryScan=normal.data;state.misfiledReview=recheck.data;state.systemUpdates=updates.data||[];
+    show();pop('Announcement association corrected. File and original upload timestamp preserved. Approval remains pending.');
    }finally{state.busy=false;}
    return;
   }
