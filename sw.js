@@ -1,5 +1,5 @@
 /* SRII i-TRACK app shell cache v2: assets only, always prefer the network. */
-const CACHE_NAME="srii-itrack-submitter-attribution-v70";
+const CACHE_NAME="srii-itrack-district-integrity-v71";
 const CORE_ASSETS=[
  "./","./index.html","./styles.css","./mobile.css",
  "./app.js","./compact-rows.js","./compact-rows.css","./version-history.js","./compact-notices.css","./retrieval-ui.js","./district-ui.js","./district-print.js","./document-types-ui.js","./district.css","./official-print.js","./mobile-shell.js","./upload-ui.css","./upload-ui.js","./download-ui.js","./config.js",
