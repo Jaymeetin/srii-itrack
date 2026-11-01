@@ -652,6 +652,13 @@
   "contextOnly": false
  }
 ];
+ versions.push({
+  number:68,date:"1 Nov 2026",
+  title:"Consolidated announcement submission approvals",
+  description:"District administrators can review pending and recorded school submissions from every announcement in one queue. Verification actions keep linked compliance and file statuses synchronized; repeated no-attachment submission cannot overwrite a linked uploaded record.",
+  url:null,documented:true,contextOnly:false
+ });
+
  const milestones=[
  {
   "date": "13 Oct 2026",
@@ -696,7 +703,7 @@
  }
 ];
  window.ITRACK_VERSION_CATALOG=Object.freeze({
-  currentVersion:67,
+  currentVersion:68,
   officialGoLive:"12 October 2026",
   dateAttribution:"District-recorded official go-live date",
   firstSourceCommit:"13 October 2026",
