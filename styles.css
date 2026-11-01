@@ -802,3 +802,9 @@ tr[hidden]{display:none!important}
 .recovery-finding>div{min-width:0}
 .recovery-finding .btn{flex-shrink:0}
 @media(max-width:730px){.recovery-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.recovery-finding{align-items:start;flex-direction:column}.recovery-finding .btn{width:100%}}
+
+/* v62 misassigned announcement candidate review */
+.recovery-reassign-controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;max-width:100%}
+.recovery-reassign-controls select{padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--text);max-width:260px;min-width:155px}
+.recovery-reassign-controls label{width:100%}
+@media(max-width:730px){.recovery-reassign-controls{width:100%}.recovery-reassign-controls select,.recovery-reassign-controls button{width:100%;max-width:none}}

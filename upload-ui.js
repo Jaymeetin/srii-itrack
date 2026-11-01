@@ -314,7 +314,7 @@ async function refreshHistory(node,kind){
      '<button type="button" class="btn tiny alt iu-file-action" data-mode="download" data-kind="'+kind+'" data-id="'+esc(x.id)+'" data-name="'+esc(x.original_filename)+'">Download</button></div>':
      '<span class="iu-archived">Archived offline</span>';
    return '<div class="iu-history-item"><div class="iu-history-detail"><strong>'+esc(x.original_filename)+'</strong><small>'+esc(details)+'</small></div>'+
-    '<span class="iu-state iu-state--'+esc(state)+'">'+esc(state.toUpperCase())+'</span>'+actions+'</div>';
+    '<span class="iu-state iu-state--'+esc(state)+'">'+esc(state==='pending'?'AWAITING REVIEW':state.toUpperCase())+'</span>'+actions+'</div>';
   }).join("");
  }catch(e){if(node.isConnected)history.textContent="Could not load history: "+(e?.message||e);}
 }
