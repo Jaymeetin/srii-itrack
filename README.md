@@ -4,12 +4,12 @@ San Remigio II District document tracking and submission monitoring PWA. In acti
 The frontend is intentionally lightweight: plain HTML, CSS and JavaScript hosted by GitHub Pages. Supabase powers user authentication, role-specific permissions, announcement compliance, and routed-document records.
 
 ## Status
-- Supabase project configured, 26 schools listed, Main Administrator active.
+- Supabase authentication and data services are configured; school assignments and active personnel are maintained by the district administrator.
 - New AO II personnel may register and request school assignment, subject to district approval.
 - Admin announcements, submission monitoring, document routing and acknowledgement are supported workflows.
-- Google Apps Script -> DepEd Drive was tested separately; **web uploads remain disabled until a protected, verified bridge is built**.
-- File compression is local only; SSD archiving and production-grade testing are not yet complete.
-- Do not submit real confidential records until role and access tests with multiple accounts have passed.
+- The authenticated upload and download Edge Functions are deployed. Google Drive access remains subject to the active server-side authorization and Google Apps Script connector.
+- Image compression runs locally. SSD archiving is planned but not enabled in the current interface.
+- Only authorized records should be uploaded. Role-based access, user account approval, upload history, and file verification should be reviewed with real approved accounts during maintenance.
 
 ## Publish
 In GitHub repository Settings → Pages, select Deploy from a branch → main → /(root) → Save.
@@ -22,4 +22,4 @@ Then test the login, email confirmation, and a new pending school user.
 
 ## Security
 The browser needs only the *publishable* Supabase key (in config.js). Do not commit service_role keys, Apps Script deployment secrets, tokens or private Drive links.
-All app tables have RLS enabled. Uploaded documents stay off until protected transfer and Drive permissions are implemented and tested.
+Access is guarded using database permissions, RLS, authenticated Edge Functions, and authorized Drive transfer. Recheck access policies and file permissions whenever the schema or functions change.
