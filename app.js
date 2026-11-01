@@ -1137,12 +1137,14 @@ function systemVersionDirectory(){
  if(state.versionHistoryLatestFirst)list.reverse();
  const items=list.map(v=>'<div class="version-row'+(v.documented?' is-documented':' is-unverified')+'">'+
  '<div class="version-row-heading"><strong>Version '+esc(v.number)+'</strong>'+
- (v.documented?'<small>Source-documented</small>':'<small>Version details not separately archived</small>')+'</div>'+
+ (v.documented?'<small>Version-specific release note</small>':'<small>Development context — release mapping unverified</small>')+'</div>'+
  '<div class="version-row-title">'+esc(v.title)+'</div>'+
- (v.documented?'<p>'+esc(v.description)+'</p>':'')+
+ '<p>'+esc(v.description)+'</p>'+
  '<div class="version-row-meta">'+
- (v.date?'<span>'+esc(v.date)+'</span>':'<span>No confirmed version-specific date</span>')+
- (v.url?'<a href="'+esc(v.url)+'" target="_blank" rel="noopener noreferrer">View source changes</a>':'')+
+ (v.date?'<span>Release note: '+esc(v.date)+'</span>':
+ '<span>Context source: '+esc(v.contextPeriod||'Earlier development')+'; no verified version date</span>')+
+ (v.url?'<a href="'+esc(v.url)+'" target="_blank" rel="noopener noreferrer">'+
+ (v.documented?'View version source':'View contextual source')+'</a>':'')+
  '</div></div>').join('');
  const milestoneHtml=(history.milestones||[]).map(m=>'<div class="version-milestone"><strong>'+esc(m.date)+'</strong>'+
  '<span>'+esc(m.summary)+'</span>'+
@@ -1151,12 +1153,12 @@ function systemVersionDirectory(){
  '<div class="version-history-overview-top"><div><span class="eyebrow">OFFICIAL DISTRICT GO-LIVE</span>'+
  '<h2>'+esc(history.officialGoLive)+'</h2><p class="note">'+esc(history.dateAttribution)+'.</p></div>'+
  '<div class="version-current"><span>Current web version</span><strong>v'+esc(history.currentVersion)+'</strong></div></div>'+
- '<p class="version-history-note">The district-provided go-live date is separate from the GitHub record. The earliest source commit in the repository is dated '+esc(history.firstSourceCommit)+'. Earlier numbered builds are included for completeness, but individual details and dates are shown only where source records support them.</p>'+
+ '<p class="version-history-note">The district-provided go-live date is separate from the GitHub record, which begins on '+esc(history.firstSourceCommit)+'. Every version now has an explanatory note. Earlier builds without version-specific release records show related GitHub development activity as context only, not as an invented release history.</p>'+
  '</section>'+
  '<section class="panel version-history-docs"><details><summary>Dated development milestones <span>(from GitHub source history)</span></summary>'+
  '<div class="version-milestones">'+milestoneHtml+'</div></details></section>'+
  '<section class="panel version-directory"><div class="sectionhead"><div><h3>Full Version History — v1 to v'+esc(history.currentVersion)+'</h3>'+
- '<p class="note">'+esc(count)+' numbered versions · '+esc(known)+' with source-linked details · '+esc(count-known)+' without individually archived release notes.</p></div>'+
+ '<p class="note">'+esc(count)+' numbered versions · '+esc(known)+' with source-linked release notes · '+esc(count-known)+' with source-linked development context (exact release mapping unverified).</p></div>'+
  '<div class="toolbar">'+
  '<button type="button" class="btn tiny alt" data-a="version-order">'+(state.versionHistoryLatestFirst?'Show Oldest First':'Show Latest First')+'</button>'+
  '<button type="button" class="btn tiny alt" data-a="version-docs-only">'+(onlyKnown?'Show All Versions':'Show Documented Only')+'</button></div></div>'+
