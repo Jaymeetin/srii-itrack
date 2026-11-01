@@ -1,12 +1,12 @@
-# SRII i-TRACK — Trial Website
-San Remigio II District Document Tracking System (alpha).
+# SRII i-TRACK — District Document Tracking System
+San Remigio II District document tracking and submission monitoring PWA. In active district deployment with ongoing maintenance and improvement.
 
 The frontend is intentionally lightweight: plain HTML, CSS and JavaScript hosted by GitHub Pages. Supabase powers user authentication, role-specific permissions, announcement compliance, and routed-document records.
 
 ## Status
 - Supabase project configured, 26 schools listed, Main Administrator active.
 - New AO II personnel may register and request school assignment, subject to district approval.
-- Admin announcements, school status-only monitoring, routing and acknowledgement are implemented as trial interfaces.
+- Admin announcements, submission monitoring, document routing and acknowledgement are supported workflows.
 - Google Apps Script -> DepEd Drive was tested separately; **web uploads remain disabled until a protected, verified bridge is built**.
 - File compression is local only; SSD archiving and production-grade testing are not yet complete.
 - Do not submit real confidential records until role and access tests with multiple accounts have passed.
