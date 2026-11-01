@@ -132,9 +132,6 @@ function openMore(){
   link('feedback','✎ Report a Problem / Suggestion')+
   '<button type="button" class="mobile-menu-button" data-mobile="navigate" data-page="notifications">◉ &nbsp; Notifications <small>›</small></button>'+
   workplaceSection+administrationSection+
-  (admin||app.querySelector('.sidebar nav button[data-page="documents"]')?
-   '<span class="mobile-sheet-label">SYSTEM TEST TOOLS</span>'+
-   '<button type="button" class="mobile-menu-button" data-mobile="link" data-href="./upload-test.html">Test Google Drive Upload <small>›</small></button>':'')+
   '<span class="mobile-sheet-label">PREFERENCES</span>'+
   (app.querySelector('.sidebar nav button[data-page="settings"]')?
    '<button type="button" class="mobile-menu-button" data-mobile="navigate" data-page="settings">⚙ &nbsp; Personal Settings <small>›</small></button>':'')+
