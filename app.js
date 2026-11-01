@@ -40,13 +40,13 @@ const db=window.supabase?.createClient(C.url,C.publishableKey,{auth:{persistSess
 // Multiple clients refreshing the same mobile session can reset upload forms.
 window.ITRACK_DB=db;
 if(importedQueueTicket)localStorage.setItem('srii-registration-queue-ticket',importedQueueTicket);
-const knownViews=new Set(['dashboard','announcements','notifications','monitoring','documents','reports','school-files','verification','approvals','archive','division','retrieval','district','document-types','settings','system-recovery','system-updates']);
+const knownViews=new Set(['dashboard','announcements','notifications','monitoring','documents','reports','school-files','verification','approvals','archive','division','retrieval','district','document-types','settings','system-recovery','system-updates','feedback','feedback-admin']);
 // The manifest launches at ./ (Home). Navigation keeps the page in the URL,
 // so a real refresh returns to that page without persistent cross-launch state.
 const urlView=new URLSearchParams(location.search).get('view');
 const firstView=knownViews.has(urlView)?urlView:'dashboard';
 localStorage.removeItem('srii-current-view');
-const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],monitorSchoolDetails:null,oversightUploads:[],oversightShowAllUploads:false,connectedFilter:'',monitorStatusFilter:'',reportFilter:'',navTrail:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:arrivedFromExpiredEmailLink?'resend':importedQueueTicket?'queue':'login',emailHelpReason:arrivedFromExpiredEmailLink?'expired':'',queueTicket:importedQueueTicket||localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],showRemovedAccounts:false,modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],districtHistory:[],documentDistrictStatuses:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],compliances:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewCompliances:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],notificationLimit:50,notificationHasMore:false,divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',districtData:{eligible:[],transmittals:[],items:[],claimable:[],people:[]},districtPicked:new Set(),districtSubmitPicked:new Set(),districtSelected:'',districtSchoolId:'',adminDocumentTypes:{types:[],requests:[]},documentDivisionStatuses:[],approverAssignments:[],announcementApproverEditing:null,announcementEditId:null,announcementEditorData:null,announcementCancelId:null,transmittalEditing:false,retrievalData:{},retrievalPicked:new Set(),retrievalTurnoverPicked:new Set(),retrievalDistrictPicked:new Set(),retrievalSearch:'',privateDetails:null,profileRequests:[],userFeedback:[],issue:null,maintenance:{enabled:false,message:''},systemUpdates:[],recoveryScan:null,misfiledReview:null,recoveryChecking:false};
+const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],monitorSchoolDetails:null,oversightUploads:[],oversightShowAllUploads:false,connectedFilter:'',monitorStatusFilter:'',reportFilter:'',navTrail:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:arrivedFromExpiredEmailLink?'resend':importedQueueTicket?'queue':'login',emailHelpReason:arrivedFromExpiredEmailLink?'expired':'',queueTicket:importedQueueTicket||localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],showRemovedAccounts:false,modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],districtHistory:[],documentDistrictStatuses:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],compliances:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewCompliances:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],notificationLimit:50,notificationHasMore:false,divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',districtData:{eligible:[],transmittals:[],items:[],claimable:[],people:[]},districtPicked:new Set(),districtSubmitPicked:new Set(),districtSelected:'',districtSchoolId:'',adminDocumentTypes:{types:[],requests:[]},documentDivisionStatuses:[],approverAssignments:[],announcementApproverEditing:null,announcementEditId:null,announcementEditorData:null,announcementCancelId:null,transmittalEditing:false,retrievalData:{},retrievalPicked:new Set(),retrievalTurnoverPicked:new Set(),retrievalDistrictPicked:new Set(),retrievalSearch:'',privateDetails:null,profileRequests:[],userFeedback:[],feedbackInbox:[],feedbackAuthors:[],feedbackFilter:'all',feedbackType:'all',issue:null,maintenance:{enabled:false,message:''},systemUpdates:[],recoveryScan:null,misfiledReview:null,recoveryChecking:false};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=x=>x?new Date(x).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}):'—';
@@ -157,9 +157,9 @@ async function sync(){
   if(error)throw error;
   state.profile=data;
   if(active())await readMaintenance();
-  if(isOic()&&!['dashboard','announcements','notifications','monitoring','reports','settings','system-recovery','system-updates'].includes(state.view))rememberView('dashboard');
-  if(!yesAdmin()&&['school-files','verification','approvals','archive','document-types'].includes(state.view))rememberView('dashboard');
-  if(yesAdmin()&&state.view==='settings')rememberView('dashboard');
+  if(isOic()&&!['dashboard','announcements','notifications','monitoring','reports','settings','system-recovery','system-updates','feedback'].includes(state.view))rememberView('dashboard');
+  if(!yesAdmin()&&['school-files','verification','approvals','archive','document-types','feedback-admin'].includes(state.view))rememberView('dashboard');
+  if(yesAdmin()&&['settings','feedback'].includes(state.view))rememberView('dashboard');
   if(!districtOversight()&&['reports','system-recovery'].includes(state.view))rememberView('dashboard');
   if(active())await load();else show();
  }catch(e){state.issue=e.message;show();}
@@ -263,6 +263,22 @@ async function load(){
    state.userFeedback=feedbackResult.data||[];
    state.privateDetails=privateResult.data||{};
    state.profileRequests=requestsResult.data||[];
+  })());
+  if(state.view==='feedback'&&!yesAdmin())tasks.push((async()=>{
+    const {data,error}=await db.from('user_feedback')
+     .select('id,category,subject,status,submitted_at,admin_response')
+     .eq('submitted_by',state.session.user.id).order('submitted_at',{ascending:false}).limit(50);
+    if(error)throw error;state.userFeedback=data||[];
+  })());
+  if(state.view==='feedback-admin'&&yesAdmin())tasks.push((async()=>{
+    const [messages,people]=await Promise.all([
+     db.from('user_feedback').select('id,submitted_by,category,subject,message,status,submitted_at,admin_response,reviewed_at')
+      .order('submitted_at',{ascending:false}).limit(500),
+     db.from('profiles').select('id,display_name,school_id,position_title')
+    ]);
+    if(messages.error||people.error)throw messages.error||people.error;
+    state.feedbackInbox=messages.data||[];
+    state.feedbackAuthors=people.data||[];
   })());
   if(state.view==='announcements'&&!yesAdmin()&&!isOic()&&['required','submitted','pending','late'].includes(state.connectedFilter)){
    tasks.push((async()=>{
@@ -914,11 +930,11 @@ function pendingPage(){
 }
 const menu=[['dashboard','⌂ Home'],['announcements','▤ Announcements'],['notifications','◉ Notifications'],['monitoring','▥ Submission Status']];
 function appPage(){
- const nav=[...menu,...(!isOic()?[['documents','▣ My Documents'],['division','▤ Division Transmittals'],['district','▤ District Transmittals'],['retrieval','✓ Division Retrieval']]:[]),...(districtOversight()?[['reports','▥ District Reports'],['system-recovery','◷ Record Recovery']]:[]),[['system-updates','↻ System Updates']],...(!yesAdmin()?[['settings','⚙ Personal Settings']]:[]),...((yesAdmin()||state.approverAssignments.some(x=>x.user_id===state.session.user.id))?[['verification','✓ Submission Verification']]:[]),...(yesAdmin()?[['school-files','▣ School Attachments'],['approvals','♙ Account Approvals'],['document-types','▦ Document Types'],['archive','▤ Archive Documents']]:[])].map(([id,title])=>`<button class="${state.view===id?'active':''}" data-a="nav" data-page="${id}">${title}</button>`).join('');
- const title={dashboard:'Home',announcements:'Announcements',notifications:'Notifications',monitoring:'Submission Monitoring',documents:'My Documents',division:'Division Transmittals',district:'District Transmittals','document-types':'Document Types',retrieval:'Division Retrieval',settings:'Personal Settings',reports:'District Reports','system-recovery':'Record Recovery','system-updates':'System Updates','school-files':'School Attachments',verification:'Submission Verification',approvals:'Account Management',archive:'Document Archiving'}[state.view]||'Overview';
+ const nav=[...menu,...(!isOic()?[['documents','▣ My Documents'],['division','▤ Division Transmittals'],['district','▤ District Transmittals'],['retrieval','✓ Division Retrieval']]:[]),...(districtOversight()?[['reports','▥ District Reports'],['system-recovery','◷ Record Recovery']]:[]),...(yesAdmin()?[['feedback-admin','✎ Reports & Suggestions']]:[['feedback','✎ Report / Suggest']]),[['system-updates','↻ System Updates']],...(!yesAdmin()?[['settings','⚙ Personal Settings']]:[]),...((yesAdmin()||state.approverAssignments.some(x=>x.user_id===state.session.user.id))?[['verification','✓ Submission Verification']]:[]),...(yesAdmin()?[['school-files','▣ School Attachments'],['approvals','♙ Account Approvals'],['document-types','▦ Document Types'],['archive','▤ Archive Documents']]:[])].map(([id,title])=>`<button class="${state.view===id?'active':''}" data-a="nav" data-page="${id}">${title}</button>`).join('');
+ const title={dashboard:'Home',announcements:'Announcements',notifications:'Notifications',monitoring:'Submission Monitoring',documents:'My Documents',division:'Division Transmittals',district:'District Transmittals','document-types':'Document Types',retrieval:'Division Retrieval',settings:'Personal Settings',reports:'District Reports','system-recovery':'Record Recovery','system-updates':'System Updates',feedback:'Report / Suggest','feedback-admin':'Reports & Suggestions','school-files':'School Attachments',verification:'Submission Verification',approvals:'Account Management',archive:'Document Archiving'}[state.view]||'Overview';
  const school=state.schools.find(x=>x.id===state.profile.school_id)?.name||'District Office';
  const name=state.profile.display_name||(isOic()?'OIC-PSDS':'District Administrator');
- let body={dashboard:dashboardPage,announcements:announcementPage,notifications:notificationsPage,monitoring:monitorPage,documents:documentPage,division:divisionPage,district:districtPage,'document-types':documentTypesAdminPage,retrieval:retrievalPage,settings:settingsPage,reports:districtReportPage,'system-updates':systemUpdatesPage,'system-recovery':systemRecoveryPage,'school-files':schoolAttachmentsPage,verification:verificationPage,approvals:approvalPage,archive:archivePage}[state.view]?.()||dashboardPage();
+ let body={dashboard:dashboardPage,announcements:announcementPage,notifications:notificationsPage,monitoring:monitorPage,documents:documentPage,division:divisionPage,district:districtPage,'document-types':documentTypesAdminPage,retrieval:retrievalPage,settings:settingsPage,reports:districtReportPage,'system-updates':systemUpdatesPage,'system-recovery':systemRecoveryPage,feedback:feedbackPage,'feedback-admin':feedbackAdminPage,'school-files':schoolAttachmentsPage,verification:verificationPage,approvals:approvalPage,archive:archivePage}[state.view]?.()||dashboardPage();
  if(state.view==='dashboard')body=systemUpdatePanel()+body;
  if(state.view==='dashboard'&&yesAdmin())body='<section class="panel" style="padding:20px;margin:16px 0;border:2px solid #d7bd6b"><h3>🔧 System Maintenance</h3><p class="note">Pause access for regular users while admins continue working.</p><p><strong>Status: '+(state.maintenance.enabled?'MAINTENANCE ON':'Running normally')+'</strong></p><button class="btn" data-a="maintenance-toggle">'+(state.maintenance.enabled?'Turn OFF Maintenance — Reopen App':'Turn ON Maintenance — Pause Users')+'</button></section>'+body;
  // Read-only presentation context for the upload panel. Not an authorization
@@ -937,6 +953,57 @@ function appPage(){
   '<span class="connected-crumb-current">'+esc(title)+'</span></div>':'';
  $.innerHTML=`<div class="app"><aside class="sidebar">${brand()}<nav>${nav}</nav><div class="sidebar-footer"><button data-a="theme">◐ Light / Dark Mode</button><button data-a="logout">↩ Sign Out</button><div class="user-mini">${esc(name)}<br>${esc(label(state.profile.role))} · ${esc(school)}</div></div></aside>
  <div class="main"><header class="topbar"><div><h2>${esc(title)}</h2><div class="note">One District. One Direction.</div></div><div class="topbar-actions">${pTag('active')}<button class="desktop-signout" type="button" data-a="logout" title="Sign out of SRII i-TRACK">↩ Sign Out</button></div></header><div class="content">${breadcrumb}${body}</div></div></div>${state.modal?modalHtml():''}`;
+}
+
+function feedbackPage(){
+ if(yesAdmin())return '<div class="notice danger">Open Reports & Suggestions Consolidation as administrator.</div>';
+ const entries=(state.userFeedback||[]).map(f=>
+  '<article class="feedback-entry"><div class="feedback-entry-heading"><strong>'+esc(f.subject)+'</strong>'+pTag(f.status)+'</div>'+
+  '<p class="small muted">'+esc(f.category==='problem'?'Problem / Bug':'Suggestion')+' · '+esc(date(f.submitted_at))+'</p>'+
+  (f.admin_response?'<div class="feedback-reply"><strong>Admin response</strong><p>'+esc(f.admin_response)+'</p></div>':'')+'</article>').join('');
+ return '<div class="sectionhead"><div><div class="eyebrow">District support</div><h1>Report a Problem / Send a Suggestion</h1>'+
+ '<p class="sub">Share concerns and improvements directly with the District Administrator. Track responses below.</p></div></div>'+
+ '<section class="panel"><h3>Send a Report or Suggestion</h3><p class="note">Do not include passwords, employee IDs, or confidential documents.</p>'+
+ '<form id="settings-feedback-form"><div class="field"><label for="fb-category">Type</label><select id="fb-category" name="category"><option value="problem">Problem / Bug</option><option value="suggestion">Improvement Suggestion</option></select></div>'+
+ '<div class="field"><label for="fb-subject">Subject</label><input id="fb-subject" name="subject" type="text" minlength="3" maxlength="180" required placeholder="Briefly describe your concern"></div>'+
+ '<div class="field"><label for="fb-message">Details</label><textarea id="fb-message" name="message" minlength="10" maxlength="4000" rows="5" required placeholder="What happened, or what could we improve?"></textarea></div>'+
+ '<button class="btn" type="submit">Send to District Administrator</button></form></section>'+
+ '<section class="panel"><h3>My Reports & Suggestions</h3>'+
+ (entries||'<p class="empty">You have not submitted any reports or suggestions.</p>')+'</section>';
+}
+function feedbackAdminPage(){
+ if(!yesAdmin())return '<div class="notice danger">District Administrator access required.</div>';
+ const records=state.feedbackInbox||[],filter=state.feedbackFilter||'all',type=state.feedbackType||'all';
+ const filtered=records.filter(f=>(filter==='all'||f.status===filter)&&(type==='all'||f.category===type));
+ const statuses={all:'All',submitted:'Submitted',reviewing:'Under Review',resolved:'Resolved'};
+ const stats=Object.entries(statuses).map(([key,label])=>
+ '<button type="button" class="feedback-stat'+(filter===key?' selected':'')+'" data-a="feedback-filter" data-filter="'+key+'">'+
+ '<strong>'+esc(key==='all'?records.length:records.filter(r=>r.status===key).length)+'</strong><span>'+label+'</span></button>').join('');
+ const cards=filtered.map(f=>{
+  const person=state.feedbackAuthors.find(p=>p.id===f.submitted_by);
+  const school=state.schools.find(s=>s.id===person?.school_id)?.name||'District Office';
+  const statusOptions=['submitted','reviewing','resolved'].map(k=>
+   '<option value="'+k+'"'+(k===f.status?' selected':'')+'>'+statuses[k]+'</option>').join('');
+  return '<article class="feedback-entry"><div class="feedback-entry-heading"><div><strong>'+esc(f.subject)+'</strong>'+
+   '<p class="small muted">'+esc(f.category==='problem'?'Problem / Bug':'Improvement Suggestion')+' · '+esc(person?.display_name||'Unknown user')+
+   ' · '+esc(school)+' · '+esc(date(f.submitted_at))+'</p></div>'+pTag(f.status)+'</div>'+
+   '<p class="feedback-details">'+esc(f.message)+'</p>'+
+   '<div class="feedback-edit"><div class="field"><label for="fb-status-'+esc(f.id)+'">Status</label>'+
+   '<select id="fb-status-'+esc(f.id)+'">'+statusOptions+'</select></div>'+
+   '<div class="field"><label for="fb-reply-'+esc(f.id)+'">Reply to sender</label>'+
+   '<textarea id="fb-reply-'+esc(f.id)+'" maxlength="2000" rows="3" placeholder="Optional administrator response">'+esc(f.admin_response||'')+'</textarea></div>'+
+   '<button class="btn alt" type="button" data-a="feedback-save" data-id="'+esc(f.id)+'">Save Response</button></div></article>';
+ }).join('');
+ return '<div class="sectionhead"><div><div class="eyebrow">Consolidation</div><h1>Reports & Suggestions</h1>'+
+ '<p class="sub">All user-submitted concerns and suggestions in one inbox. Review, respond, and resolve here.</p></div>'+
+ '<button type="button" class="btn alt" data-a="feedback-refresh">Refresh Reports</button></div>'+
+ '<div class="feedback-stats">'+stats+'</div>'+
+ '<div class="toolbar feedback-toolbar"><label for="fb-type-filter">Show</label>'+
+ '<select id="fb-type-filter"><option value="all"'+(type==='all'?' selected':'')+'>All Types</option>'+
+ '<option value="problem"'+(type==='problem'?' selected':'')+'>Problems / Bugs</option>'+
+ '<option value="suggestion"'+(type==='suggestion'?' selected':'')+'>Suggestions</option></select></div>'+
+ (cards||'<section class="panel"><p class="empty">No reports match this filter.</p></section>')+
+ (records.length>=500?'<p class="note">Showing the latest 500 reports. Older entries remain stored.</p>':'');
 }
 function settingsPage(){
  const p=state.profile||{},d=state.privateDetails||{},pending=state.profileRequests||[];
@@ -1168,7 +1235,11 @@ function dashboardPage(){
     '<button data-a="nav" data-page="announcements"><span>◷</span><strong>Due Dates</strong><small>Latest notices</small></button>')+
   '</div>';
  return '<section class="v2-intro"><div><div class="eyebrow">SAN REMIGIO II DISTRICT</div><h1>Welcome back, '+esc(name)+'!</h1><p class="v2-role">'+esc(oversight?"OIC-PSDS · District Oversight (Read Only)":admin?"District Administrator":school)+'</p></div><div class="v2-motto">One District. One Direction.<br><strong>Organized for a Stronger SRII.</strong></div></section>'+
-  '<div class="v2-metrics">'+metricHtml+'</div>'+(!oversight?documentNotificationPanel():'')+
+  '<div class="v2-metrics">'+metricHtml+'</div>'+
+  '<section class="panel feedback-shortcut"><div><strong>'+esc(admin?'Reports & Suggestions Consolidation':'Report a Problem / Suggestion')+'</strong>'+
+  '<p class="note">'+esc(admin?'Review submitted reports and reply to schools.':'Experiencing an issue or have an idea? Send it to the district administrator.')+'</p></div>'+
+  '<button type="button" class="btn" data-a="nav" data-page="'+(admin?'feedback-admin':'feedback')+'">'+(admin?'Open Consolidation':'Report / Suggest')+'</button></section>'+
+  (!oversight?documentNotificationPanel():'')+
   '<div class="v2-home-grid"><div class="v2-home-primary">'+
   '<section class="panel v2-board itrack-preview"><div class="panel-head"><h3>Latest Announcements</h3><button class="btn tiny alt itrack-show-all" data-a="nav" data-page="announcements">Show All</button></div><div class="v2-notice-list">'+announcements+'</div></section>'+
   '<section class="panel v2-board itrack-preview">'+(!admin&&!oversight?'<div class="panel-head"><h3>Documents Requiring Action</h3><button class="btn tiny alt itrack-show-all" data-a="nav" data-page="documents">Show All</button></div><div class="v2-notice-list">'+actionNeededHtml+'</div>':'')+'<h3>Quick Actions</h3>'+quick+'</section>'+
@@ -1217,7 +1288,8 @@ function districtReportPage(){
  });
  return '<div class="sectionhead"><div><div class="eyebrow">District-wide reporting</div>'+
   '<h1>District Reports</h1><p class="sub">Read-only compliance summaries and individual announcement upload times in Philippine time (PHT). File contents remain permission-controlled.</p></div>'+
-  '<button class="btn alt" data-a="export-district-report"'+(!reports.length?' disabled':'')+'>↧ Export CSV</button></div>'+
+  '<div class="toolbar">'+(yesAdmin()?'<button type="button" class="btn" data-a="nav" data-page="feedback-admin">Reports & Suggestions</button>':'')+
+  '<button class="btn alt" data-a="export-district-report"'+(!reports.length?' disabled':'')+'>↧ Export CSV</button></div></div>'+
   '<div class="stats">'+stat('Announcements',reports.length,'Published district requests','report-stat','all')+
   stat('School requirements',total.required,'Across all announcements','report-stat','all')+
   stat('On-time submissions',total.onTime,'Received by the deadline','report-stat','onTime')+
@@ -2498,6 +2570,27 @@ async function click(e){
   if(a==='connected-clear'){state.connectedFilter='';show();return;}
   if(a==='monitor-stat'){if(state.view!=='monitoring')throw Error('Open Submission Monitoring first.');state.monitorStatusFilter=t.dataset.filter==='all'?'':t.dataset.filter||'';show();return;}
   if(a==='report-stat'){if(state.view!=='reports')throw Error('Open District Reports first.');state.reportFilter=t.dataset.filter==='all'?'':t.dataset.filter||'';show();return;}
+  if(a==='feedback-filter'){
+   if(!yesAdmin()||state.view!=='feedback-admin')throw Error('Administrator access required.');
+   state.feedbackFilter=t.dataset.filter||'all';show();return;
+  }
+  if(a==='feedback-refresh'){
+   if(!yesAdmin()||state.view!=='feedback-admin')throw Error('Administrator access required.');
+   await load();pop('Consolidated reports refreshed.');return;
+  }
+  if(a==='feedback-save'){
+   if(!yesAdmin()||state.view!=='feedback-admin')throw Error('Administrator access required.');
+   const id=String(t.dataset.id||'');
+   const entry=state.feedbackInbox.find(f=>String(f.id)===id);
+   if(!entry)throw Error('Report no longer available. Refresh the inbox.');
+   const status=document.getElementById('fb-status-'+id)?.value||'';
+   const response=document.getElementById('fb-reply-'+id)?.value.trim()||'';
+   if(!['submitted','reviewing','resolved'].includes(status))throw Error('Invalid feedback status.');
+   const {error}=await db.rpc('i_track_admin_feedback_respond',
+     {p_feedback_id:entry.id,p_status:status,p_response:response||null});
+   if(error)throw error;
+   await load();pop('Feedback status and reply saved.');return;
+  }
   if(a==='announcement-focus'){
    const announcement=state.announcements.find(x=>x.id===t.dataset.id);
    if(!announcement||announcement.status==='draft')throw Error('Announcement not available.');
@@ -2515,11 +2608,11 @@ async function click(e){
   }
   if(a==='nav'||a==='connected-nav'){
    if(!knownViews.has(t.dataset.page))throw new Error('Unknown navigation destination.');
-   if(['school-files','approvals','archive'].includes(t.dataset.page)&&!yesAdmin())throw new Error('District administrator access required.');
+   if(['school-files','approvals','archive','feedback-admin'].includes(t.dataset.page)&&!yesAdmin())throw new Error('District administrator access required.');
    if(t.dataset.page==='verification'&&!yesAdmin()&&!state.approverAssignments.some(x=>x.user_id===state.session.user.id))throw new Error('Not an assigned approver.');
    if(['reports','system-recovery'].includes(t.dataset.page)&&!districtOversight())throw new Error('District oversight access required.');
-   if(t.dataset.page==='settings'&&yesAdmin())throw new Error('Personal Settings in this redesign are for Normal User accounts.');
-   if(isOic()&&!['dashboard','announcements','notifications','monitoring','reports','settings','system-recovery','system-updates'].includes(t.dataset.page))throw new Error('This OIC-PSDS account is read-only.');
+   if(['settings','feedback'].includes(t.dataset.page)&&yesAdmin())throw new Error('Reports & Suggestions Consolidation is available to administrators.');
+   if(isOic()&&!['dashboard','announcements','notifications','monitoring','reports','settings','system-recovery','system-updates','feedback'].includes(t.dataset.page))throw new Error('This OIC-PSDS account is read-only.');
    rememberView(t.dataset.page);state.connectedFilter=a==='connected-nav'?(t.dataset.filter||''):'';
    if(t.dataset.page==='monitoring')state.monitorStatusFilter='';
    state.modal=null;await load();return;
@@ -3148,6 +3241,9 @@ $.addEventListener('change',async e=>{
   if(info)info.hidden=!oic;
  }
  if(e.target.id==='all-schools')document.querySelectorAll('.school-checkbox:not(:disabled)').forEach(c=>c.checked=e.target.checked);
+ if(e.target.id==='fb-type-filter'&&yesAdmin()&&state.view==='feedback-admin'){
+  state.feedbackType=e.target.value;show();return;
+ }
  if(e.target.id==='pick-ann'){state.selectedId=e.target.value;state.monitorStatusFilter='';rememberAnnouncement(state.selectedId);try{await loadMonitor();show();}catch(ex){err(ex);}}
  if(['school-files-filter-school','school-files-filter-ann','school-files-filter-versions'].includes(e.target.id)&&yesAdmin()&&state.view==='school-files'){
   if(e.target.id==='school-files-filter-school')state.schoolFilesSchool=e.target.value;
