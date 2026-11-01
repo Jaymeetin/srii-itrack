@@ -840,3 +840,36 @@ tr[hidden]{display:none!important}
 .feedback-admin-add form{margin-top:18px;max-width:750px}
 .feedback-card-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 @media(max-width:850px){.feedback-card-actions{flex-direction:column;align-items:stretch}}
+
+/* v66 historical directory: a complete, source-qualified version index. */
+.version-history-overview{border-top:4px solid var(--accent);padding-top:20px}
+.version-history-overview-top{display:flex;justify-content:space-between;gap:16px;align-items:start}
+.version-history-overview .eyebrow{font-size:11px;font-weight:850;color:var(--muted)}
+.version-history-overview h2{font-size:clamp(24px,3vw,32px);margin:4px 0 8px;color:var(--text)}
+.version-current{min-width:145px;display:flex;flex-direction:column;text-align:right;gap:2px}
+.version-current span{font-size:12px;color:var(--muted);font-weight:700}
+.version-current strong{font-size:33px;line-height:1.1;color:var(--blue)}
+.version-history-note{font-size:12px;line-height:1.6;color:var(--muted);margin:7px 0 0}
+.version-history-docs details>summary{font-size:15px;font-weight:800;color:var(--text);cursor:pointer}
+.version-history-docs details>summary span{font-size:12px;color:var(--muted);font-weight:500}
+.version-milestones{margin-top:14px}
+.version-milestone{display:flex;align-items:start;gap:13px;border-top:1px solid var(--line);padding:12px 0;font-size:13px}
+.version-milestone strong{flex:0 0 125px;color:var(--blue)}
+.version-milestone span{flex:1;color:var(--text);overflow-wrap:anywhere}
+.version-milestone a{font-size:12px;font-weight:700}
+.version-directory>.sectionhead{margin:0 0 15px}
+.version-directory .sectionhead h3{margin:0 0 5px}
+.version-directory .sectionhead .note{margin:0 0 4px}
+.version-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.version-row{min-width:0;border:1px solid var(--line);border-radius:10px;padding:11px 13px;background:var(--paper);overflow-wrap:anywhere}
+.version-row.is-unverified{background:var(--bg);padding:9px 12px}
+.version-row-heading{display:flex;align-items:center;justify-content:space-between;gap:9px;flex-wrap:wrap}
+.version-row-heading strong{font-size:14px;color:var(--text)}
+.version-row-heading small{font-size:10px;color:var(--muted);font-weight:700}
+.version-row-title{font-size:13px;font-weight:750;margin-top:5px}
+.version-row.is-unverified .version-row-title{color:var(--muted);font-size:12px;font-weight:500}
+.version-row p{font-size:12px;line-height:1.5;color:var(--muted);margin:5px 0}
+.version-row-meta{font-size:11px;color:var(--muted);display:flex;gap:12px;flex-wrap:wrap;justify-content:space-between;margin-top:7px}
+.version-row-meta a{font-weight:700}
+@media(max-width:850px){.version-list{grid-template-columns:1fr}.version-history-overview-top{align-items:center}}
+@media(max-width:520px){.version-history-overview-top{flex-direction:column}.version-current{text-align:left}.version-milestone{flex-direction:column;gap:4px}.version-milestone strong{flex:auto}.version-milestone span{flex:auto}}
