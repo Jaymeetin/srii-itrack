@@ -112,6 +112,7 @@ function openMore(){
   link('school-files','All School Attachments'),
   link('verification','Submission Verification'),
   link('reports','District Reports'),
+  link('feedback-admin','Reports & Suggestions'),
   link('system-recovery','Check Missing Records'),
   link('approvals','Account Management'),
   link('archive','Document Archiving')
@@ -128,6 +129,7 @@ function openMore(){
   '<div class="mobile-identity"><span class="mobile-avatar" aria-hidden="true">'+safe(user.initials)+'</span><div><strong>'+safe(user.name)+'</strong><small>'+safe(user.detail)+'</small></div></div>'+
   '<span class="mobile-sheet-label">WORKSPACE</span>'+
   link('system-updates','↻ System Updates')+
+  link('feedback','✎ Report a Problem / Suggestion')+
   '<button type="button" class="mobile-menu-button" data-mobile="navigate" data-page="notifications">◉ &nbsp; Notifications <small>›</small></button>'+
   workplaceSection+administrationSection+
   (admin||app.querySelector('.sidebar nav button[data-page="documents"]')?
