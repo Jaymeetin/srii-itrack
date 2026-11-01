@@ -50,3 +50,13 @@
  .district-list tr.itrack-selectable-expanded td:nth-child(2),.district-list tr.itrack-selectable-expanded td:nth-child(4),
  .retrieval-table tr.itrack-selectable-expanded td:nth-child(2),.retrieval-table tr.itrack-selectable-expanded td:nth-child(4){display:table-cell!important}
 }
+/* Keep the genuine status visible beside the name on small screens. */
+@media(max-width:730px){
+ .retrieval-table th.retrieval-status,.retrieval-table td.retrieval-status,
+ .district-list th.district-status-col,.district-list td.district-status-col{display:table-cell!important;width:105px!important}
+ .district-list th.district-return-col,.district-list td.district-return-col{display:none!important}
+ .retrieval-table th.retrieval-school,.retrieval-table td.retrieval-school{display:none!important}
+ .district-list tr.itrack-selectable-expanded td.district-return-col,
+ .retrieval-table tr.itrack-selectable-expanded td.retrieval-school{display:table-cell!important}
+ .retrieval-table td.retrieval-status,.district-list td.district-status-col{font-size:10px}
+}
