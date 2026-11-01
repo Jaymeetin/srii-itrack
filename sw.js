@@ -1,8 +1,8 @@
 /* SRII i-TRACK app shell cache v2: assets only, always prefer the network. */
-const CACHE_NAME="srii-itrack-verification-consolidation-v68";
+const CACHE_NAME="srii-itrack-compact-records-v69";
 const CORE_ASSETS=[
  "./","./index.html","./styles.css","./mobile.css",
- "./app.js","./version-history.js","./compact-notices.css","./retrieval-ui.js","./district-ui.js","./district-print.js","./document-types-ui.js","./district.css","./official-print.js","./mobile-shell.js","./upload-ui.css","./upload-ui.js","./download-ui.js","./config.js",
+ "./app.js","./compact-rows.js","./compact-rows.css","./version-history.js","./compact-notices.css","./retrieval-ui.js","./district-ui.js","./district-print.js","./document-types-ui.js","./district.css","./official-print.js","./mobile-shell.js","./upload-ui.css","./upload-ui.js","./download-ui.js","./config.js",
  "./assets/division-sample-endorsement-header.webp","./assets/division-sample-endorsement-footer.webp",
  "./assets/division-sample-transmittal-header.webp","./assets/division-sample-transmittal-footer.webp",
  "./manifest.webmanifest","./SRII_iTRACK_3sec_Portrait_Opening_Preview.mp4","./assets/srii-itrack-official-logo.png","./assets/srii-itrack-logo-optimized.webp",
