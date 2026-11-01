@@ -46,7 +46,7 @@ const knownViews=new Set(['dashboard','announcements','notifications','monitorin
 const urlView=new URLSearchParams(location.search).get('view');
 const firstView=knownViews.has(urlView)?urlView:'dashboard';
 localStorage.removeItem('srii-current-view');
-const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],monitorSchoolDetails:null,oversightUploads:[],oversightShowAllUploads:false,connectedFilter:'',monitorStatusFilter:'',reportFilter:'',navTrail:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:arrivedFromExpiredEmailLink?'resend':importedQueueTicket?'queue':'login',emailHelpReason:arrivedFromExpiredEmailLink?'expired':'',queueTicket:importedQueueTicket||localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],showRemovedAccounts:false,modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],districtHistory:[],documentDistrictStatuses:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],compliances:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewCompliances:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],notificationLimit:50,notificationHasMore:false,divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',districtData:{eligible:[],transmittals:[],items:[],claimable:[],people:[]},districtPicked:new Set(),districtSubmitPicked:new Set(),districtSelected:'',districtSchoolId:'',adminDocumentTypes:{types:[],requests:[]},documentDivisionStatuses:[],approverAssignments:[],announcementApproverEditing:null,announcementEditId:null,announcementEditorData:null,announcementCancelId:null,transmittalEditing:false,retrievalData:{},retrievalPicked:new Set(),retrievalTurnoverPicked:new Set(),retrievalDistrictPicked:new Set(),retrievalSearch:'',privateDetails:null,profileRequests:[],userFeedback:[],feedbackInbox:[],feedbackAuthors:[],feedbackFilter:'all',feedbackType:'all',issue:null,maintenance:{enabled:false,message:''},systemUpdates:[],recoveryScan:null,misfiledReview:null,recoveryChecking:false};
+const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],monitorSchoolDetails:null,oversightUploads:[],oversightShowAllUploads:false,connectedFilter:'',monitorStatusFilter:'',reportFilter:'',navTrail:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:arrivedFromExpiredEmailLink?'resend':importedQueueTicket?'queue':'login',emailHelpReason:arrivedFromExpiredEmailLink?'expired':'',queueTicket:importedQueueTicket||localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],showRemovedAccounts:false,modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],districtHistory:[],documentDistrictStatuses:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],compliances:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewCompliances:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],notificationLimit:50,notificationHasMore:false,divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',districtData:{eligible:[],transmittals:[],items:[],claimable:[],people:[]},districtPicked:new Set(),districtSubmitPicked:new Set(),districtSelected:'',districtSchoolId:'',adminDocumentTypes:{types:[],requests:[]},documentDivisionStatuses:[],approverAssignments:[],announcementApproverEditing:null,announcementEditId:null,announcementEditorData:null,announcementCancelId:null,transmittalEditing:false,retrievalData:{},retrievalPicked:new Set(),retrievalTurnoverPicked:new Set(),retrievalDistrictPicked:new Set(),retrievalSearch:'',privateDetails:null,profileRequests:[],userFeedback:[],feedbackInbox:[],adminFeedbackEntries:[],feedbackAuthors:[],feedbackFilter:'all',feedbackType:'all',issue:null,maintenance:{enabled:false,message:''},systemUpdates:[],recoveryScan:null,misfiledReview:null,recoveryChecking:false};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=x=>x?new Date(x).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}):'—';
@@ -271,14 +271,17 @@ async function load(){
     if(error)throw error;state.userFeedback=data||[];
   })());
   if(state.view==='feedback-admin'&&yesAdmin())tasks.push((async()=>{
-    const [messages,people]=await Promise.all([
+    const [messages,people,adminEntries]=await Promise.all([
      db.from('user_feedback').select('id,submitted_by,category,subject,message,status,submitted_at,admin_response,reviewed_at')
       .order('submitted_at',{ascending:false}).limit(500),
-     db.from('profiles').select('id,display_name,school_id,position_title')
+     db.from('profiles').select('id,display_name,school_id,position_title,role,account_status'),
+     db.from('i_track_admin_feedback_entries').select('id,referenced_user_id,entered_by,category,subject,message,status,admin_response,created_at')
+      .order('created_at',{ascending:false}).limit(200)
     ]);
-    if(messages.error||people.error)throw messages.error||people.error;
+    if(messages.error||people.error||adminEntries.error)throw messages.error||people.error||adminEntries.error;
     state.feedbackInbox=messages.data||[];
     state.feedbackAuthors=people.data||[];
+    state.adminFeedbackEntries=adminEntries.data||[];
   })());
   if(state.view==='announcements'&&!yesAdmin()&&!isOic()&&['required','submitted','pending','late'].includes(state.connectedFilter)){
    tasks.push((async()=>{
@@ -973,7 +976,11 @@ function feedbackPage(){
 }
 function feedbackAdminPage(){
  if(!yesAdmin())return '<div class="notice danger">District Administrator access required.</div>';
- const records=state.feedbackInbox||[],filter=state.feedbackFilter||'all',type=state.feedbackType||'all';
+ const records=[
+  ...(state.feedbackInbox||[]).map(f=>({...f,source:'user'})),
+  ...(state.adminFeedbackEntries||[]).map(f=>({...f,source:'administrator',submitted_by:f.referenced_user_id,submitted_at:f.created_at}))
+ ].sort((a,b)=>new Date(b.submitted_at)-new Date(a.submitted_at));
+ const filter=state.feedbackFilter||'all',type=state.feedbackType||'all';
  const filtered=records.filter(f=>(filter==='all'||f.status===filter)&&(type==='all'||f.category===type));
  const statuses={all:'All',submitted:'Submitted',reviewing:'Under Review',resolved:'Resolved'};
  const stats=Object.entries(statuses).map(([key,label])=>
@@ -982,22 +989,42 @@ function feedbackAdminPage(){
  const cards=filtered.map(f=>{
   const person=state.feedbackAuthors.find(p=>p.id===f.submitted_by);
   const school=state.schools.find(s=>s.id===person?.school_id)?.name||'District Office';
+  const adminEntry=f.source==='administrator';
+  const sourceText=adminEntry?'Administrator-entered · Referenced personnel only (not submitted by this user)':'Submitted by user';
   const statusOptions=['submitted','reviewing','resolved'].map(k=>
    '<option value="'+k+'"'+(k===f.status?' selected':'')+'>'+statuses[k]+'</option>').join('');
   return '<article class="feedback-entry"><div class="feedback-entry-heading"><div><strong>'+esc(f.subject)+'</strong>'+
-   '<p class="small muted">'+esc(f.category==='problem'?'Problem / Bug':'Improvement Suggestion')+' · '+esc(person?.display_name||'Unknown user')+
-   ' · '+esc(school)+' · '+esc(date(f.submitted_at))+'</p></div>'+pTag(f.status)+'</div>'+
+   '<p class="small muted">'+esc(f.category==='problem'?'Problem / Bug':'Improvement Suggestion')+' · '+
+   esc(adminEntry?'Referenced personnel: ':'Submitted by: ')+esc(person?.display_name||'Unknown user')+
+   ' · '+esc(school)+' · '+esc(date(f.submitted_at))+'</p>'+
+   '<p class="feedback-source">'+esc(sourceText)+'</p></div>'+pTag(f.status)+'</div>'+
    '<p class="feedback-details">'+esc(f.message)+'</p>'+
-   '<div class="feedback-edit"><div class="field"><label for="fb-status-'+esc(f.id)+'">Status</label>'+
-   '<select id="fb-status-'+esc(f.id)+'">'+statusOptions+'</select></div>'+
-   '<div class="field"><label for="fb-reply-'+esc(f.id)+'">Reply to sender</label>'+
-   '<textarea id="fb-reply-'+esc(f.id)+'" maxlength="2000" rows="3" placeholder="Optional administrator response">'+esc(f.admin_response||'')+'</textarea></div>'+
-   '<button class="btn alt" type="button" data-a="feedback-save" data-id="'+esc(f.id)+'">Save Response</button></div></article>';
+   '<div class="feedback-edit"><div class="field"><label for="fb-status-'+esc(f.source)+'-'+esc(f.id)+'">Status</label>'+
+   '<select id="fb-status-'+esc(f.source)+'-'+esc(f.id)+'">'+statusOptions+'</select></div>'+
+   '<div class="field"><label for="fb-reply-'+esc(f.source)+'-'+esc(f.id)+'">Administrator response</label>'+
+   '<textarea id="fb-reply-'+esc(f.source)+'-'+esc(f.id)+'" maxlength="2000" rows="3" placeholder="Optional administrator response">'+esc(f.admin_response||'')+'</textarea></div>'+
+   '<div class="feedback-card-actions"><button class="btn alt" type="button" data-a="feedback-save" data-source="'+esc(f.source)+'" data-id="'+esc(f.id)+'">Save Response</button>'+
+   (adminEntry?'<button class="btn tiny danger" type="button" data-a="feedback-delete" data-id="'+esc(f.id)+'">Remove Entry</button>':'')+
+   '</div></div></article>';
  }).join('');
+ const peopleOptions=(state.feedbackAuthors||[]).filter(p=>p.account_status==='active'&&p.role==='school_user'&&p.display_name)
+  .sort((a,b)=>a.display_name.localeCompare(b.display_name)).map(p=>
+   '<option value="'+esc(p.id)+'">'+esc(p.display_name)+' · '+esc(state.schools.find(s=>s.id===p.school_id)?.name||'School')+'</option>').join('');
+ const addForm='<details class="panel feedback-admin-add"><summary>+ Add Administrator-Entered Feedback</summary>'+
+ '<p class="note">The selected personnel name is a reference, not the person who submitted this entry. Administrator entries never appear in users\' My Reports.</p>'+
+ '<form id="admin-feedback-form">'+
+ '<div class="field"><label for="admin-fb-person">Referenced personnel (not submitter)</label><select id="admin-fb-person" name="referenced_user_id" required><option value="">Select a registered user</option>'+peopleOptions+'</select></div>'+
+ '<div class="field"><label for="admin-fb-category">Type</label><select id="admin-fb-category" name="category" required><option value="suggestion">Suggestion</option><option value="problem">Problem / Issue</option></select></div>'+
+ '<div class="field"><label for="admin-fb-subject">Subject</label><input id="admin-fb-subject" type="text" name="subject" minlength="3" maxlength="180" required></div>'+
+ '<div class="field"><label for="admin-fb-message">Feedback content</label><textarea id="admin-fb-message" name="message" minlength="10" maxlength="4000" rows="4" required></textarea></div>'+
+ '<div class="field"><label for="admin-fb-status">Status</label><select id="admin-fb-status" name="status"><option value="submitted">Submitted</option><option value="reviewing">Under Review</option><option value="resolved">Resolved</option></select></div>'+
+ '<div class="field"><label for="admin-fb-response">Administrator response (optional)</label><textarea id="admin-fb-response" name="admin_response" maxlength="2000" rows="3"></textarea></div>'+
+ '<button class="btn" type="submit">Add Administrator Entry</button></form></details>';
  return '<div class="sectionhead"><div><div class="eyebrow">Consolidation</div><h1>Reports & Suggestions</h1>'+
- '<p class="sub">All user-submitted concerns and suggestions in one inbox. Review, respond, and resolve here.</p></div>'+
+ '<p class="sub">Review genuine user submissions alongside separately attributed administrator-entered feedback references.</p>'+
+ '<p class="note">User-submitted: '+esc((state.feedbackInbox||[]).length)+' · Administrator-entered: '+esc((state.adminFeedbackEntries||[]).length)+'</p></div>'+
  '<button type="button" class="btn alt" data-a="feedback-refresh">Refresh Reports</button></div>'+
- '<div class="feedback-stats">'+stats+'</div>'+
+ addForm+'<div class="feedback-stats">'+stats+'</div>'+
  '<div class="toolbar feedback-toolbar"><label for="fb-type-filter">Show</label>'+
  '<select id="fb-type-filter"><option value="all"'+(type==='all'?' selected':'')+'>All Types</option>'+
  '<option value="problem"'+(type==='problem'?' selected':'')+'>Problems / Bugs</option>'+
@@ -2580,16 +2607,31 @@ async function click(e){
   }
   if(a==='feedback-save'){
    if(!yesAdmin()||state.view!=='feedback-admin')throw Error('Administrator access required.');
-   const id=String(t.dataset.id||'');
-   const entry=state.feedbackInbox.find(f=>String(f.id)===id);
-   if(!entry)throw Error('Report no longer available. Refresh the inbox.');
-   const status=document.getElementById('fb-status-'+id)?.value||'';
-   const response=document.getElementById('fb-reply-'+id)?.value.trim()||'';
+   const id=String(t.dataset.id||''),source=t.dataset.source;
+   if(!['user','administrator'].includes(source))throw Error('Unrecognized feedback source.');
+   const entry=(source==='user'?state.feedbackInbox:state.adminFeedbackEntries).find(f=>String(f.id)===id);
+   if(!entry)throw Error('Feedback no longer available. Refresh the inbox.');
+   const status=document.getElementById('fb-status-'+source+'-'+id)?.value||'';
+   const response=document.getElementById('fb-reply-'+source+'-'+id)?.value.trim()||'';
    if(!['submitted','reviewing','resolved'].includes(status))throw Error('Invalid feedback status.');
-   const {error}=await db.rpc('i_track_admin_feedback_respond',
-     {p_feedback_id:entry.id,p_status:status,p_response:response||null});
+   if(response.length>2000)throw Error('Response is too long.');
+   const {error}=source==='user'?
+    await db.rpc('i_track_admin_feedback_respond',
+     {p_feedback_id:entry.id,p_status:status,p_response:response||null}):
+    await db.from('i_track_admin_feedback_entries')
+     .update({status,admin_response:response||null,updated_at:new Date().toISOString()}).eq('id',entry.id);
    if(error)throw error;
    await load();pop('Feedback status and reply saved.');return;
+  }
+  if(a==='feedback-delete'){
+   if(!yesAdmin()||state.view!=='feedback-admin')throw Error('Administrator access required.');
+   const id=Number(t.dataset.id);
+   const entry=state.adminFeedbackEntries.find(f=>f.id===id);
+   if(!entry)throw Error('Administrator entry not found.');
+   if(!confirm('Remove this administrator-entered feedback reference? This will not delete any actual user-submitted report.'))return;
+   const {error}=await db.from('i_track_admin_feedback_entries').delete().eq('id',id);
+   if(error)throw error;
+   await load();pop('Administrator-entered reference removed.');return;
   }
   if(a==='announcement-focus'){
    const announcement=state.announcements.find(x=>x.id===t.dataset.id);
@@ -2896,10 +2938,25 @@ async function uploadNewDocumentAttachment(documentId,file){
  }finally{clearTimeout(timeout);}
 }
 async function submit(e){
- const form=e.target;if(!['queue-join','queue-complete','login','resend-email','forgot-password','set-password','form-ann','form-ann-edit','form-doc','settings-email-form','settings-password-form','settings-profile-form','settings-private-form','settings-feedback-form'].includes(form.id))return;
+ const form=e.target;if(!['queue-join','queue-complete','login','resend-email','forgot-password','set-password','form-ann','form-ann-edit','form-doc','settings-email-form','settings-password-form','settings-profile-form','settings-private-form','settings-feedback-form','admin-feedback-form'].includes(form.id))return;
  e.preventDefault();if(state.maintenance.enabled&&!yesAdmin()&&state.session){await readMaintenance();show();return;}if(state.busy)return;state.busy=true;form.querySelectorAll('button[type=submit]').forEach(x=>x.disabled=true);
  try{
   const fd=new FormData(form);
+  if(form.id==='admin-feedback-form'){
+   if(!yesAdmin()||state.view!=='feedback-admin'||!state.session?.user?.id)throw Error('Administrator access required.');
+   const referenced_user_id=clean(fd.get('referenced_user_id'));
+   const category=clean(fd.get('category')),subject=clean(fd.get('subject')),message=clean(fd.get('message'));
+   const status=clean(fd.get('status')),admin_response=clean(fd.get('admin_response'));
+   const person=state.feedbackAuthors.find(p=>p.id===referenced_user_id&&p.account_status==='active'&&p.role==='school_user');
+   if(!person)throw Error('Select an active registered school user as the reference.');
+   if(!['problem','suggestion'].includes(category)||!['submitted','reviewing','resolved'].includes(status))throw Error('Invalid category or status.');
+   if(subject.length<3||subject.length>180||message.length<10||message.length>4000||admin_response.length>2000)throw Error('Please complete the fields within their character limits.');
+   const {error}=await db.from('i_track_admin_feedback_entries').insert({
+    referenced_user_id,entered_by:state.session.user.id,category,subject,message,status,admin_response:admin_response||null
+   });
+   if(error)throw error;
+   await load();pop('Administrator-entered feedback reference added.');return;
+  }
   if(form.id==='settings-feedback-form'){
    if(yesAdmin()||!state.session?.user?.id)throw new Error('Feedback form is available to active non-admin users.');
    const category=clean(fd.get('category')),subject=clean(fd.get('subject')),message=clean(fd.get('message'));
