@@ -1923,6 +1923,7 @@ function approvalPage(){
  });
  return '<div class="eyebrow">Administrator controls</div><h1>Account Approvals</h1>'+
   '<p class="sub">Approve personnel, check who is awaiting email verification, or send a password-reset link. Resetting a password preserves all documents and account history. The Main Administrator approves OIC-PSDS accounts.</p>'+
+  '<div class="notice"><strong>Looking for school announcement submissions?</strong> This page approves personnel accounts only. Open <button type="button" class="btn tiny alt" data-a="nav" data-page="verification">Submission Verification</button> to review pending reports from every announcement.</div>'+
   '<div class="notice warn"><strong>Approval and email verification are separate.</strong> An approved account marked “Email verification pending” cannot sign in until the user verifies their email. Use <strong>Resend Verification</strong> to request a fresh link if the previous one expired. Do not delete or recreate the account.</div>'+
   '<div class="notice">Delete User removes SRII i-TRACK access and retains the historical account ID, document routing, uploader attribution, and all Google Drive files. It does not erase the underlying Supabase Auth login record or free the email address. Do not use Delete User for forgotten passwords.</div>'+
   (state.connectedFilter==='pending'?'<div class="connected-filter-banner"><strong>Pending account approvals</strong><button class="btn tiny alt" data-a="connected-clear">Show All Accounts</button></div>':'')+
@@ -2794,8 +2795,8 @@ async function click(e){
    try{
     const compliance=(state.reviewCompliances||[]).find(c=>
      c.current_submission_id===submission.id&&c.status==='pending_verification');
-    const reason=approving?null:prompt('Reason for rejecting/returning this submission:');
-    if(!approving&&!reason?.trim())return;
+    const reason=approving||!compliance?null:prompt('Reason for rejecting/returning this school compliance:');
+    if(compliance&&!approving&&!reason?.trim())return;
     // Keep the linked compliance status synchronized with the file review.
     const {error}=compliance?
       await db.rpc('i_track_verify_compliance',{p_compliance:compliance.id,p_approve:approving,p_reason:reason||null}):
