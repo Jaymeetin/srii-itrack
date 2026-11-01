@@ -1525,6 +1525,7 @@ function monitorSchoolModal(){
  const item=state.monitorSchool;
  if(!item)return '<p class="notice">School status is not available.</p>';
  const oversightHistory=districtOversight()?(state.oversightUploads||[]).filter(f=>f.school_id===item.schoolId&&f.announcement_id===item.announcementId):[];
+ const latestSchoolUpload=oversightHistory.slice().sort((a,b)=>new Date(b.uploaded_at||0)-new Date(a.uploaded_at||0))[0]||null;
  const oversightDetails=districtOversight()?state.monitorSchoolDetails:null;
  const oversightFiles=districtOversight()?'<section class="monitor-visible-files"><h4>Announcement File Upload History ('+oversightHistory.length+')</h4>'+
   '<p class="note">Upload times use Philippine time (PHT). This is read-only upload metadata, not file access.</p>'+
@@ -1539,8 +1540,10 @@ function monitorSchoolModal(){
   '<div><span class="small muted">Submission Status</span><span id="monitor-school-current-status">'+pTag(item.status)+'</span></div>'+
   '<div><span class="small muted">Announcement</span><strong>'+esc(item.announcementName)+'</strong></div>'+
   '<div><span class="small muted">Deadline</span><strong>'+esc(date(item.deadlineAt))+'</strong></div>'+
-  (districtOversight()?'<div><span class="small muted">Submitted On (PHT)</span><strong>'+esc(oversightDetails?.submitted_at?date(oversightDetails.submitted_at):'Not recorded')+'</strong></div>'+
-   '<div><span class="small muted">Submitted By</span><strong>'+esc(oversightDetails?.submitted_at?oversightDetails.submitted_by_name||'Unknown submitter':'—')+'</strong></div>':'')+
+  (districtOversight()?'<div><span class="small muted">Compliance Submitted On (PHT)</span><strong>'+esc(oversightDetails?.submitted_at?date(oversightDetails.submitted_at):'Not recorded')+'</strong></div>'+
+   '<div><span class="small muted">Compliance Submitted By</span><strong>'+esc(oversightDetails?.submitted_at?oversightDetails.submitted_by_name||'Submitter name unavailable':'—')+'</strong></div>'+
+   (latestSchoolUpload?'<div><span class="small muted">File Uploaded On (PHT)</span><strong>'+esc(date(latestSchoolUpload.uploaded_at))+'</strong></div>'+
+    '<div><span class="small muted">File Uploaded By</span><strong>'+esc(latestSchoolUpload.uploader_name||'Uploader name unavailable')+'</strong></div>':''):'')+
   '</div>';
  const adminButton=yesAdmin()&&['Submitted','Late'].includes(item.status)?
   '<div class="toolbar"><button class="btn alt" data-a="monitor-submission" data-school-id="'+esc(item.schoolId)+'">View Uploaded Files (Admin)</button></div>':'';
