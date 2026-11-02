@@ -189,6 +189,18 @@ function renderRetrievalSlip(turnover,items){
   printFonts+'<style>'+CSS+RETRIEVAL_CSS+'</style></head><body>'+pages.join('')+'</body></html>';
 }
 // Optional historical Division pickup slip: printing does not call any database action.
+/* Compact physical-retrieval acknowledgment. */
+const PICKUP_CSS=`
+.rslip-pickup-list{width:100%;border-collapse:collapse;table-layout:fixed}
+.rslip-pickup-list th,.rslip-pickup-list td{border:1px solid #666;padding:1.2mm 1.6mm;vertical-align:middle;overflow-wrap:anywhere}
+.rslip-pickup-list th{height:6.8mm;background:#f1f1f1;font-size:7.6pt;text-align:left}
+.rslip-pickup-list th:last-child{text-align:center}
+.rslip-pickup-list td{height:7.6mm;font-size:7.3pt;line-height:1.12}
+.rslip-pickup-name{font-weight:600}
+.rslip-pickup-id{font-size:6.5pt;color:#909090;font-weight:400;margin:0.7mm 0 0 3mm;overflow-wrap:anywhere}
+.rslip-pickup-school,.rslip-pickup-owner{font-size:7.2pt}
+.rslip-pickup-signature-line{border-bottom:1px solid #777;height:4mm;margin:0 2mm}
+`;
 function renderPickupSlip(retriever,items){
  if(!Array.isArray(items)||!items.length)throw Error('Select at least one already retrieved document.');
  const pages=[],chunks=[];
@@ -196,16 +208,11 @@ function renderPickupSlip(retriever,items){
  for(let page=0;page<chunks.length;page++){
   const group=chunks[page];
   const rows=group.map((i,j)=>
-   '<tr><td><div class="rslip-item-line"><span>'+(page*20+j+1)+'.</span>'+
-   '<span class="rslip-item-title">'+esc(i.document_label||'Document')+'</span>'+
-   '<span class="rslip-item-id">'+esc(i.tracking_number||'')+'</span></div>'+
-   '<div class="rslip-sender">Transmittal: '+esc(i.transmittal_number||'—')+
-   ' · Retrieved: '+dt(i.retrieved_at)+'</div></td>'+
-   '<td><strong>'+esc(i.owner_name||'Rightful owner')+'</strong>'+
-   '<div class="rslip-sender">'+esc(i.division_status==='received_by_sender'?'Completed — owner received':
-     i.division_status==='retrieved_from_division'?'With Retriever':
-     i.division_status==='received_at_district'?'At District — awaiting owner':
-     i.division_status==='forwarded_to_district'?'Forwarded to District':i.division_status||'Retrieved')+'</div></td></tr>'
+   '<tr><td><div class="rslip-pickup-name">'+(page*20+j+1)+'. '+esc(i.document_label||'Document')+'</div>'+
+   '<div class="rslip-pickup-id">'+esc(i.tracking_number||'—')+'</div></td>'+
+   '<td class="rslip-pickup-school">'+esc(i.school_name||'District Office')+'</td>'+
+   '<td class="rslip-pickup-owner">'+esc(i.owner_name||'Original sender')+'</td>'+
+   '<td><div class="rslip-pickup-signature-line"></div></td></tr>'
   ).join('');
   const sig='<div class="rslip-retriever"><div>Physically retrieved from Division by:</div>'+
     '<div class="line"></div><strong>'+esc(retriever.name||'________________________')+'</strong>'+
@@ -215,14 +222,14 @@ function renderPickupSlip(retriever,items){
    '<p class="rslip-subtitle">San Remigio II District · Schools Division of Antique</p>'+
    '<div class="rslip-meta"><span><b>Retriever:</b> '+esc(retriever.name||'')+'</span>'+
    '<span><b>Printed:</b> '+dt(new Date())+'</span></div>'+
-   '<p class="rslip-intro">List of documents physically collected from the Division Office. Printing this slip is optional and does not change document custody, routing completion, or owner acknowledgment.</p>'+
-   '<table class="rslip-list"><thead><tr><th>DOCUMENT / TRACKING ID / TRANSMITTAL</th><th>RIGHTFUL OWNER / CURRENT STATUS</th></tr></thead>'+
+   '<table class="rslip-pickup-list"><colgroup><col style="width:36%"><col style="width:20%"><col style="width:24%"><col style="width:20%"></colgroup>'+
+   '<thead><tr><th>DOCUMENT NAME / UNIQUE ID</th><th>SCHOOL</th><th>OWNER</th><th>SIGNATURE</th></tr></thead>'+
    '<tbody>'+rows+'</tbody></table>'+sig+
    (chunks.length>1?'<div class="rslip-pages">Page '+(page+1)+' of '+chunks.length+'</div>':'')+
    footer('transmittal')+'</section>');
  }
  return '<!doctype html><html><head><meta charset="utf-8"><title>Division Retrieval Slip — SRII i-TRACK</title>'+
-  printFonts+'<style>'+CSS+RETRIEVAL_CSS+'</style></head><body>'+pages.join('')+'</body></html>';
+  printFonts+'<style>'+CSS+RETRIEVAL_CSS+PICKUP_CSS+'</style></head><body>'+pages.join('')+'</body></html>';
 }
 window.ITRACK_PRINT={render,renderRetrievalSlip,renderPickupSlip};
 })();
