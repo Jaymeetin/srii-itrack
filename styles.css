@@ -896,3 +896,17 @@ tr[hidden]{display:none!important}
 .verify-global-history table{margin-top:12px}
 .verify-assignment-warning{display:inline-block;color:var(--danger);background:var(--bg);font-size:11px;margin:7px 0 0;padding:6px 8px;border-radius:6px;font-weight:800}
 @media(max-width:730px){.verify-global-entry{flex-direction:column;align-items:stretch;gap:10px}.verify-global-actions{justify-content:space-between}.verify-global-tally{min-width:85px}}
+
+/* Compact optional Division Retrieval v73 */
+.retrieval-quick-filters{gap:10px;align-items:flex-end;flex-wrap:wrap;margin:10px 0}
+.retrieval-quick-filters label{display:flex;flex-direction:column;gap:4px;color:var(--muted);font-size:12px;font-weight:700;min-width:150px;flex:1}
+.retrieval-quick-filters select{width:100%;min-height:36px;border:1px solid var(--line);background:var(--paper);color:var(--text);border-radius:8px;padding:7px}
+.retrieval-optional,.retrieval-advanced{margin-top:12px}
+.retrieval-optional>summary,.retrieval-advanced>summary{cursor:pointer;padding:7px 0;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.retrieval-slip-pick-list{max-height:360px;overflow:auto;border:1px solid var(--line);border-radius:9px;margin:12px 0}
+.retrieval-slip-choice{padding:9px 10px;display:flex;align-items:flex-start;gap:10px;border-bottom:1px solid var(--line);cursor:pointer}
+.retrieval-slip-choice:last-child{border:0}
+.retrieval-slip-choice input{flex-shrink:0;margin-top:3px}
+.retrieval-slip-choice span{min-width:0;overflow-wrap:anywhere;font-size:12px}
+.retrieval-slip-choice small,.retrieval-extra{display:block;color:var(--muted);font-size:10px;font-weight:400;margin-top:3px}
+@media(max-width:700px){.retrieval-quick-filters label{min-width:125px}.retrieval-optional>summary,.retrieval-advanced>summary{align-items:flex-start}}
