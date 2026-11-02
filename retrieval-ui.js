@@ -46,7 +46,7 @@ window.ITRACK_RETRIEVAL_VIEW=function(state,{esc,date,label,divisionStageLabel})
    '<button class="btn tiny alt" data-a="retrieval-print" data-id="'+esc(v.id)+'">Print Slip</button>'+
    (v.status==='prepared'&&own?'<button class="btn tiny" data-a="retrieval-handoff" data-id="'+esc(v.id)+'">Confirm Physical Handoff</button>'+
     '<button class="btn tiny danger" data-a="retrieval-discard" data-id="'+esc(v.id)+'">Discard Draft</button>':'')+'</div></div>';
- }).join('')||'<p class="note">No turnover slips yet. Print a slip before handing documents to District.</p>';
+ }).join('')||'<p class="note">No District turnover records yet. Printing is optional.</p>';
  const claiming=claims.map(i=>'<div class="retrieval-claim-row"><span class="retrieval-tracking">'+esc(i.tracking_number||'')+'</span>'+
    '<strong class="retrieval-name">'+esc(i.document_label||'Document')+'</strong>'+
    '<button class="btn tiny" data-a="retrieval-claim" data-id="'+esc(i.item_id)+'">'+
@@ -79,7 +79,7 @@ window.ITRACK_RETRIEVAL_VIEW=function(state,{esc,date,label,divisionStageLabel})
   recipients.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name||'District personnel')+' — '+esc(p.position||'')+'</option>').join('')+
   '</select></label><span id="retrieval-turnover-count" class="small muted">'+state.retrievalTurnoverPicked.size+' checked</span>'+
   '<button class="btn" id="retrieval-prepare-btn" data-a="retrieval-prepare"'+(!eligibility.size?' disabled':'')+'>Prepare Turnover Slip</button></div></div>'+
-  '<div class="panel retrieval-panel"><h3>3. Turnover Slips</h3><p class="note">Print before handoff. Printing does not change custody; confirm physical handoff afterward.</p>'+
+  '<div class="panel retrieval-panel"><h3>3. Turnover Slips</h3><p class="note">Printing is optional and does not change custody; confirm physical handoff separately.</p>'+
   turns+'</div>'+
   '<div class="panel retrieval-panel"><div class="retrieval-panel-head"><h3>4. District Receiving</h3>'+
   '<span class="small muted">'+district.length+' awaiting acknowledgment</span></div>'+
