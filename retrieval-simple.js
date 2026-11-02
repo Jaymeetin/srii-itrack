@@ -44,7 +44,7 @@
    '<button class="btn tiny alt" data-a="retrieval-clear">Clear</button></div>'+toolsHtml+
    '<p class="note">Check documents physically collected at Division. Your own documents become Completed automatically. Documents for others remain With Retriever until handed over.</p>'+
    '<div id="retrieval-available-list"><div class="retrieval-table-scroll"><table class="retrieval-table">'+
-   '<thead><tr><th>✓</th><th>Tracking ID</th><th>Document / Transmittal</th><th>School</th><th>When retrieved</th></tr></thead>'+
+   '<thead><tr><th>✓</th><th>Tracking ID</th><th>Document / Transmittal</th><th>School</th><th>Ownership / Status</th></tr></thead>'+
    '<tbody>'+pickupRows+'</tbody></table></div></div>'+
    '<div class="retrieval-bottom-bar"><span class="small muted" id="retrieval-pick-count">'+(state.retrievalPicked?.size||0)+' checked</span>'+
    '<button class="btn" id="retrieval-pickup-btn" data-a="retrieval-pickup"'+(!state.retrievalPicked?.size?' disabled':'')+'>Confirm Physical Retrieval</button></div></section>';
