@@ -46,7 +46,7 @@ const knownViews=new Set(['dashboard','announcements','notifications','monitorin
 const urlView=new URLSearchParams(location.search).get('view');
 const firstView=knownViews.has(urlView)?urlView:'dashboard';
 localStorage.removeItem('srii-current-view');
-const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],monitorSchoolDetails:null,oversightUploads:[],oversightShowAllUploads:false,connectedFilter:'',monitorStatusFilter:'',reportFilter:'',navTrail:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:arrivedFromExpiredEmailLink?'resend':importedQueueTicket?'queue':'login',emailHelpReason:arrivedFromExpiredEmailLink?'expired':'',queueTicket:importedQueueTicket||localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],showRemovedAccounts:false,modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],districtHistory:[],documentDistrictStatuses:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],compliances:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewCompliances:[],reviewAllCompliances:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],notificationLimit:50,notificationHasMore:false,divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',districtData:{eligible:[],transmittals:[],items:[],claimable:[],people:[]},districtPicked:new Set(),districtSubmitPicked:new Set(),districtSelected:'',districtSchoolId:'',adminDocumentTypes:{types:[],requests:[]},documentDivisionStatuses:[],approverAssignments:[],announcementApproverEditing:null,announcementEditId:null,announcementEditorData:null,announcementCancelId:null,transmittalEditing:false,retrievalData:{},retrievalPicked:new Set(),retrievalTurnoverPicked:new Set(),retrievalDistrictPicked:new Set(),retrievalSearch:'',privateDetails:null,profileRequests:[],userFeedback:[],feedbackInbox:[],adminFeedbackEntries:[],feedbackAuthors:[],feedbackFilter:'all',feedbackType:'all',versionHistoryLatestFirst:false,versionHistoryDocumentedOnly:false,issue:null,maintenance:{enabled:false,message:''},systemUpdates:[],recoveryScan:null,misfiledReview:null,recoveryChecking:false};
+const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],monitorSchoolDetails:null,oversightUploads:[],oversightShowAllUploads:false,connectedFilter:'',monitorStatusFilter:'',reportFilter:'',navTrail:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:arrivedFromExpiredEmailLink?'resend':importedQueueTicket?'queue':'login',emailHelpReason:arrivedFromExpiredEmailLink?'expired':'',queueTicket:importedQueueTicket||localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],showRemovedAccounts:false,modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],districtHistory:[],documentDistrictStatuses:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],compliances:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewCompliances:[],reviewAllCompliances:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],notificationLimit:50,notificationHasMore:false,divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',districtData:{eligible:[],transmittals:[],items:[],claimable:[],people:[]},districtPicked:new Set(),districtSubmitPicked:new Set(),districtSelected:'',districtSchoolId:'',adminDocumentTypes:{types:[],requests:[]},documentDivisionStatuses:[],approverAssignments:[],announcementApproverEditing:null,announcementEditId:null,announcementEditorData:null,announcementCancelId:null,transmittalEditing:false,retrievalData:{},retrievalPicked:new Set(),retrievalSlipPicked:new Set(),retrievalScope:'all',retrievalOrder:'recent',retrievalTransmittal:'',retrievalTurnoverPicked:new Set(),retrievalDistrictPicked:new Set(),retrievalSearch:'',privateDetails:null,profileRequests:[],userFeedback:[],feedbackInbox:[],adminFeedbackEntries:[],feedbackAuthors:[],feedbackFilter:'all',feedbackType:'all',versionHistoryLatestFirst:false,versionHistoryDocumentedOnly:false,issue:null,maintenance:{enabled:false,message:''},systemUpdates:[],recoveryScan:null,misfiledReview:null,recoveryChecking:false};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=x=>x?new Date(x).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}):'—';
@@ -219,6 +219,8 @@ async function load(){
     const {data,error}=await db.rpc('i_track_retrieval_board');
     if(error)throw error;
     state.retrievalData=data||{};
+    const mySlipIds=new Set((data?.my_batch_items||[]).map(x=>x.item_id));
+    state.retrievalSlipPicked=new Set([...state.retrievalSlipPicked].filter(id=>mySlipIds.has(id)));
     const validAvailable=new Set((data?.available||[]).map(x=>x.item_id));
     const validTurnover=new Set((data?.my_batch_items||[]).filter(x=>x.division_status==='retrieved_from_division').map(x=>x.item_id));
     const validDistrict=new Set((data?.district_queue||[]).map(x=>x.item_id));
@@ -2181,7 +2183,8 @@ function refreshRetrievalCheckboxCounters(){
  const pairs=[
   ['retrieval-pick-count','retrieval-pickup-btn',state.retrievalPicked],
   ['retrieval-turnover-count','retrieval-prepare-btn',state.retrievalTurnoverPicked],
-  ['retrieval-district-count','retrieval-district-btn',state.retrievalDistrictPicked]
+  ['retrieval-district-count','retrieval-district-btn',state.retrievalDistrictPicked],
+  ['retrieval-slip-count','retrieval-slip-print-btn',state.retrievalSlipPicked]
  ];
  for(const [textId,btnId,chosen] of pairs){
   const el=document.getElementById(textId),btn=document.getElementById(btnId);
@@ -2290,6 +2293,29 @@ async function click(e){
     if(!c.closest('tr')?.hidden){c.checked=true;state.retrievalPicked.add(c.value);}
    });
    refreshRetrievalCheckboxCounters();return;
+  }
+  if(a==='retrieval-slip-clear'||a==='retrieval-slip-my'||a==='retrieval-slip-others'){
+   const all=state.retrievalData.my_batch_items||[];
+   if(a==='retrieval-slip-clear')state.retrievalSlipPicked.clear();
+   else {
+    const pickMine=a==='retrieval-slip-my';
+    for(const i of all)if((i.owner_id===state.session.user.id)===pickMine)state.retrievalSlipPicked.add(i.item_id);
+   }
+   document.querySelectorAll('.retrieval-slip-pick').forEach(c=>c.checked=state.retrievalSlipPicked.has(c.value));
+   refreshRetrievalCheckboxCounters();return;
+  }
+  if(a==='retrieval-print-pickup'){
+   const eligible=state.retrievalData.my_batch_items||[];
+   const chosen=eligible.filter(i=>state.retrievalSlipPicked.has(i.item_id));
+   if(!chosen.length)throw Error('Select at least one previously retrieved document.');
+   if(!window.ITRACK_PRINT?.renderPickupSlip)throw Error('Refresh: the optional retrieval slip template was not loaded.');
+   const html=window.ITRACK_PRINT.renderPickupSlip({name:state.profile.display_name,position:state.profile.position_title},chosen);
+   const win=window.open('','_blank');if(!win)throw Error('Allow popups to print the optional retrieval slip.');
+   win.document.write(html);win.document.close();
+   await Promise.all([...win.document.images].map(img=>img.complete?Promise.resolve():new Promise(resolve=>{
+     img.onload=resolve;img.onerror=resolve;setTimeout(resolve,3500);
+   })));
+   await win.document.fonts?.ready;win.focus();win.print();return;
   }
   if(a==='retrieval-pickup'){
    const items=state.retrievalData.available||[];
@@ -3426,11 +3452,18 @@ $.addEventListener('change',async e=>{
    if(dest==='personal'){const r=document.getElementById('doc-recipient');if(r)r.value='';}
    return;
  }
+ if(state.view==='retrieval'&&['retrieval-scope','retrieval-order','retrieval-transmittal'].includes(e.target.id)){
+  if(e.target.id==='retrieval-scope')state.retrievalScope=e.target.value;
+  if(e.target.id==='retrieval-order')state.retrievalOrder=e.target.value;
+  if(e.target.id==='retrieval-transmittal')state.retrievalTransmittal=e.target.value;
+  show();return;
+ }
  if(state.view==='retrieval'&&e.target.matches('input[type="checkbox"].retrieval-check')){
   const cls=e.target.classList;
   const store=cls.contains('retrieval-pick')?state.retrievalPicked:
               cls.contains('retrieval-turnover-pick')?state.retrievalTurnoverPicked:
-              cls.contains('retrieval-district-pick')?state.retrievalDistrictPicked:null;
+              cls.contains('retrieval-district-pick')?state.retrievalDistrictPicked:
+              cls.contains('retrieval-slip-pick')?state.retrievalSlipPicked:null;
   if(store){
    if(e.target.checked)store.add(e.target.value);else store.delete(e.target.value);
    refreshRetrievalCheckboxCounters();return;
