@@ -188,5 +188,41 @@ function renderRetrievalSlip(turnover,items){
  return '<!doctype html><html><head><meta charset="utf-8"><title>District Document Turnover and Release Slip</title>'+
   printFonts+'<style>'+CSS+RETRIEVAL_CSS+'</style></head><body>'+pages.join('')+'</body></html>';
 }
-window.ITRACK_PRINT={render,renderRetrievalSlip};
+// Optional historical Division pickup slip: printing does not call any database action.
+function renderPickupSlip(retriever,items){
+ if(!Array.isArray(items)||!items.length)throw Error('Select at least one already retrieved document.');
+ const pages=[],chunks=[];
+ for(let n=0;n<items.length;n+=20)chunks.push(items.slice(n,n+20));
+ for(let page=0;page<chunks.length;page++){
+  const group=chunks[page];
+  const rows=group.map((i,j)=>
+   '<tr><td><div class="rslip-item-line"><span>'+(page*20+j+1)+'.</span>'+
+   '<span class="rslip-item-title">'+esc(i.document_label||'Document')+'</span>'+
+   '<span class="rslip-item-id">'+esc(i.tracking_number||'')+'</span></div>'+
+   '<div class="rslip-sender">Transmittal: '+esc(i.transmittal_number||'—')+
+   ' · Retrieved: '+dt(i.retrieved_at)+'</div></td>'+
+   '<td><strong>'+esc(i.owner_name||'Rightful owner')+'</strong>'+
+   '<div class="rslip-sender">'+esc(i.division_status==='received_by_sender'?'Completed — owner received':
+     i.division_status==='retrieved_from_division'?'With Retriever':
+     i.division_status==='received_at_district'?'At District — awaiting owner':
+     i.division_status==='forwarded_to_district'?'Forwarded to District':i.division_status||'Retrieved')+'</div></td></tr>'
+  ).join('');
+  const sig='<div class="rslip-retriever"><div>Physically retrieved from Division by:</div>'+
+    '<div class="line"></div><strong>'+esc(retriever.name||'________________________')+'</strong>'+
+    '<div>'+esc(retriever.position||'Retriever')+'</div></div>';
+  pages.push('<section class="sheet">'+header('transmittal')+
+   '<h1 class="rslip-title">DIVISION DOCUMENT RETRIEVAL SLIP</h1>'+
+   '<p class="rslip-subtitle">San Remigio II District · Schools Division of Antique</p>'+
+   '<div class="rslip-meta"><span><b>Retriever:</b> '+esc(retriever.name||'')+'</span>'+
+   '<span><b>Printed:</b> '+dt(new Date())+'</span></div>'+
+   '<p class="rslip-intro">List of documents physically collected from the Division Office. Printing this slip is optional and does not change document custody, routing completion, or owner acknowledgment.</p>'+
+   '<table class="rslip-list"><thead><tr><th>DOCUMENT / TRACKING ID / TRANSMITTAL</th><th>RIGHTFUL OWNER / CURRENT STATUS</th></tr></thead>'+
+   '<tbody>'+rows+'</tbody></table>'+sig+
+   (chunks.length>1?'<div class="rslip-pages">Page '+(page+1)+' of '+chunks.length+'</div>':'')+
+   footer('transmittal')+'</section>');
+ }
+ return '<!doctype html><html><head><meta charset="utf-8"><title>Division Retrieval Slip — SRII i-TRACK</title>'+
+  printFonts+'<style>'+CSS+RETRIEVAL_CSS+'</style></head><body>'+pages.join('')+'</body></html>';
+}
+window.ITRACK_PRINT={render,renderRetrievalSlip,renderPickupSlip};
 })();
