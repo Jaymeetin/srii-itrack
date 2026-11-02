@@ -356,8 +356,8 @@ function divisionStatusForDocument(id){
 }
 function divisionStageLabel(s){
  return {in_transmittal:'In Transmittal to Division',submitted_to_division:'Submitted to Division',
- retrieved_from_division:'Retrieved from Division',forwarded_to_district:'Forwarded to District',
- received_at_district:'Received at District',received_by_sender:'Completed',
+ retrieved_from_division:'Retrieved from Division · With Retriever',forwarded_to_district:'Forwarded to District · Awaiting Acknowledgment',
+ received_at_district:'At District · Awaiting Owner Receipt',received_by_sender:'Completed · Received by Owner',
  lost:'Lost',not_for_return:'Not for Return'}[s]||label(s);
 }
 async function loadCompliances(){
@@ -978,12 +978,12 @@ function pendingPage(){
 }
 const menu=[['dashboard','⌂ Home'],['announcements','▤ Announcements'],['notifications','◉ Notifications'],['monitoring','▥ Submission Status']];
 function appPage(){
- const nav=[...menu,...(!isOic()?[['documents','▣ My Documents'],['division','▤ Division Transmittals'],['district','▤ District Transmittals'],['retrieval','✓ Division Retrieval']]:[]),...(districtOversight()?[['reports','▥ District Reports'],['system-recovery','◷ Record Recovery']]:[]),...(yesAdmin()?[['feedback-admin','✎ Reports & Suggestions']]:[['feedback','✎ Report / Suggest']]),[['system-updates','↻ System Updates']],...(!yesAdmin()?[['settings','⚙ Personal Settings']]:[]),...((yesAdmin()||state.approverAssignments.some(x=>x.user_id===state.session.user.id))?[['verification','✓ Submission Verification']]:[]),...(yesAdmin()?[['school-files','▣ School Attachments'],['approvals','♙ Account Approvals'],['document-types','▦ Document Types'],['archive','▤ Archive Documents']]:[])].map(([id,title])=>`<button class="${state.view===id?'active':''}" data-a="nav" data-page="${id}">${title}</button>`).join('');
+ const nav=[...menu,...(!isOic()?[['documents','▣ My Documents'],['division','▤ Division Transmittals'],['district','▤ District Transmittals'],['retrieval','✓ Division Retrieval']]:[]),...(districtOversight()?[['reports','▥ District Reports'],['system-recovery','◷ Record Recovery']]:[]),...(yesAdmin()?[['feedback-admin','✎ Reports & Suggestions']]:[['feedback','✎ Report / Suggest']]),...(!yesAdmin()?[['settings','⚙ Personal Settings']]:[]),...((yesAdmin()||state.approverAssignments.some(x=>x.user_id===state.session.user.id))?[['verification','✓ Submission Verification']]:[]),...(yesAdmin()?[['school-files','▣ School Attachments'],['approvals','♙ Account Approvals'],['document-types','▦ Document Types'],['archive','▤ Archive Documents']]:[]),['system-updates','↻ System Updates']].map(([id,title])=>`<button class="${state.view===id?'active':''}" data-a="nav" data-page="${id}">${title}</button>`).join('');
  const title={dashboard:'Home',announcements:'Announcements',notifications:'Notifications',monitoring:'Submission Monitoring',documents:'My Documents',division:'Division Transmittals',district:'District Transmittals','document-types':'Document Types',retrieval:'Division Retrieval',settings:'Personal Settings',reports:'District Reports','system-recovery':'Record Recovery','system-updates':'System Updates',feedback:'Report / Suggest','feedback-admin':'Reports & Suggestions','school-files':'School Attachments',verification:'Submission Verification',approvals:'Account Management',archive:'Document Archiving'}[state.view]||'Overview';
  const school=state.schools.find(x=>x.id===state.profile.school_id)?.name||'District Office';
  const name=state.profile.display_name||(isOic()?'OIC-PSDS':yesAdmin()?'District Administrator':'School Personnel');
  let body={dashboard:dashboardPage,announcements:announcementPage,notifications:notificationsPage,monitoring:monitorPage,documents:documentPage,division:divisionPage,district:districtPage,'document-types':documentTypesAdminPage,retrieval:retrievalPage,settings:settingsPage,reports:districtReportPage,'system-updates':systemUpdatesPage,'system-recovery':systemRecoveryPage,feedback:feedbackPage,'feedback-admin':feedbackAdminPage,'school-files':schoolAttachmentsPage,verification:verificationPage,approvals:approvalPage,archive:archivePage}[state.view]?.()||dashboardPage();
- if(state.view==='dashboard')body=systemUpdatePanel()+body;
+ if(state.view==='dashboard')body=body+systemUpdatePanel();
  if(state.view==='dashboard'&&yesAdmin())body='<section class="panel" style="padding:20px;margin:16px 0;border:2px solid #d7bd6b"><h3>🔧 System Maintenance</h3><p class="note">Pause access for regular users while admins continue working.</p><p><strong>Status: '+(state.maintenance.enabled?'MAINTENANCE ON':'Running normally')+'</strong></p><button class="btn" data-a="maintenance-toggle">'+(state.maintenance.enabled?'Turn OFF Maintenance — Reopen App':'Turn ON Maintenance — Pause Users')+'</button></section>'+body;
  // Read-only presentation context for the upload panel. Not an authorization
  // mechanism: Supabase RLS and the Edge Function enforce permissions.
@@ -2173,7 +2173,7 @@ async function executeRetrievalAction(action,args,message){
   const {data,error}=await db.rpc('i_track_retrieval_action',{p_action:action,...args});
   if(error)throw error;
   await load();
-  pop(message||'Document custody updated.');
+  pop(typeof message==='function'?message(data):(message||'Document custody updated.'));
   return data;
  }finally{state.busy=false;}
 }
@@ -2297,7 +2297,13 @@ async function click(e){
    if(!checked.length)throw Error('Check at least one document currently submitted to Division.');
    if(!confirm('Confirm you physically collected '+checked.length+' document(s) from the Division Office? This cannot be undone by clicking Back.'))return;
    state.retrievalPicked.clear();
-   await executeRetrievalAction('pickup',{p_item_ids:checked},'Retrieved '+checked.length+' document(s); a numbered retrieval batch was created.');
+   await executeRetrievalAction('pickup',{p_item_ids:checked},result=>{
+     const completed=Number(result?.auto_completed||0);
+     return 'Retrieved '+checked.length+' document(s). '+
+       (completed?completed+' document(s) personally retrieved by their rightful owner were automatically completed. ':
+       'Documents collected for others remain in the retriever\'s custody. ')+
+       'A numbered retrieval batch was created.';
+    });
    return;
   }
   if(a==='retrieval-prepare'){
