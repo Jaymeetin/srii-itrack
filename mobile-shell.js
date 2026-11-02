@@ -128,7 +128,6 @@ function openMore(){
   '<div class="mobile-more-top"><strong>More options</strong><button type="button" class="mobile-close" data-mobile="close" aria-label="Close menu">×</button></div>'+
   '<div class="mobile-identity"><span class="mobile-avatar" aria-hidden="true">'+safe(user.initials)+'</span><div><strong>'+safe(user.name)+'</strong><small>'+safe(user.detail)+'</small></div></div>'+
   '<span class="mobile-sheet-label">WORKSPACE</span>'+
-  link('system-updates','↻ System Updates')+
   link('feedback','✎ Report a Problem / Suggestion')+
   '<button type="button" class="mobile-menu-button" data-mobile="navigate" data-page="notifications">◉ &nbsp; Notifications <small>›</small></button>'+
   workplaceSection+administrationSection+
@@ -136,6 +135,7 @@ function openMore(){
   (app.querySelector('.sidebar nav button[data-page="settings"]')?
    '<button type="button" class="mobile-menu-button" data-mobile="navigate" data-page="settings">⚙ &nbsp; Personal Settings <small>›</small></button>':'')+
   '<button type="button" class="mobile-menu-button" data-mobile="theme">◐ &nbsp; Switch Light / Dark Mode <small>›</small></button>'+
+  link('system-updates','↻ System Updates')+
   '<button type="button" class="mobile-menu-button danger" data-mobile="logout">↩ &nbsp; Sign Out <small>›</small></button>'+
  '</div>';
  sheet.addEventListener("click",e=>{if(e.target===sheet)closeMore();});
