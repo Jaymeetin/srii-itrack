@@ -176,7 +176,8 @@ async function loadActionInbox(){
   accounts:admin?db.from('profiles').select('id,role,account_status').eq('account_status','pending'):Promise.resolve({data:[]}),
   routes:!oversight?db.rpc('i_track_document_route_history',{p_document_id:null}):Promise.resolve({data:[]}),
   retrieval:!oversight?db.rpc('i_track_retrieval_board'):Promise.resolve({data:{claimable:[],district_queue:[]}}),
-  division:!oversight?db.rpc('i_track_division_list'):Promise.resolve({data:{transmittals:[]}})
+  division:!oversight?db.rpc('i_track_division_list'):Promise.resolve({data:{transmittals:[]}}),
+  district:!oversight?db.rpc('i_track_district_list'):Promise.resolve({data:{claimable:[]}})
  };
  const names=Object.keys(jobs);
  const responses=await Promise.allSettled(names.map(key=>jobs[key]));
@@ -225,6 +226,10 @@ async function loadActionInbox(){
  if(districtQueue.length)add('district-receipt:'+districtQueue.map(x=>x.item_id).sort().join(','),
   'Acknowledge District handoff',districtQueue.length+' physical document(s) awaiting District receiving',
   'retrieval',2,{count:districtQueue.length,section:'district',sourceIds:districtQueue.map(x=>'district:'+x.item_id)});
+ const districtClaims=results.district?.claimable||[];
+ if(districtClaims.length)add('district-owner:'+districtClaims.map(x=>x.id).sort().join(','),
+  'Confirm District document receipt',districtClaims.length+' District document(s) waiting for the rightful owner',
+  'district',2,{count:districtClaims.length,sourceIds:districtClaims.map(x=>'district-owner:'+x.id)});
  const myDivisions=(results.division?.transmittals||[]).filter(t=>t.assigned_submitter===uid&&!t.assignment_accepted_at&&t.status==='draft');
  if(myDivisions.length)add('division-assign:'+myDivisions.map(t=>t.id).sort().join(','),
   'Accept Division transmittal assignment',myDivisions.length+' transmittal assignment(s) awaiting acceptance',
