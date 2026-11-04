@@ -46,7 +46,7 @@ const knownViews=new Set(['dashboard','announcements','notifications','monitorin
 const urlView=new URLSearchParams(location.search).get('view');
 const firstView=knownViews.has(urlView)?urlView:'dashboard';
 localStorage.removeItem('srii-current-view');
-const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],monitorSchoolDetails:null,oversightUploads:[],oversightShowAllUploads:false,connectedFilter:'',monitorStatusFilter:'',reportFilter:'',navTrail:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:arrivedFromExpiredEmailLink?'resend':importedQueueTicket?'queue':'login',emailHelpReason:arrivedFromExpiredEmailLink?'expired':'',queueTicket:importedQueueTicket||localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],showRemovedAccounts:false,modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],districtHistory:[],documentDistrictStatuses:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],compliances:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewCompliances:[],reviewAllCompliances:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],notificationLimit:50,notificationHasMore:false,divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',districtData:{eligible:[],transmittals:[],items:[],claimable:[],people:[]},districtPicked:new Set(),districtSubmitPicked:new Set(),districtSelected:'',districtSchoolId:'',adminDocumentTypes:{types:[],requests:[]},documentDivisionStatuses:[],approverAssignments:[],announcementApproverEditing:null,announcementEditId:null,announcementEditorData:null,announcementCancelId:null,transmittalEditing:false,retrievalData:{},retrievalPicked:new Set(),retrievalSlipPicked:new Set(),retrievalScope:'all',retrievalOrder:'recent',retrievalTransmittal:'',retrievalTurnoverPicked:new Set(),retrievalDistrictPicked:new Set(),retrievalSearch:'',privateDetails:null,profileRequests:[],userFeedback:[],feedbackInbox:[],adminFeedbackEntries:[],feedbackAuthors:[],feedbackFilter:'all',feedbackType:'all',versionHistoryLatestFirst:false,versionHistoryDocumentedOnly:false,issue:null,maintenance:{enabled:false,message:''},systemUpdates:[],recoveryScan:null,misfiledReview:null,recoveryChecking:false,actionItems:[],actionPopupOpen:false,actionError:false,docAdminData:{documents:[],total_matching:0},docAdminScope:'active',docAdminSearch:'',docAdminTarget:null,docAdminStage:0};
+const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],monitorSchoolDetails:null,oversightUploads:[],oversightShowAllUploads:false,connectedFilter:'',monitorStatusFilter:'',reportFilter:'',navTrail:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:arrivedFromExpiredEmailLink?'resend':importedQueueTicket?'queue':'login',emailHelpReason:arrivedFromExpiredEmailLink?'expired':'',queueTicket:importedQueueTicket||localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],showRemovedAccounts:false,modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],districtHistory:[],documentDistrictStatuses:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],compliances:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewCompliances:[],reviewAllCompliances:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],notificationLimit:50,notificationHasMore:false,divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',districtData:{eligible:[],transmittals:[],items:[],claimable:[],people:[]},districtPicked:new Set(),districtSubmitPicked:new Set(),districtSelected:'',districtSchoolId:'',adminDocumentTypes:{types:[],requests:[]},documentDivisionStatuses:[],approverAssignments:[],announcementApproverEditing:null,announcementEditId:null,announcementEditorData:null,announcementCancelId:null,transmittalEditing:false,retrievalData:{},retrievalPicked:new Set(),retrievalSlipPicked:new Set(),retrievalScope:'all',retrievalOrder:'recent',retrievalTransmittal:'',retrievalTurnoverPicked:new Set(),retrievalDistrictPicked:new Set(),retrievalSearch:'',privateDetails:null,profileRequests:[],userFeedback:[],feedbackInbox:[],adminFeedbackEntries:[],feedbackAuthors:[],feedbackFilter:'all',feedbackType:'all',versionHistoryLatestFirst:false,versionHistoryDocumentedOnly:false,issue:null,maintenance:{enabled:false,message:''},systemUpdates:[],recoveryScan:null,misfiledReview:null,recoveryChecking:false,actionItems:[],actionPopupOpen:false,actionError:false,docAdminData:{documents:[],total_matching:0},docAdminScope:'active',docAdminSearch:'',docAdminTarget:null,docAdminStage:0,docAdminSampleMode:false,docAdminSampleStage:0,docAdminSampleIds:[]};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=x=>x?new Date(x).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}):'—';
@@ -2111,6 +2111,7 @@ function documentControlPage(){
  const search=state.docAdminSearch||'';
  const scopeButtons=[['active','Active Documents'],['trash','Recoverable Trash'],['all','All Documents']].map(([id,name])=>
   '<button type="button" class="btn tiny '+(scope===id?'':'alt')+'" data-a="doc-control-scope" data-scope="'+id+'">'+name+'</button>').join('');
+ const sampleCandidates=docs.filter(d=>!d.admin_removed_at&&/^\s*(sample|test|trial)(\s|$)/i.test(d.subject||''));
  const rows=docs.map(d=>{
   const removed=!!d.admin_removed_at;
   return '<div class="doc-control-item"><div class="doc-control-item-body">'+
@@ -2141,6 +2142,28 @@ function documentControlPage(){
  ]:[
    'I understand that restoring the document makes it visible in normal document lists again.'
  ]).map((v,i)=>'<label class="doc-control-check"><input type="checkbox" class="doc-control-check-input" value="'+i+'"> '+esc(v)+'</label>').join(''):'';
+ const selectedSamples=docs.filter(d=>state.docAdminSampleIds.includes(d.id));
+ const samplePhrase='MOVE '+selectedSamples.length+' SAMPLES TO TRASH';
+ const sampleDialog=state.docAdminSampleMode?
+  '<div class="doc-control-backdrop"><section class="doc-control-dialog" role="dialog" aria-modal="true" aria-labelledby="sample-removal-title">'+
+  '<div class="doc-control-dialog-head"><h3 id="sample-removal-title">Batch Sample Cleanup · Step '+state.docAdminSampleStage+' of 2</h3>'+
+  '<button type="button" class="btn tiny alt" data-a="doc-sample-close">Cancel</button></div>'+
+  '<div class="doc-control-dialog-body"><p><strong>'+selectedSamples.length+' clearly labeled sample/test documents</strong> will be moved to recoverable Trash.</p>'+
+  (state.docAdminSampleStage===1?
+   '<p class="note">Review every title below and check each one individually before continuing. This does not delete attached files or physical tracking history.</p>'+
+   '<div class="doc-control-checks">'+selectedSamples.map(d=>
+    '<label class="doc-control-check"><input type="checkbox" class="doc-sample-pick" value="'+esc(d.id)+'"> '+
+    '<span><strong>'+esc(d.tracking_number)+'</strong> · '+esc(d.subject)+' · '+esc(d.school_name||'District Office')+'</span></label>').join('')+
+   '<hr><label class="doc-control-check"><input type="checkbox" class="doc-sample-warning"> I have reviewed all selected sample document titles and their schools.</label>'+
+   '<label class="doc-control-check"><input type="checkbox" class="doc-sample-warning"> I understand attachments and historical transmittals will remain saved.</label>'+
+   '<label class="doc-control-check"><input type="checkbox" class="doc-sample-warning"> I understand this action is recoverable and will be audited.</label></div>'+
+   '<button class="btn" type="button" data-a="doc-sample-next">All Reviewed — Next Step</button>':
+   '<p class="note">Type the exact phrase <strong>'+esc(samplePhrase)+'</strong> and provide a reason.</p>'+
+   '<div class="field"><label for="doc-sample-phrase">Exact confirmation phrase</label><input id="doc-sample-phrase" autocomplete="off" placeholder="'+esc(samplePhrase)+'"></div>'+
+   '<div class="field"><label for="doc-sample-reason">Administrative reason (15–1000 characters)</label>'+
+   '<textarea id="doc-sample-reason" rows="3" maxlength="1000" placeholder="Explain why these sample records should be removed from active lists"></textarea></div>'+
+   '<button type="button" class="btn danger" data-a="doc-sample-execute">Confirm Sample Cleanup</button>')+
+  '</div></section></div>':'';
  const dialog=target?
   '<div class="doc-control-backdrop"><section class="doc-control-dialog" role="dialog" aria-modal="true" aria-labelledby="doc-control-dialog-title">'+
   '<div class="doc-control-dialog-head"><h3 id="doc-control-dialog-title">'+(isRemove?'Remove Document':'Restore Document')+' · Step '+state.docAdminStage+' of 2</h3>'+
@@ -2162,10 +2185,13 @@ function documentControlPage(){
  '<section class="panel"><h3>Protected Management</h3>'+
  '<div class="notice warn">The system deliberately does not offer one-click permanent deletion. Only the Main Administrator can move a document to Trash or restore it; every action requires an exact confirmation phrase and a reason.</div>'+
  '<div class="toolbar">'+scopeButtons+'</div>'+
+ (sampleCandidates.length?'<div class="notice"><strong>'+sampleCandidates.length+' clearly labeled sample/test documents found.</strong> '+
+ '<button type="button" class="btn tiny alt" data-a="doc-sample-open">Review Sample Cleanup</button>'+
+ '<p class="small muted">Only titles beginning with Sample, Test, or Trial are included. You must approve every document individually in the next screen.</p></div>':'')+
  '<div class="toolbar"><input type="search" id="doc-control-search" placeholder="Search tracking number or document title" value="'+esc(search)+'">'+
  '<button type="button" class="btn alt" data-a="doc-control-search">Search</button><button type="button" class="btn tiny alt" data-a="doc-control-refresh">Refresh</button></div>'+
  '<p class="small muted">'+Number(data.total_matching||0)+' matching document(s) · Showing up to 200 most recent records in this view</p>'+
- '<div class="doc-control-list">'+(rows||'<p class="note">No documents match the current search.</p>')+'</div></section>'+dialog;
+ '<div class="doc-control-list">'+(rows||'<p class="note">No documents match the current search.</p>')+'</div></section>'+(state.docAdminSampleMode?sampleDialog:dialog);
 }
 
 function archivePage(){return `<div class="eyebrow">Administrator controls</div><h1>Archive Documents</h1><p class="sub">Two-month archival to an SSD after verification.</p><div class="panel"><div class="notice warn"><b>Not yet enabled.</b> This will prepare downloadable archives, verify copies, and require administrator confirmation before any Drive files are deleted.</div><button class="btn" disabled>Archive Documents</button><p class="note" style="margin-top:12px">Submission metadata and audit history will remain in Supabase after archiving.</p></div>`;}
@@ -2404,6 +2430,44 @@ async function click(e){
  const t=e.target.closest('[data-a]');if(!t||state.busy)return;
  const a=t.dataset.a;
  try{
+  if(a==='doc-sample-open'){
+   if(!isMain()||state.view!=='document-control')throw Error('Main Administrator access required.');
+   const docs=(state.docAdminData.documents||[]).filter(d=>!d.admin_removed_at&&/^\s*(sample|test|trial)(\s|$)/i.test(d.subject||''));
+   if(!docs.length)throw Error('No clearly labeled sample documents available in this view.');
+   state.docAdminTarget=null;state.docAdminSampleIds=docs.map(d=>d.id);
+   state.docAdminSampleMode=true;state.docAdminSampleStage=1;state.actionPopupOpen=false;show();return;
+  }
+  if(a==='doc-sample-close'){
+   state.docAdminSampleMode=false;state.docAdminSampleIds=[];state.docAdminSampleStage=0;show();return;
+  }
+  if(a==='doc-sample-next'){
+   if(!isMain()||state.view!=='document-control'||!state.docAdminSampleMode||state.docAdminSampleStage!==1)
+     throw Error('Invalid batch cleanup action.');
+   const ids=state.docAdminSampleIds||[];
+   const checked=[...document.querySelectorAll('.doc-sample-pick:checked')].map(x=>x.value);
+   const warnings=[...document.querySelectorAll('.doc-sample-warning')];
+   if(checked.length!==ids.length||ids.some(id=>!checked.includes(id))||warnings.length!==3||warnings.some(x=>!x.checked))
+     throw Error('Check every sample document and all three warnings before proceeding.');
+   state.docAdminSampleStage=2;show();return;
+  }
+  if(a==='doc-sample-execute'){
+   if(!isMain()||state.view!=='document-control'||!state.docAdminSampleMode||state.docAdminSampleStage!==2)
+    throw Error('Invalid batch cleanup action.');
+   const ids=state.docAdminSampleIds||[];
+   const phrase=document.getElementById('doc-sample-phrase')?.value.trim();
+   const reason=document.getElementById('doc-sample-reason')?.value.trim();
+   if(!ids.length||phrase!=='MOVE '+ids.length+' SAMPLES TO TRASH')throw Error('Type the exact sample cleanup confirmation phrase.');
+   if(!reason||reason.length<15||reason.length>1000)throw Error('Enter a detailed reason between 15 and 1000 characters.');
+   if(!confirm('FINAL REVIEW: Move '+ids.length+' explicitly labeled sample/test documents into recoverable Trash? Attached files and routing histories are preserved.'))return;
+   state.busy=true;
+   try{
+    const {data,error}=await db.rpc('i_track_admin_clean_sample_documents',{p_documents:ids,p_confirmation:phrase,p_reason:reason});
+    if(error)throw error;
+    state.docAdminSampleMode=false;state.docAdminSampleIds=[];state.docAdminSampleStage=0;
+    await load();pop((data?.moved_to_trash||ids.length)+' sample/test document(s) moved to recoverable Trash.');
+   }finally{state.busy=false;}
+   return;
+  }
   if(a==='doc-control-scope'){
    if(!isMain()||state.view!=='document-control')throw Error('Main Administrator access required.');
    state.docAdminScope=t.dataset.scope||'active';state.docAdminTarget=null;await load();return;
