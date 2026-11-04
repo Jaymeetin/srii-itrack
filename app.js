@@ -3340,49 +3340,74 @@ async function submit(e){
    state.modal=null;rememberView('announcements');await load();pop('Announcement created.');return;
   }
   if(form.id==='form-doc'){
-   const params={p_subject:clean(fd.get('subject')),p_document_type:clean(fd.get('type')),
-    p_recipient_id:clean(fd.get('recipient'))||null,p_destination:clean(fd.get('destination'))||'school',
-    p_return_required:['district','division'].includes(clean(fd.get('destination')))?clean(fd.get('return_required'))==='yes':true,p_notes:clean(fd.get('notes'))};
-   if(params.p_destination==='personal')params.p_recipient_id=null;
-   if(params.p_recipient_id===state.session.user.id)params.p_recipient_id=null; // Choosing your own name saves In School, without a self-directed route.
-   if(!params.p_subject||!params.p_document_type)throw Error('Enter the document title and type.');
-   if(!state.docTypes.some(x=>x.name===params.p_document_type))throw Error('Choose an approved document type.');
-   if(!['school','district','division','personal'].includes(params.p_destination))throw Error('Choose a destination.');
-   const files=[...(form.querySelector('#doc-attachments')?.files||[])];
-   const allowed=/\.(pdf|doc|docx|jpg|jpeg|png|webp)$/i;
-   if(files.length>5)throw Error('Select no more than 5 attachments.');
-   for(const file of files)if(file.size<1||file.size>4*1024*1024||!allowed.test(file.name))throw Error('Each file must be a supported PDF, Word document or image of 1 byte to 4 MB.');
-   let tracking=form.dataset.savedTracking||'';
-   const report=form.querySelector('#doc-save-message');
-   if(!tracking){
-    const recipientName=state.recipients.find(x=>x.user_id===params.p_recipient_id)?.display_name;
-    if(!confirm(params.p_destination==='personal'?'Save this document as a Completed Personal Record? It can be edited or forwarded later.':
-     params.p_recipient_id?'Route this document to '+recipientName+'?':
-     'Save this document '+(params.p_destination==='district'?'for District transmittal':params.p_destination==='division'?'for Division transmittal':'In School')+' with no recipient?'))return;
-    if(report)report.textContent='Saving document and tracking number…';
-    const {data,error}=await db.rpc('i_track_create_document',params);
-    if(error)throw error;
-    tracking=data;
-    form.dataset.savedTracking=tracking;
-   }
-   if(report)report.textContent='Saved as '+tracking+'. Preparing attachments…';
-   let docId=form.dataset.savedDocumentId;
-   if(!docId){
-    const found=await db.from('documents').select('id').eq('tracking_number',tracking).eq('created_by',state.session.user.id).single();
-    if(found.error)throw Error('Document '+tracking+' was saved, but its ID could not be loaded. Please use My Documents to add any remaining attachments. '+found.error.message);
-    docId=found.data.id;form.dataset.savedDocumentId=docId;
-   }
-   if(!form._uploadedAttachments)form._uploadedAttachments=new Set();
-   for(let n=0;n<files.length;n++){
-    const file=files[n],key=n+':'+file.name+':'+file.size;
-    if(form._uploadedAttachments.has(key))continue;
-    if(report)report.textContent='Document '+tracking+' saved. Uploading attachment '+(n+1)+' of '+files.length+': '+file.name;
-    await uploadNewDocumentAttachment(docId,file);
-    form._uploadedAttachments.add(key);
-   }
-   state.modal=null;rememberView('documents');await load();
-   pop('Document '+tracking+' saved'+(files.length?' with '+files.length+' attachment(s)':'')+'.');
-   return;
+   const helper=window.ITRACK_UPLOAD;
+   if(!helper)throw Error('Upload controls did not load. Refresh the app.');
+   let overlay=null;
+   try{
+    const params={p_subject:clean(fd.get('subject')),p_document_type:clean(fd.get('type')),
+     p_recipient_id:clean(fd.get('recipient'))||null,p_destination:clean(fd.get('destination'))||'school',
+     p_return_required:['district','division'].includes(clean(fd.get('destination')))?clean(fd.get('return_required'))==='yes':true,p_notes:clean(fd.get('notes'))};
+    if(params.p_destination==='personal')params.p_recipient_id=null;
+    if(params.p_recipient_id===state.session.user.id)params.p_recipient_id=null;
+    if(!params.p_subject||!params.p_document_type)throw Error('Enter the document title and type.');
+    if(!state.docTypes.some(x=>x.name===params.p_document_type))throw Error('Choose an approved document type.');
+    if(!['school','district','division','personal'].includes(params.p_destination))throw Error('Choose a destination.');
+    const picker=form.querySelector('#doc-attachments');
+    const originals=[...(picker?.files||[])];
+    if(picker?._preparingPromise)await picker._preparingPromise;
+    const files=picker?._preparedFiles||await helper.prepare(originals);
+    const warning=helper.sizeError(files);
+    if(warning)throw Error(warning);
+    if(files.some(f=>!helper.mimeFor(f)||f.size<1))throw Error('Select nonempty PDF, Word or image files only.');
+    let tracking=form.dataset.savedTracking||'';
+    const report=form.querySelector('#doc-save-message');
+    if(!tracking){
+     const recipientName=state.recipients.find(x=>x.user_id===params.p_recipient_id)?.display_name;
+     if(!confirm(params.p_destination==='personal'?'Save this document as a Completed Personal Record? It can be edited or forwarded later.':
+      params.p_recipient_id?'Route this document to '+recipientName+'?':
+      'Save this document '+(params.p_destination==='district'?'for District transmittal':params.p_destination==='division'?'for Division transmittal':'In School')+' with no recipient?'))return;
+    }
+    overlay=helper.progressDialog(files.length?'Routing and uploading document':'Saving document');
+    overlay.update('Saving document details and tracking number…');
+    if(!tracking){
+     const {data,error}=await db.rpc('i_track_create_document',params);
+     if(error)throw error;
+     tracking=data;form.dataset.savedTracking=tracking;
+    }
+    if(report)report.textContent='Saved as '+tracking+'. Preparing attachments…';
+    let docId=form.dataset.savedDocumentId;
+    if(!docId){
+     const found=await db.from('documents').select('id').eq('tracking_number',tracking).eq('created_by',state.session.user.id).single();
+     if(found.error)throw Error('Document '+tracking+' was saved, but its ID could not be loaded. Check My Documents. '+found.error.message);
+     docId=found.data.id;form.dataset.savedDocumentId=docId;
+    }
+    if(!form._uploadedAttachments)form._uploadedAttachments=new Set();
+    const totalBytes=files.reduce((sum,f)=>sum+f.size,0);
+    let uploadedBytes=0;
+    for(let n=0;n<files.length;n++){
+     const file=files[n],original=originals[n]||file;
+     const key=n+':'+original.name+':'+original.size;
+     if(form._uploadedAttachments.has(key)){uploadedBytes+=file.size;continue;}
+     if(report)report.textContent='Document '+tracking+' saved. Uploading attachment '+(n+1)+' of '+files.length+': '+file.name;
+     overlay.update('Preparing attachment '+(n+1)+' of '+files.length+': '+file.name);
+     await uploadNewDocumentAttachment(docId,file,stage=>{
+      if(stage.phase==='transferring'){
+       const ratio=totalBytes?100*(uploadedBytes+file.size*stage.percent/100)/totalBytes:0;
+       overlay.update('Uploading attachment '+(n+1)+' of '+files.length+': '+file.name,Math.round(ratio));
+      }else if(stage.phase==='reading')overlay.update('Preparing '+file.name+' on your device…');
+      else if(stage.phase==='confirming')overlay.update('Confirming the Google Drive receipt for '+file.name+'…');
+     });
+     form._uploadedAttachments.add(key);uploadedBytes+=file.size;
+    }
+    overlay.update('All files confirmed. Refreshing routing history…',100);
+    state.modal=null;rememberView('documents');await load();
+    pop('Document '+tracking+' saved and routed'+(files.length?' with '+files.length+' attachment(s)':'')+'.');
+    return;
+   }catch(error){
+    const tracking=form.dataset.savedTracking,report=form.querySelector('#doc-save-message');
+    if(report&&tracking)report.textContent='Document '+tracking+' exists but one or more attachments are not confirmed. Check My Documents or the upload log before retrying. '+(error.message||error);
+    throw error;
+   }finally{overlay?.close();}
   }
  }catch(e){err(e);}finally{state.busy=false;form.querySelectorAll('button[type=submit]').forEach(x=>{x.disabled=false;});}
 }
