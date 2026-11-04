@@ -14,7 +14,7 @@ const LEGACY_SCHOOL_EXCEPTION_IDS=new Set([
  "68ece6a5-941c-4385-8062-5e4223877b60", // SINUNDOLAN ES
  "d526729d-ee5e-4c1a-87f9-77f513c8778b"  // BUGO CS
 ]);
-const MB=4*1024*1024;
+const MB=30*1024*1024;
 async function withDeadline(promise,label,ms=18000){
  let timer;
  try{
@@ -115,7 +115,7 @@ function markPanel(){
    '<img class="iu-image" alt="Preview of selected screenshot" hidden>'+
    '<div class="iu-actions"><button type="button" class="btn alt iu-compress" disabled>Compress File</button>'+
     '<button type="button" class="btn iu-upload" disabled>Upload to Google Drive</button></div><div class="iu-progress" hidden role="status" aria-live="polite"><span class="iu-progress-label">Preparing upload…</span><progress class="iu-progress-bar" max="100"></progress></div>'+
-   '<p class="iu-limits">Maximum 4 MB per file. Compression is optional and applies to images only. For PDF and Word files, the original is preserved. Upload only authorized school documents. Avoid unnecessary personal or confidential information.</p>'+
+   '<p class="iu-limits">30 MB per uploaded file; routed-document attachments share one 30 MB total. No fixed file-count limit. Images compress automatically on your device. PDF and Word files retain their format. For oversized PDFs, <a href="https://www.ilovepdf.com/compress_pdf" target="_blank" rel="noopener noreferrer">use iLovePDF Compress PDF ↗</a> only where document privacy permits.</p>'+
    '<div class="iu-history" aria-live="polite"><h4>Submission history</h4><div class="iu-history-list">Select a requirement to view its records.</div></div>'+
   '</div>'+
   '<div class="iu-message" hidden aria-live="polite"></div>';
@@ -166,7 +166,7 @@ function updateFile(node){
  const f=node._iuFile;
  const caption=node.querySelector(".iu-selection");
  caption.innerHTML=f?
-  'Selected: <strong>'+esc(f.name)+'</strong> · '+size(f.size)+(f.size>MB?' · exceeds 4 MB limit':''):
+  'Selected: <strong>'+esc(f.name)+'</strong> · '+size(f.size)+(f.size>MB?' · exceeds 30 MB limit':''):
   'No document selected';
  preview(node,f);
  setProcessing(node,false);
