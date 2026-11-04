@@ -46,7 +46,7 @@ const knownViews=new Set(['dashboard','announcements','notifications','monitorin
 const urlView=new URLSearchParams(location.search).get('view');
 const firstView=knownViews.has(urlView)?urlView:'dashboard';
 localStorage.removeItem('srii-current-view');
-const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],monitorSchoolDetails:null,oversightUploads:[],oversightShowAllUploads:false,connectedFilter:'',monitorStatusFilter:'',reportFilter:'',navTrail:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:arrivedFromExpiredEmailLink?'resend':importedQueueTicket?'queue':'login',emailHelpReason:arrivedFromExpiredEmailLink?'expired':'',queueTicket:importedQueueTicket||localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],showRemovedAccounts:false,modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],districtHistory:[],documentDistrictStatuses:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],compliances:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewCompliances:[],reviewAllCompliances:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],notificationLimit:50,notificationHasMore:false,divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',districtData:{eligible:[],transmittals:[],items:[],claimable:[],people:[]},districtPicked:new Set(),districtSubmitPicked:new Set(),districtSelected:'',districtSchoolId:'',adminDocumentTypes:{types:[],requests:[]},documentDivisionStatuses:[],approverAssignments:[],announcementApproverEditing:null,announcementEditId:null,announcementEditorData:null,announcementCancelId:null,transmittalEditing:false,retrievalData:{},retrievalPicked:new Set(),retrievalSlipPicked:new Set(),retrievalScope:'all',retrievalOrder:'recent',retrievalTransmittal:'',retrievalTurnoverPicked:new Set(),retrievalDistrictPicked:new Set(),retrievalSearch:'',privateDetails:null,profileRequests:[],userFeedback:[],feedbackInbox:[],adminFeedbackEntries:[],feedbackAuthors:[],feedbackFilter:'all',feedbackType:'all',versionHistoryLatestFirst:false,versionHistoryDocumentedOnly:false,issue:null,maintenance:{enabled:false,message:''},systemUpdates:[],recoveryScan:null,misfiledReview:null,recoveryChecking:false};
+const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],monitorSchoolDetails:null,oversightUploads:[],oversightShowAllUploads:false,connectedFilter:'',monitorStatusFilter:'',reportFilter:'',navTrail:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:arrivedFromExpiredEmailLink?'resend':importedQueueTicket?'queue':'login',emailHelpReason:arrivedFromExpiredEmailLink?'expired':'',queueTicket:importedQueueTicket||localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],showRemovedAccounts:false,modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],districtHistory:[],documentDistrictStatuses:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],compliances:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewCompliances:[],reviewAllCompliances:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],notificationLimit:50,notificationHasMore:false,divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',districtData:{eligible:[],transmittals:[],items:[],claimable:[],people:[]},districtPicked:new Set(),districtSubmitPicked:new Set(),districtSelected:'',districtSchoolId:'',adminDocumentTypes:{types:[],requests:[]},documentDivisionStatuses:[],approverAssignments:[],announcementApproverEditing:null,announcementEditId:null,announcementEditorData:null,announcementCancelId:null,transmittalEditing:false,retrievalData:{},retrievalPicked:new Set(),retrievalSlipPicked:new Set(),retrievalScope:'all',retrievalOrder:'recent',retrievalTransmittal:'',retrievalTurnoverPicked:new Set(),retrievalDistrictPicked:new Set(),retrievalSearch:'',privateDetails:null,profileRequests:[],userFeedback:[],feedbackInbox:[],adminFeedbackEntries:[],feedbackAuthors:[],feedbackFilter:'all',feedbackType:'all',versionHistoryLatestFirst:false,versionHistoryDocumentedOnly:false,issue:null,maintenance:{enabled:false,message:''},systemUpdates:[],recoveryScan:null,misfiledReview:null,recoveryChecking:false,actionItems:[],actionPopupOpen:false,actionError:false};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=x=>x?new Date(x).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}):'—';
@@ -164,6 +164,113 @@ async function sync(){
   if(active())await load();else show();
  }catch(e){state.issue=e.message;show();}
 }
+// Read-only action inbox: link each user only to tasks their current account can act on.
+// No task is approved, acknowledged, or marked complete from this pop-up.
+async function loadActionInbox(){
+ const uid=state.session?.user?.id;
+ if(!active()||!uid){state.actionItems=[];state.actionPopupOpen=false;return;}
+ const admin=yesAdmin(),oversight=isOic();
+ const assigned=new Set((state.approverAssignments||[]).filter(x=>x.user_id===uid).map(x=>x.announcement_id));
+ const jobs={
+  compliance:(admin||assigned.size)?db.rpc('i_track_compliance_list',{p_announcement:null}):Promise.resolve({data:[]}),
+  accounts:admin?db.from('profiles').select('id,role,account_status').eq('account_status','pending'):Promise.resolve({data:[]}),
+  routes:!oversight?db.rpc('i_track_document_route_history',{p_document_id:null}):Promise.resolve({data:[]}),
+  retrieval:!oversight?db.rpc('i_track_retrieval_board'):Promise.resolve({data:{claimable:[],district_queue:[]}}),
+  division:!oversight?db.rpc('i_track_division_list'):Promise.resolve({data:{transmittals:[]}})
+ };
+ const names=Object.keys(jobs);
+ const responses=await Promise.allSettled(names.map(key=>jobs[key]));
+ const results={};
+ let partial=false;
+ responses.forEach((res,i)=>{
+  const key=names[i];
+  if(res.status==='rejected'||res.value?.error){partial=true;console.warn('Action inbox queue unavailable:',key,res.status==='rejected'?res.reason:res.value.error);results[key]=null;}
+  else results[key]=res.value.data;
+ });
+ const items=[];
+ const add=(key,title,detail,page,priority,more={})=>items.push({key,title,detail,page,priority,...more});
+ const ownPending=(results.compliance||[]).filter(c=>c.status==='pending_verification'&&(admin||assigned.has(c.announcement_id)));
+ const grouped=new Map();
+ for(const c of ownPending){
+  const k=c.announcement_id;
+  if(!grouped.has(k))grouped.set(k,[]);
+  grouped.get(k).push(c);
+ }
+ for(const [announcementId,rows] of grouped){
+  const ids=rows.map(x=>x.id).sort().join(',');
+  add('verify:'+announcementId+':'+ids,'Submission verification',
+   rows.length+' school response(s) awaiting review · '+(rows[0]?.announcement_title||'Announcement'),
+   'verification',1,{announcementId,count:rows.length});
+ }
+ const accounts=(results.accounts||[]).filter(p=>p.account_status==='pending'&&(isMain()||p.role!=='oic_psds'));
+ if(accounts.length)add('accounts:'+accounts.map(p=>p.id).sort().join(','),
+  'Pending account approvals',accounts.length+' registration(s) awaiting your decision',
+  'approvals',2,{count:accounts.length});
+ const latestByDocument=new Map();
+ for(const route of results.routes||[])latestByDocument.set(route.document_id,route);
+ for(const route of latestByDocument.values()){
+  if(route.to_user_id!==uid||route.processed_at||!['awaiting_ack','received'].includes(route.route_status))continue;
+  const doc=state.docs.find(d=>d.id===route.document_id);
+  add('route:'+route.route_id+':'+route.route_status,
+   route.route_status==='awaiting_ack'?'Acknowledge document receipt':'Document awaiting action',
+   (doc?.subject||'Routed document')+' · From '+(route.sender_name||'sender'),
+   'documents',3,{documentId:route.document_id,count:1});
+ }
+ const retrieval=results.retrieval||{};
+ const claims=retrieval.claimable||[];
+ if(claims.length)add('owner:'+claims.map(x=>x.item_id).sort().join(','),
+  'Confirm Document Received',claims.length+' retrieved Division document(s) awaiting your final receipt',
+  'retrieval',2,{count:claims.length,section:'owner'});
+ const districtQueue=retrieval.district_queue||[];
+ if(districtQueue.length)add('district-receipt:'+districtQueue.map(x=>x.item_id).sort().join(','),
+  'Acknowledge District handoff',districtQueue.length+' physical document(s) awaiting District receiving',
+  'retrieval',2,{count:districtQueue.length,section:'district'});
+ const myDivisions=(results.division?.transmittals||[]).filter(t=>t.assigned_submitter===uid&&!t.assignment_accepted_at&&t.status==='draft');
+ if(myDivisions.length)add('division-assign:'+myDivisions.map(t=>t.id).sort().join(','),
+  'Accept Division transmittal assignment',myDivisions.length+' transmittal assignment(s) awaiting acceptance',
+  'division',3,{count:myDivisions.length,transmittalId:myDivisions[0].id});
+ // A required, not-yet-submitted school call is also a pending task.
+ if(state.view==='dashboard'&&!admin&&!oversight){
+  const existing=new Set((state.schoolSubmissions||[]).map(x=>x.assignment_id));
+  const missing=(state.schoolAssignments||[]).filter(x=>{
+   const ann=state.announcements.find(a=>a.id===x.announcement_id);
+   return ann?.status==='open'&&!existing.has(x.id);
+  });
+  if(missing.length)add('school-required:'+missing.map(x=>x.id).sort().join(','),
+   'School submission required',missing.length+' assigned school requirement(s) not yet submitted',
+   'announcements',4,{count:missing.length,filter:'required'});
+ }
+ items.sort((a,b)=>a.priority-b.priority||a.title.localeCompare(b.title));
+ state.actionItems=items;
+ state.actionError=partial;
+ const key='srii-action-seen-'+uid;
+ let seen=[];
+ try{seen=JSON.parse(sessionStorage.getItem(key)||'[]');if(!Array.isArray(seen))seen=[];}catch(_){seen=[];}
+ if(!state.modal&&items.some(item=>!seen.includes(item.key))){
+  state.actionPopupOpen=true;
+  try{sessionStorage.setItem(key,JSON.stringify([...new Set([...seen,...items.map(x=>x.key)])].slice(-350)));}catch(_){}
+ }
+ if(!items.length)state.actionPopupOpen=false;
+}
+function actionPopupHtml(){
+ const tasks=state.actionItems||[];
+ const rows=tasks.map((item,i)=>'<div class="action-inbox-item">'+
+  '<div class="action-inbox-index">'+(i+1)+'</div><div class="action-inbox-info"><strong>'+esc(item.title)+'</strong>'+
+  '<p>'+esc(item.detail)+'</p></div>'+
+  '<button type="button" class="btn tiny" data-a="action-go" data-index="'+i+'">Open</button></div>').join('');
+ return '<div class="action-inbox-backdrop" role="presentation">'+
+  '<section class="action-inbox-dialog" role="dialog" aria-modal="true" aria-labelledby="action-inbox-title" tabindex="-1">'+
+  '<div class="action-inbox-head"><div><span class="eyebrow">SRII i-TRACK · Action Center</span>'+
+  '<h2 id="action-inbox-title">Action Required ('+tasks.length+')</h2>'+
+  '<p class="note">These items need your attention. Opening a task will not approve or acknowledge it automatically.</p></div>'+
+  '<button type="button" class="btn tiny alt" data-a="action-close" aria-label="Close action reminder">Close</button></div>'+
+  '<div class="action-inbox-list">'+(rows||'<p class="note">No items currently need your action.</p>')+'</div>'+
+  (state.actionError?'<p class="note">Some queues could not be checked. Refresh the page to retry.</p>':'')+
+  '<div class="action-inbox-foot"><button type="button" class="btn alt" data-a="action-close">Remind Me Later</button>'+
+  '<button type="button" class="btn" data-a="action-refresh">Refresh Actions</button></div>'+
+  '</section></div>';
+}
+
 async function load(){
  if(!active()){show();return;}
  try{
@@ -334,6 +441,7 @@ async function load(){
   if(state.view==='verification'&&(yesAdmin()||state.approverAssignments.some(x=>x.user_id===state.session.user.id)))await loadVerification();
   if(state.view==='school-files'&&yesAdmin())await loadSchoolFiles();
   if(state.view==='documents'||(yesAdmin()&&['announcements','verification'].includes(state.view)))await loadRecipients();
+  await loadActionInbox();
   show();
  }catch(e){err(e);show();}
 }
@@ -1002,7 +1110,7 @@ function appPage(){
   '<button type="button" data-a="nav" data-page="dashboard" class="connected-crumb">Home</button>'+
   '<span class="connected-crumb-current">'+esc(title)+'</span></div>':'';
  $.innerHTML=`<div class="app"><aside class="sidebar">${brand()}<nav>${nav}</nav><div class="sidebar-footer"><button data-a="theme">◐ Light / Dark Mode</button><button data-a="logout">↩ Sign Out</button><div class="user-mini">${esc(name)}<br>${esc(label(state.profile.role))} · ${esc(school)}</div></div></aside>
- <div class="main"><header class="topbar"><div><h2>${esc(title)}</h2><div class="note">One District. One Direction.</div></div><div class="topbar-actions">${pTag('active')}<button class="desktop-signout" type="button" data-a="logout" title="Sign out of SRII i-TRACK">↩ Sign Out</button></div></header><div class="content">${breadcrumb}${body}</div></div></div>${state.modal?modalHtml():''}`;
+ <div class="main"><header class="topbar"><div><h2>${esc(title)}</h2><div class="note">One District. One Direction.</div></div><div class="topbar-actions">${pTag('active')}<button type="button" class="action-inbox-trigger" data-a="action-open" aria-label="Open items requiring your action">▣ Actions${state.actionItems.length?' ('+state.actionItems.length+')':''}</button><button class="desktop-signout" type="button" data-a="logout" title="Sign out of SRII i-TRACK">↩ Sign Out</button></div></header><div class="content">${breadcrumb}${body}</div></div></div>${state.modal?modalHtml():''}${state.actionPopupOpen&&!state.modal?actionPopupHtml():''}`;
 }
 
 function feedbackPage(){
@@ -2203,6 +2311,30 @@ async function click(e){
  const t=e.target.closest('[data-a]');if(!t||state.busy)return;
  const a=t.dataset.a;
  try{
+  if(a==='action-close'){state.actionPopupOpen=false;show();return;}
+  if(a==='action-open'){state.actionPopupOpen=true;show();return;}
+  if(a==='action-refresh'){await loadActionInbox();state.actionPopupOpen=true;show();return;}
+  if(a==='action-go'){
+   const item=state.actionItems[Number(t.dataset.index)];
+   if(!item||!knownViews.has(item.page))throw Error('This action is no longer available. Refresh to check again.');
+   state.actionPopupOpen=false;
+   state.modal=null;
+   if(item.announcementId){
+    state.reviewSelectedId=item.announcementId;
+    rememberAnnouncement(item.announcementId,true);
+   }
+   if(item.transmittalId)state.divisionSelected=item.transmittalId;
+   if(item.filter)state.connectedFilter=item.filter;
+   rememberView(item.page);
+   await load();
+   if(item.page==='documents'&&item.documentId&&state.docs.some(d=>d.id===item.documentId))
+    await openDetail(item.documentId);
+   if(item.page==='retrieval'){
+    const target=item.section==='district'?'.retrieval-advanced':'.retrieval-claim-list';
+    document.querySelector(target)?.scrollIntoView({behavior:'smooth',block:'start'});
+   }
+   return;
+  }
   if(a==='recovery-scan'){
    if(!districtOversight()||state.view!=='system-recovery')throw Error('District oversight required.');
    state.busy=true;
@@ -2722,7 +2854,7 @@ async function click(e){
   }
   if(a==='back-to-login'){state.emailHelpReason='';state.authMode='login';show();return;}
   if(a==='theme'){state.theme=state.theme==='dark'?'light':'dark';localStorage.setItem('srii-theme',state.theme);document.documentElement.dataset.theme=state.theme;show();return;}
-  if(a==='logout'){await db.auth.signOut();state.session=null;state.profile=null;state.recoveryReady=false;rememberView('dashboard');localStorage.removeItem('srii-current-view');sessionStorage.removeItem('srii-last-announcement');sessionStorage.removeItem('srii-review-announcement');state.modal=null;state.schoolFiles=[];state.accountEmails=[];show();return;}
+  if(a==='logout'){try{sessionStorage.removeItem('srii-action-seen-'+state.session?.user?.id);}catch(_){}state.actionItems=[];state.actionPopupOpen=false;await db.auth.signOut();state.session=null;state.profile=null;state.recoveryReady=false;rememberView('dashboard');localStorage.removeItem('srii-current-view');sessionStorage.removeItem('srii-last-announcement');sessionStorage.removeItem('srii-review-announcement');state.modal=null;state.schoolFiles=[];state.accountEmails=[];show();return;}
   if(a==='refresh'){await sync();return;}
   if(a==='export-district-report'){exportDistrictReport();pop('District compliance report prepared.');return;}
   if(a==='notifications-more'){
