@@ -206,7 +206,7 @@ async function loadActionInbox(){
  const accounts=(results.accounts||[]).filter(p=>p.account_status==='pending'&&(isMain()||p.role!=='oic_psds'));
  if(accounts.length)add('accounts:'+accounts.map(p=>p.id).sort().join(','),
   'Pending account approvals',accounts.length+' registration(s) awaiting your decision',
-  'approvals',2,{count:accounts.length,sourceIds:accounts.map(p=>'account:'+p.id)});
+  'approvals',2,{count:accounts.length,filter:'pending',sourceIds:accounts.map(p=>'account:'+p.id)});
  const latestByDocument=new Map();
  for(const route of results.routes||[])latestByDocument.set(route.document_id,route);
  for(const route of latestByDocument.values()){
@@ -2337,9 +2337,13 @@ async function click(e){
    if(item.page==='documents'&&item.documentId&&state.docs.some(d=>d.id===item.documentId))
     await openDetail(item.documentId);
    if(item.page==='retrieval'){
-    const target=item.section==='district'?'.retrieval-advanced':'.retrieval-claim-list';
-    document.querySelector(target)?.scrollIntoView({behavior:'smooth',block:'start'});
+    if(item.section==='district'){
+     const advanced=document.querySelector('.retrieval-advanced');
+     if(advanced)advanced.open=true;
+     document.querySelector('.retrieval-advanced .retrieval-district-pick')?.closest('.retrieval-panel')?.scrollIntoView({behavior:'smooth',block:'start'});
+    }else document.querySelector('.retrieval-claim-list')?.scrollIntoView({behavior:'smooth',block:'start'});
    }
+   if(item.page==='division')document.getElementById('division-current')?.scrollIntoView({behavior:'smooth',block:'start'});
    return;
   }
   if(a==='recovery-scan'){
