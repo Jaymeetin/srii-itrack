@@ -111,6 +111,7 @@ function openMore(){
  ].join("");
  const administrative=[
   link('document-types','▦ Document Types'),
+  link('document-control','▣ Document Control / Trash'),
   link('school-files','All School Attachments'),
   link('verification','Submission Verification'),
   link('reports','District Reports'),
