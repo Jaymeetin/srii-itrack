@@ -3480,8 +3480,31 @@ $.addEventListener('change',async e=>{
  }
  if(['document-status-filter','document-date-filter'].includes(e.target.id)){filterDocumentRegistry();return;}
  if(e.target.id==='doc-attachments'){
-  const files=[...(e.target.files||[])],message=document.getElementById('doc-attachment-selection');
-  if(message)message.textContent=files.length?files.map(f=>f.name+' ('+(f.size/1024/1024).toFixed(2)+' MB)').join(' · '):'No attachments selected.';
+  const picker=e.target,files=[...(picker.files||[])],message=document.getElementById('doc-attachment-selection');
+  const alert=document.getElementById('doc-attachment-alert'),link=document.getElementById('doc-pdf-compression');
+  const helper=window.ITRACK_UPLOAD;
+  const version=(picker._prepareVersion||0)+1;picker._prepareVersion=version;
+  picker._preparedFiles=null;
+  if(message)message.textContent=files.length?'Automatically compressing selected pictures…':'No attachments selected.';
+  if(alert){alert.hidden=true;alert.textContent='';}
+  if(link)link.hidden=true;
+  picker._preparingPromise=(async()=>{
+   const ready=await helper.prepare(files);
+   if(picker._prepareVersion!==version)return;
+   picker._preparedFiles=ready;
+   const bytes=ready.reduce((sum,f)=>sum+f.size,0);
+   const detail=ready.map((f,i)=>f.name+' ('+helper.fmt(f.size)+(f.size<files[i].size?' · compressed':'')+')').join(' · ');
+   if(message)message.textContent=ready.length?ready.length+' attachment(s) · '+helper.fmt(bytes)+' of 30 MB. '+detail:'No attachments selected.';
+   const warning=helper.sizeError(ready);
+   if(alert){alert.hidden=!warning;alert.textContent=warning;}
+   if(link)link.hidden=!(warning&&ready.some(f=>helper.mimeFor(f)==='application/pdf'));
+  })().catch(error=>{
+   if(picker._prepareVersion!==version)return;
+   if(message)message.textContent='Could not prepare selected files.';
+   if(alert){alert.hidden=false;alert.textContent=error.message||String(error);}
+   throw error;
+  });
+  picker._preparingPromise.catch(()=>{});
   return;
  }
  if(e.target.id==='division-current'){state.divisionSelected=e.target.value;state.transmittalEditing=false;show();return;}
