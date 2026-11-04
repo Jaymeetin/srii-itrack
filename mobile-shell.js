@@ -43,6 +43,7 @@ function makeShell(app){
  const head=app.querySelector(".topbar");
  if(!head)return;
  const user=identity(app);
+ const actionCount=Number(app.querySelector('.action-inbox-trigger')?.textContent?.match(/\((\d+)\)/)?.[1]||0);
  if(!head.querySelector(".mobile-header")){
   head.insertAdjacentHTML("afterbegin",
    '<div class="mobile-header">'+
@@ -51,6 +52,7 @@ function makeShell(app){
       '<span class="mobile-wordmark"><small>SAN REMIGIO II DISTRICT</small><strong>SRII <em>i-TRACK</em></strong></span>'+
     '</div>'+
     '<div class="mobile-header-right"><span class="mobile-workspace-label">DISTRICT</span>'+
+      '<button type="button" class="mobile-action-bell" data-a="action-open" aria-label="Open items needing action">Actions'+(actionCount?' <strong>'+actionCount+'</strong>':'')+'</button>'+
       '<button class="mobile-avatar" type="button" data-mobile="more" aria-label="Open account menu" aria-expanded="false">'+safe(user.initials)+'</button>'+
     '</div>'+
    '</div>');
