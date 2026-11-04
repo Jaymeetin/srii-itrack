@@ -48,6 +48,19 @@
    '<tbody>'+pickupRows+'</tbody></table></div></div>'+
    '<div class="retrieval-bottom-bar"><span class="small muted" id="retrieval-pick-count">'+(state.retrievalPicked?.size||0)+' checked</span>'+
    '<button class="btn" id="retrieval-pickup-btn" data-a="retrieval-pickup"'+(!state.retrievalPicked?.size?' disabled':'')+'>Confirm Physical Retrieval</button></div></section>';
+  // Rightful owners confirm receipt here once another person physically hands over the document.
+  // Their own direct pickup completes automatically in the database without this extra step.
+  const ownerReceipts=data.claimable||[];
+  const receiptRows=ownerReceipts.map(x=>
+   '<div class="retrieval-claim-row"><div><span class="retrieval-tracking">'+esc(x.tracking_number||'')+'</span>'+
+   '<strong class="retrieval-name">'+esc(x.document_label||'Document')+'</strong>'+
+   '<small class="retrieval-extra">'+esc(x.school_name||'District Office')+' · '+esc(divisionStageLabel(x.division_status))+'</small></div>'+
+   '<button type="button" class="btn" data-a="retrieval-claim" data-id="'+esc(x.item_id)+'">Document Received</button></div>'
+  ).join('')||'<p class="note">No retrieved documents are awaiting your confirmation.</p>';
+  const ownerReceipt='<section class="panel retrieval-panel"><div class="retrieval-panel-head"><h3>My Documents to Receive</h3>'+
+   '<span class="small muted">'+ownerReceipts.length+' awaiting receipt</span></div>'+
+   '<p class="note">If another person retrieved your document from Division, click <strong>Document Received</strong> only after the physical document has actually been handed to you. This marks it Completed. If you retrieved your own document, it is completed automatically at pickup.</p>'+
+   '<div class="retrieval-claim-list">'+receiptRows+'</div></section>';
   const slipItems=[...(data.my_batch_items||[])].sort((a,b)=>new Date(b.retrieved_at||0)-new Date(a.retrieved_at||0));
   const slipRows=slipItems.map(x=>
    '<label class="retrieval-slip-choice"><input type="checkbox" class="retrieval-check retrieval-slip-pick" value="'+esc(x.item_id)+'"'+(state.retrievalSlipPicked?.has(x.item_id)?' checked':'')+'>'+
@@ -68,11 +81,16 @@
   // No retrieval record is changed until the user explicitly confirms pickup.
   const legacy=oldView(state,tools);
   const advancedStart=legacy.indexOf('<div class="panel retrieval-panel"><div class="retrieval-panel-head"><h3>2. My Retrieval Batches</h3>');
-  const advanced=advancedStart===-1?'':legacy.slice(advancedStart);
+  let advanced=advancedStart===-1?'':legacy.slice(advancedStart);
+  // The owner's receipt action is now on the main page; do not duplicate it under Advanced.
+  const oldReceiptStart=advanced.indexOf('<div class="panel retrieval-panel"><h3>5. My Documents for Final Receipt</h3>');
+  const ownerSettingsStart=advanced.indexOf('<details class="panel retrieval-owners">');
+  if(oldReceiptStart>=0&&ownerSettingsStart>oldReceiptStart)
+    advanced=advanced.slice(0,oldReceiptStart)+advanced.slice(ownerSettingsStart);
   return '<div class="sectionhead"><div><div class="eyebrow">Physical document custody</div><h1>Division Retrieval</h1>'+
    '<p class="sub">All submitted documents in one searchable list. Print a retrieval slip only if needed.</p></div>'+
    '<button class="btn alt" data-a="retrieval-refresh">Refresh</button></div>'+
-   pickup+slip+
+   pickup+ownerReceipt+slip+
    (advanced?'<details class="panel retrieval-panel retrieval-advanced"><summary><strong>Advanced: District Handoffs & Final Receipt</strong><span class="small muted">Open only if needed</span></summary>'+
     '<p class="note">Use this section only for physical transfers to District or confirmation by someone else. Turnover records are separate from optional retrieval slips.</p>'+
     advanced+'</details>':'');
