@@ -40,13 +40,13 @@ const db=window.supabase?.createClient(C.url,C.publishableKey,{auth:{persistSess
 // Multiple clients refreshing the same mobile session can reset upload forms.
 window.ITRACK_DB=db;
 if(importedQueueTicket)localStorage.setItem('srii-registration-queue-ticket',importedQueueTicket);
-const knownViews=new Set(['dashboard','announcements','notifications','monitoring','documents','reports','school-files','verification','approvals','archive','division','retrieval','district','document-types','settings','system-recovery','system-updates','feedback','feedback-admin']);
+const knownViews=new Set(['dashboard','announcements','notifications','monitoring','documents','reports','school-files','verification','approvals','archive','division','retrieval','district','document-types','settings','system-recovery','system-updates','feedback','feedback-admin','document-control']);
 // The manifest launches at ./ (Home). Navigation keeps the page in the URL,
 // so a real refresh returns to that page without persistent cross-launch state.
 const urlView=new URLSearchParams(location.search).get('view');
 const firstView=knownViews.has(urlView)?urlView:'dashboard';
 localStorage.removeItem('srii-current-view');
-const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],monitorSchoolDetails:null,oversightUploads:[],oversightShowAllUploads:false,connectedFilter:'',monitorStatusFilter:'',reportFilter:'',navTrail:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:arrivedFromExpiredEmailLink?'resend':importedQueueTicket?'queue':'login',emailHelpReason:arrivedFromExpiredEmailLink?'expired':'',queueTicket:importedQueueTicket||localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],showRemovedAccounts:false,modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],districtHistory:[],documentDistrictStatuses:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],compliances:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewCompliances:[],reviewAllCompliances:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],notificationLimit:50,notificationHasMore:false,divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',districtData:{eligible:[],transmittals:[],items:[],claimable:[],people:[]},districtPicked:new Set(),districtSubmitPicked:new Set(),districtSelected:'',districtSchoolId:'',adminDocumentTypes:{types:[],requests:[]},documentDivisionStatuses:[],approverAssignments:[],announcementApproverEditing:null,announcementEditId:null,announcementEditorData:null,announcementCancelId:null,transmittalEditing:false,retrievalData:{},retrievalPicked:new Set(),retrievalSlipPicked:new Set(),retrievalScope:'all',retrievalOrder:'recent',retrievalTransmittal:'',retrievalTurnoverPicked:new Set(),retrievalDistrictPicked:new Set(),retrievalSearch:'',privateDetails:null,profileRequests:[],userFeedback:[],feedbackInbox:[],adminFeedbackEntries:[],feedbackAuthors:[],feedbackFilter:'all',feedbackType:'all',versionHistoryLatestFirst:false,versionHistoryDocumentedOnly:false,issue:null,maintenance:{enabled:false,message:''},systemUpdates:[],recoveryScan:null,misfiledReview:null,recoveryChecking:false,actionItems:[],actionPopupOpen:false,actionError:false};
+const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],monitorSchoolDetails:null,oversightUploads:[],oversightShowAllUploads:false,connectedFilter:'',monitorStatusFilter:'',reportFilter:'',navTrail:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:arrivedFromExpiredEmailLink?'resend':importedQueueTicket?'queue':'login',emailHelpReason:arrivedFromExpiredEmailLink?'expired':'',queueTicket:importedQueueTicket||localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],showRemovedAccounts:false,modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],districtHistory:[],documentDistrictStatuses:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],compliances:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewCompliances:[],reviewAllCompliances:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],notificationLimit:50,notificationHasMore:false,divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',districtData:{eligible:[],transmittals:[],items:[],claimable:[],people:[]},districtPicked:new Set(),districtSubmitPicked:new Set(),districtSelected:'',districtSchoolId:'',adminDocumentTypes:{types:[],requests:[]},documentDivisionStatuses:[],approverAssignments:[],announcementApproverEditing:null,announcementEditId:null,announcementEditorData:null,announcementCancelId:null,transmittalEditing:false,retrievalData:{},retrievalPicked:new Set(),retrievalSlipPicked:new Set(),retrievalScope:'all',retrievalOrder:'recent',retrievalTransmittal:'',retrievalTurnoverPicked:new Set(),retrievalDistrictPicked:new Set(),retrievalSearch:'',privateDetails:null,profileRequests:[],userFeedback:[],feedbackInbox:[],adminFeedbackEntries:[],feedbackAuthors:[],feedbackFilter:'all',feedbackType:'all',versionHistoryLatestFirst:false,versionHistoryDocumentedOnly:false,issue:null,maintenance:{enabled:false,message:''},systemUpdates:[],recoveryScan:null,misfiledReview:null,recoveryChecking:false,actionItems:[],actionPopupOpen:false,actionError:false,docAdminData:{documents:[],total_matching:0},docAdminScope:'active',docAdminSearch:'',docAdminTarget:null,docAdminStage:0};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=x=>x?new Date(x).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}):'—';
@@ -159,6 +159,7 @@ async function sync(){
   if(active())await readMaintenance();
   if(isOic()&&!['dashboard','announcements','notifications','monitoring','reports','settings','system-recovery','system-updates','feedback'].includes(state.view))rememberView('dashboard');
   if(!yesAdmin()&&['school-files','verification','approvals','archive','document-types','feedback-admin'].includes(state.view))rememberView('dashboard');
+  if(!isMain()&&state.view==='document-control')rememberView('dashboard');
   if(yesAdmin()&&['settings','feedback'].includes(state.view))rememberView('dashboard');
   if(!districtOversight()&&['reports','system-recovery'].includes(state.view))rememberView('dashboard');
   if(active())await load();else show();
@@ -299,7 +300,7 @@ async function load(){
    tasks.push((async()=>{const {data,error}=await db.from('announcements').select('id,announcement_code,title,description,status,deadline_at,original_deadline_at,created_at,cancelled_at,cancellation_reason').order('created_at',{ascending:false});if(error)throw error;state.announcements=data||[];if(!state.selectedId||!state.announcements.some(x=>x.id===state.selectedId))state.selectedId=state.announcements.find(x=>x.status!=='draft')?.id||'';})());
   }
   if(!isOic()&&['dashboard','documents','division','notifications'].includes(state.view)){
-   tasks.push((async()=>{const {data,error}=await db.from('documents').select('id,tracking_number,subject,document_type,status,destination,return_required,completion_kind,rightful_owner_id,notes,created_by,origin_school_id,created_at').order('created_at',{ascending:false}).limit(200);if(error)throw error;state.docs=data||[];if(state.view==='documents')await Promise.all([loadDocumentAttachments(),loadRoutingHistory(),loadDocumentTypes(),loadSchoolSubmissionDocuments(),loadCompliances()]);
+   tasks.push((async()=>{const {data,error}=await db.from('documents').select('id,tracking_number,subject,document_type,status,destination,return_required,completion_kind,rightful_owner_id,notes,created_by,origin_school_id,created_at').is('admin_removed_at',null).order('created_at',{ascending:false}).limit(200);if(error)throw error;state.docs=data||[];if(state.view==='documents')await Promise.all([loadDocumentAttachments(),loadRoutingHistory(),loadDocumentTypes(),loadSchoolSubmissionDocuments(),loadCompliances()]);
     else if(state.view==='dashboard')await loadRoutingHistory();
     await Promise.all([loadDocumentDivisionStatuses(),loadDocumentDistrictStatuses()]);})());
   }
@@ -316,6 +317,11 @@ async function load(){
     state.adminRegistrationQueue=waiting.data||[];
    })());
   }
+  if(state.view==='document-control'&&isMain())tasks.push((async()=>{
+   const {data,error}=await db.rpc('i_track_admin_documents',{p_scope:state.docAdminScope,p_search:state.docAdminSearch||null});
+   if(error)throw error;
+   state.docAdminData=data||{documents:[],total_matching:0};
+  })());
   if(state.view==='district')tasks.push((async()=>{
      const {data,error}=await db.rpc('i_track_district_list');
      if(error)throw error;state.districtData=data||{};
@@ -1095,11 +1101,11 @@ function pendingPage(){
 }
 const menu=[['dashboard','⌂ Home'],['announcements','▤ Announcements'],['notifications','◉ Notifications'],['monitoring','▥ Submission Status']];
 function appPage(){
- const nav=[...menu,...(!isOic()?[['documents','▣ My Documents'],['division','▤ Division Transmittals'],['district','▤ District Transmittals'],['retrieval','✓ Division Retrieval']]:[]),...(districtOversight()?[['reports','▥ District Reports'],['system-recovery','◷ Record Recovery']]:[]),...(yesAdmin()?[['feedback-admin','✎ Reports & Suggestions']]:[['feedback','✎ Report / Suggest']]),...(!yesAdmin()?[['settings','⚙ Personal Settings']]:[]),...((yesAdmin()||state.approverAssignments.some(x=>x.user_id===state.session.user.id))?[['verification','✓ Submission Verification']]:[]),...(yesAdmin()?[['school-files','▣ School Attachments'],['approvals','♙ Account Approvals'],['document-types','▦ Document Types'],['archive','▤ Archive Documents']]:[]),['system-updates','↻ System Updates']].map(([id,title])=>`<button class="${state.view===id?'active':''}" data-a="nav" data-page="${id}">${title}</button>`).join('');
- const title={dashboard:'Home',announcements:'Announcements',notifications:'Notifications',monitoring:'Submission Monitoring',documents:'My Documents',division:'Division Transmittals',district:'District Transmittals','document-types':'Document Types',retrieval:'Division Retrieval',settings:'Personal Settings',reports:'District Reports','system-recovery':'Record Recovery','system-updates':'System Updates',feedback:'Report / Suggest','feedback-admin':'Reports & Suggestions','school-files':'School Attachments',verification:'Submission Verification',approvals:'Account Management',archive:'Document Archiving'}[state.view]||'Overview';
+ const nav=[...menu,...(!isOic()?[['documents','▣ My Documents'],['division','▤ Division Transmittals'],['district','▤ District Transmittals'],['retrieval','✓ Division Retrieval']]:[]),...(districtOversight()?[['reports','▥ District Reports'],['system-recovery','◷ Record Recovery']]:[]),...(yesAdmin()?[['feedback-admin','✎ Reports & Suggestions']]:[['feedback','✎ Report / Suggest']]),...(!yesAdmin()?[['settings','⚙ Personal Settings']]:[]),...((yesAdmin()||state.approverAssignments.some(x=>x.user_id===state.session.user.id))?[['verification','✓ Submission Verification']]:[]),...(yesAdmin()?[['school-files','▣ School Attachments'],['approvals','♙ Account Approvals'],['document-types','▦ Document Types'],['archive','▤ Archive Documents']]:[]),...(isMain()?[['document-control','▣ Document Control / Trash']]:[]),['system-updates','↻ System Updates']].map(([id,title])=>`<button class="${state.view===id?'active':''}" data-a="nav" data-page="${id}">${title}</button>`).join('');
+ const title={dashboard:'Home',announcements:'Announcements',notifications:'Notifications',monitoring:'Submission Monitoring',documents:'My Documents',division:'Division Transmittals',district:'District Transmittals','document-types':'Document Types',retrieval:'Division Retrieval',settings:'Personal Settings',reports:'District Reports','system-recovery':'Record Recovery','system-updates':'System Updates',feedback:'Report / Suggest','feedback-admin':'Reports & Suggestions','school-files':'School Attachments',verification:'Submission Verification',approvals:'Account Management',archive:'Document Archiving','document-control':'Document Control / Trash'}[state.view]||'Overview';
  const school=state.schools.find(x=>x.id===state.profile.school_id)?.name||'District Office';
  const name=state.profile.display_name||(isOic()?'OIC-PSDS':yesAdmin()?'District Administrator':'School Personnel');
- let body={dashboard:dashboardPage,announcements:announcementPage,notifications:notificationsPage,monitoring:monitorPage,documents:documentPage,division:divisionPage,district:districtPage,'document-types':documentTypesAdminPage,retrieval:retrievalPage,settings:settingsPage,reports:districtReportPage,'system-updates':systemUpdatesPage,'system-recovery':systemRecoveryPage,feedback:feedbackPage,'feedback-admin':feedbackAdminPage,'school-files':schoolAttachmentsPage,verification:verificationPage,approvals:approvalPage,archive:archivePage}[state.view]?.()||dashboardPage();
+ let body={dashboard:dashboardPage,announcements:announcementPage,notifications:notificationsPage,monitoring:monitorPage,documents:documentPage,division:divisionPage,district:districtPage,'document-types':documentTypesAdminPage,retrieval:retrievalPage,settings:settingsPage,reports:districtReportPage,'system-updates':systemUpdatesPage,'system-recovery':systemRecoveryPage,feedback:feedbackPage,'feedback-admin':feedbackAdminPage,'school-files':schoolAttachmentsPage,verification:verificationPage,approvals:approvalPage,archive:archivePage,'document-control':documentControlPage}[state.view]?.()||dashboardPage();
  if(state.view==='dashboard')body=body+systemUpdatePanel();
  if(state.view==='dashboard'&&yesAdmin())body='<section class="panel" style="padding:20px;margin:16px 0;border:2px solid #d7bd6b"><h3>🔧 System Maintenance</h3><p class="note">Pause access for regular users while admins continue working.</p><p><strong>Status: '+(state.maintenance.enabled?'MAINTENANCE ON':'Running normally')+'</strong></p><button class="btn" data-a="maintenance-toggle">'+(state.maintenance.enabled?'Turn OFF Maintenance — Reopen App':'Turn ON Maintenance — Pause Users')+'</button></section>'+body;
  // Read-only presentation context for the upload panel. Not an authorization
@@ -2097,6 +2103,71 @@ function approvalPage(){
     '<button type="button" class="btn tiny alt" data-a="queue-admin-reissue" data-queue-number="'+esc(q.queue_number)+'">Reissue Private Link</button>':'—')+'</td></tr>';
   }))+'</section>';
 }
+
+function documentControlPage(){
+ if(!isMain())return '<div class="notice danger">Only the Main Administrator can access Document Control.</div>';
+ const data=state.docAdminData||{},docs=data.documents||[];
+ const scope=state.docAdminScope||'active';
+ const search=state.docAdminSearch||'';
+ const scopeButtons=[['active','Active Documents'],['trash','Recoverable Trash'],['all','All Documents']].map(([id,name])=>
+  '<button type="button" class="btn tiny '+(scope===id?'':'alt')+'" data-a="doc-control-scope" data-scope="'+id+'">'+name+'</button>').join('');
+ const rows=docs.map(d=>{
+  const removed=!!d.admin_removed_at;
+  return '<div class="doc-control-item"><div class="doc-control-item-body">'+
+   '<div><strong>'+esc(d.tracking_number)+'</strong> '+pTag(removed?'removed':d.status)+'</div>'+
+   '<h4>'+esc(d.subject||'Untitled document')+'</h4>'+
+   '<p class="small muted">'+esc(d.document_type||'Document')+' · '+esc(d.school_name||'District Office')+
+   ' · Uploaded by '+esc(d.uploader_name||'Unknown')+'</p>'+
+   '<p class="small muted">Created '+esc(date(d.created_at))+
+   ' · '+Number(d.route_count||0)+' routing step(s) · '+Number(d.file_count||0)+' attachment(s)'+
+   ' · '+Number(d.division_count||0)+' Division transmittal item(s)'+
+   ' · '+Number(d.district_count||0)+' District transmittal item(s)</p>'+
+   (removed?'<p class="small muted"><strong>In Trash since '+esc(date(d.admin_removed_at))+'</strong> · '+esc(d.admin_removed_reason||'Reason not recorded')+'</p>':'')+
+   '</div><div class="doc-control-item-actions">'+
+   '<button type="button" class="btn tiny '+(removed?'alt danger':'danger')+'" data-a="doc-control-open" data-id="'+esc(d.id)+'">'+
+   (removed?'Review & Restore':'Review & Remove')+'</button></div></div>';
+ }).join('');
+ const target=state.docAdminTarget ? docs.find(d=>d.id===state.docAdminTarget):null;
+ const action=target?.admin_removed_at?'restore':'remove',isRemove=action==='remove';
+ const phrase=target?(isRemove?'REMOVE ':'RESTORE ')+target.tracking_number:'';
+ const warnings=target?
+  '<ul><li>Confirm this is the correct tracking number, title and school.</li>'+
+  '<li>Related route history, transmittals, and uploaded attachments remain preserved for audit purposes.</li>'+
+  '<li>Removal hides this record from the active document register. It does not erase physical custody records or Drive files.</li></ul>':'';
+ const checks=target?(isRemove?[
+   'I verified the tracking number, title, and school.',
+   'I checked the number of attachments and linked transmittal records.',
+   'I understand this is a reversible administrative removal, not permanent erasure.'
+ ]:[
+   'I understand that restoring the document makes it visible in normal document lists again.'
+ ]).map((v,i)=>'<label class="doc-control-check"><input type="checkbox" class="doc-control-check-input" value="'+i+'"> '+esc(v)+'</label>').join(''):'';
+ const dialog=target?
+  '<div class="doc-control-backdrop"><section class="doc-control-dialog" role="dialog" aria-modal="true" aria-labelledby="doc-control-dialog-title">'+
+  '<div class="doc-control-dialog-head"><h3 id="doc-control-dialog-title">'+(isRemove?'Remove Document':'Restore Document')+' · Step '+state.docAdminStage+' of 2</h3>'+
+  '<button type="button" class="btn tiny alt" data-a="doc-control-close">Cancel</button></div>'+
+  '<div class="doc-control-dialog-body"><p><strong>'+esc(target.tracking_number)+'</strong> · '+esc(target.subject)+'</p>'+
+  '<p class="small muted">'+esc(target.school_name||'District Office')+' · '+esc(target.uploader_name||'')+'</p>'+
+  (state.docAdminStage===1?
+    warnings+'<div class="doc-control-checks">'+checks+'</div>'+
+    '<button type="button" class="btn" data-a="doc-control-next">I Understand — Next Step</button>':
+    '<p class="note">For protection, type the exact tracking number and confirmation phrase. A written reason is required.</p>'+
+    '<div class="field"><label for="doc-control-tracking">Type exact tracking number</label><input id="doc-control-tracking" autocomplete="off" placeholder="'+esc(target.tracking_number)+'"></div>'+
+    '<div class="field"><label for="doc-control-phrase">Type exact phrase: <strong>'+esc(phrase)+'</strong></label><input id="doc-control-phrase" autocomplete="off" placeholder="'+esc(phrase)+'"></div>'+
+    '<div class="field"><label for="doc-control-reason">Reason for this '+(isRemove?'removal':'restoration')+' (minimum 15 characters)</label>'+
+    '<textarea id="doc-control-reason" rows="3" maxlength="1000" placeholder="Explain why this administrative action is necessary"></textarea></div>'+
+    '<button type="button" class="btn danger" data-a="doc-control-execute">'+(isRemove?'Confirm Move to Trash':'Confirm Restore Document')+'</button>')+
+  '</div></section></div>':'';
+ return '<div class="sectionhead"><div><div class="eyebrow">Main Administrator · Restricted</div><h1>Document Control & Recoverable Trash</h1>'+
+ '<p class="sub">Manage any district document with a recorded administrator action. Original tracking numbers, attachments, transmittals, and routing history remain preserved.</p></div></div>'+
+ '<section class="panel"><h3>Protected Management</h3>'+
+ '<div class="notice warn">The system deliberately does not offer one-click permanent deletion. Only the Main Administrator can move a document to Trash or restore it; every action requires an exact confirmation phrase and a reason.</div>'+
+ '<div class="toolbar">'+scopeButtons+'</div>'+
+ '<div class="toolbar"><input type="search" id="doc-control-search" placeholder="Search tracking number or document title" value="'+esc(search)+'">'+
+ '<button type="button" class="btn alt" data-a="doc-control-search">Search</button><button type="button" class="btn tiny alt" data-a="doc-control-refresh">Refresh</button></div>'+
+ '<p class="small muted">'+Number(data.total_matching||0)+' matching document(s) · Showing up to 200 most recent records in this view</p>'+
+ '<div class="doc-control-list">'+(rows||'<p class="note">No documents match the current search.</p>')+'</div></section>'+dialog;
+}
+
 function archivePage(){return `<div class="eyebrow">Administrator controls</div><h1>Archive Documents</h1><p class="sub">Two-month archival to an SSD after verification.</p><div class="panel"><div class="notice warn"><b>Not yet enabled.</b> This will prepare downloadable archives, verify copies, and require administrator confirmation before any Drive files are deleted.</div><button class="btn" disabled>Archive Documents</button><p class="note" style="margin-top:12px">Submission metadata and audit history will remain in Supabase after archiving.</p></div>`;}
 function modalHtml(){
  const m=state.modal;let title='',body='',footer='';
@@ -2333,6 +2404,53 @@ async function click(e){
  const t=e.target.closest('[data-a]');if(!t||state.busy)return;
  const a=t.dataset.a;
  try{
+  if(a==='doc-control-scope'){
+   if(!isMain()||state.view!=='document-control')throw Error('Main Administrator access required.');
+   state.docAdminScope=t.dataset.scope||'active';state.docAdminTarget=null;await load();return;
+  }
+  if(a==='doc-control-search'||a==='doc-control-refresh'){
+   if(!isMain()||state.view!=='document-control')throw Error('Main Administrator access required.');
+   state.docAdminSearch=String(document.getElementById('doc-control-search')?.value||'').trim();
+   state.docAdminTarget=null;await load();return;
+  }
+  if(a==='doc-control-open'){
+   if(!isMain()||state.view!=='document-control')throw Error('Main Administrator access required.');
+   const d=(state.docAdminData.documents||[]).find(x=>x.id===t.dataset.id);
+   if(!d)throw Error('Document not available. Refresh the administrator list.');
+   state.docAdminTarget=d.id;state.docAdminStage=1;state.actionPopupOpen=false;show();return;
+  }
+  if(a==='doc-control-close'){state.docAdminTarget=null;state.docAdminStage=0;show();return;}
+  if(a==='doc-control-next'){
+   if(!isMain()||state.view!=='document-control'||state.docAdminStage!==1)throw Error('Invalid document control action.');
+   const checks=[...document.querySelectorAll('.doc-control-check-input')];
+   if(!checks.length||checks.some(x=>!x.checked))throw Error('Read and check every confirmation before proceeding.');
+   state.docAdminStage=2;show();return;
+  }
+  if(a==='doc-control-execute'){
+   if(!isMain()||state.view!=='document-control'||state.docAdminStage!==2)throw Error('Invalid document control action.');
+   const d=(state.docAdminData.documents||[]).find(x=>x.id===state.docAdminTarget);
+   if(!d)throw Error('Document selection changed. Refresh and choose again.');
+   const action=d.admin_removed_at?'restore':'remove';
+   const tracking=document.getElementById('doc-control-tracking')?.value.trim();
+   const phrase=document.getElementById('doc-control-phrase')?.value.trim();
+   const reason=document.getElementById('doc-control-reason')?.value.trim();
+   const expected=(action==='remove'?'REMOVE ':'RESTORE ')+d.tracking_number;
+   if(tracking!==d.tracking_number||phrase!==expected)throw Error('Tracking number or confirmation phrase does not match.');
+   if(!reason||reason.length<15||reason.length>1000)throw Error('Enter a meaningful reason of 15–1000 characters.');
+   if(!confirm((action==='remove'?'Move ':'Restore ')+d.tracking_number+
+    (action==='remove'?' to recoverable Trash? Routing records, attachments, and Division/District histories are preserved.':' back into normal document lists?')+
+    '\n\nFinal administrator confirmation.'))return;
+   state.busy=true;
+   try{
+    const {error}=await db.rpc('i_track_admin_document_control',{
+     p_document:d.id,p_action:action,p_tracking:tracking,p_confirm:phrase,p_reason:reason
+    });
+    if(error)throw error;
+    state.docAdminTarget=null;state.docAdminStage=0;await load();
+    pop(action==='remove'?'Document moved to recoverable Trash.':'Document restored from Trash.');
+   }finally{state.busy=false;}
+   return;
+  }
   if(a==='action-close'){state.actionPopupOpen=false;show();return;}
   if(a==='action-open'){state.actionPopupOpen=true;show();return;}
   if(a==='action-refresh'){await loadActionInbox();state.actionPopupOpen=true;show();return;}
