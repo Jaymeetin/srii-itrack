@@ -2053,7 +2053,7 @@ function modalHtml(){
      '<textarea name="notes" id="doc-notes" rows="3" placeholder="Type your instructions or other details here…"></textarea></div>'+
     '<div class="field route-attachment-field"><label for="doc-attachments">Attachments <span class="route-optional">(optional)</span></label>'+
      '<div class="route-attachment-picker"><input id="doc-attachments" type="file" multiple accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp">'+
-      '<p id="doc-attachment-selection" class="route-field-note">PDF, Word or images · Up to 5 files, 4 MB each</p></div></div>'+
+      '<p id="doc-attachment-selection" class="route-field-note">PDF, Word and images · Unlimited files, 30 MB combined</p>'+'<p id="doc-attachment-alert" class="route-attachment-alert" role="alert" hidden></p>'+'<a id="doc-pdf-compression" href="https://www.ilovepdf.com/compress_pdf" target="_blank" rel="noopener noreferrer" hidden>Compress PDFs at iLovePDF ↗</a>'+'<p class="route-field-note">Images compress automatically on your device. Avoid sending confidential PDFs to external services unless permitted.</p></div></div>'+
     '<p id="doc-save-message" class="route-save-message" role="status" aria-live="polite"></p>'+
    '</form>'+
    '<details class="route-type-suggestion"><summary>Missing a document type?</summary>'+
@@ -3100,29 +3100,13 @@ async function click(e){
   }
  }catch(e){err(e);}
 }
-async function uploadNewDocumentAttachment(documentId,file){
- const MIME={pdf:'application/pdf',doc:'application/msword',docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',webp:'image/webp'};
- const ext=file.name.split('.').pop().toLowerCase(),mime=MIME[ext];
- if(!mime)throw Error('Unsupported attachment format: '+file.name);
+async function uploadNewDocumentAttachment(documentId,file,onProgress){
+ const upload=window.ITRACK_UPLOAD;
+ if(!upload?.mimeFor(file))throw Error('Unsupported attachment format: '+file.name);
  const {data:{session},error:sessionError}=await db.auth.getSession();
- if(sessionError||!session?.access_token)throw Error('Login expired while uploading. The document is already saved; sign in again and attach the file from My Documents.');
- const base64=await new Promise((resolve,reject)=>{
-  const reader=new FileReader();
-  reader.onload=()=>resolve(String(reader.result).split(',')[1]);
-  reader.onerror=()=>reject(Error('Could not read '+file.name));
-  reader.readAsDataURL(file);
- });
- const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),70000);
- try{
-  const response=await fetch(window.ITRACK_CONFIG.url+'/functions/v1/itrack-upload',{
-   method:'POST',headers:{'Content-Type':'application/json',apikey:window.ITRACK_CONFIG.publishableKey,
-    Authorization:'Bearer '+session.access_token},
-   body:JSON.stringify({target_type:'document',target_id:documentId,file_name:file.name,mime_type:mime,content_base64:base64}),
-   signal:controller.signal
-  });
-  const answer=await response.json().catch(()=>({}));
-  if(!response.ok||!answer.ok)throw Error(answer.error||'Upload was not accepted: HTTP '+response.status);
- }finally{clearTimeout(timeout);}
+ if(sessionError||!session?.access_token)throw Error('Login expired while uploading. Document record may already be saved; sign in again and check attachments.');
+ return await upload.upload({file,targetType:'document',targetId:documentId,
+  token:session.access_token,url:window.ITRACK_CONFIG.url,apikey:window.ITRACK_CONFIG.publishableKey,onProgress});
 }
 async function submit(e){
  const form=e.target;if(!['queue-join','queue-complete','login','resend-email','forgot-password','set-password','form-ann','form-ann-edit','form-doc','settings-email-form','settings-password-form','settings-profile-form','settings-private-form','settings-feedback-form','admin-feedback-form'].includes(form.id))return;
@@ -3356,49 +3340,74 @@ async function submit(e){
    state.modal=null;rememberView('announcements');await load();pop('Announcement created.');return;
   }
   if(form.id==='form-doc'){
-   const params={p_subject:clean(fd.get('subject')),p_document_type:clean(fd.get('type')),
-    p_recipient_id:clean(fd.get('recipient'))||null,p_destination:clean(fd.get('destination'))||'school',
-    p_return_required:['district','division'].includes(clean(fd.get('destination')))?clean(fd.get('return_required'))==='yes':true,p_notes:clean(fd.get('notes'))};
-   if(params.p_destination==='personal')params.p_recipient_id=null;
-   if(params.p_recipient_id===state.session.user.id)params.p_recipient_id=null; // Choosing your own name saves In School, without a self-directed route.
-   if(!params.p_subject||!params.p_document_type)throw Error('Enter the document title and type.');
-   if(!state.docTypes.some(x=>x.name===params.p_document_type))throw Error('Choose an approved document type.');
-   if(!['school','district','division','personal'].includes(params.p_destination))throw Error('Choose a destination.');
-   const files=[...(form.querySelector('#doc-attachments')?.files||[])];
-   const allowed=/\.(pdf|doc|docx|jpg|jpeg|png|webp)$/i;
-   if(files.length>5)throw Error('Select no more than 5 attachments.');
-   for(const file of files)if(file.size<1||file.size>4*1024*1024||!allowed.test(file.name))throw Error('Each file must be a supported PDF, Word document or image of 1 byte to 4 MB.');
-   let tracking=form.dataset.savedTracking||'';
-   const report=form.querySelector('#doc-save-message');
-   if(!tracking){
-    const recipientName=state.recipients.find(x=>x.user_id===params.p_recipient_id)?.display_name;
-    if(!confirm(params.p_destination==='personal'?'Save this document as a Completed Personal Record? It can be edited or forwarded later.':
-     params.p_recipient_id?'Route this document to '+recipientName+'?':
-     'Save this document '+(params.p_destination==='district'?'for District transmittal':params.p_destination==='division'?'for Division transmittal':'In School')+' with no recipient?'))return;
-    if(report)report.textContent='Saving document and tracking number…';
-    const {data,error}=await db.rpc('i_track_create_document',params);
-    if(error)throw error;
-    tracking=data;
-    form.dataset.savedTracking=tracking;
-   }
-   if(report)report.textContent='Saved as '+tracking+'. Preparing attachments…';
-   let docId=form.dataset.savedDocumentId;
-   if(!docId){
-    const found=await db.from('documents').select('id').eq('tracking_number',tracking).eq('created_by',state.session.user.id).single();
-    if(found.error)throw Error('Document '+tracking+' was saved, but its ID could not be loaded. Please use My Documents to add any remaining attachments. '+found.error.message);
-    docId=found.data.id;form.dataset.savedDocumentId=docId;
-   }
-   if(!form._uploadedAttachments)form._uploadedAttachments=new Set();
-   for(let n=0;n<files.length;n++){
-    const file=files[n],key=n+':'+file.name+':'+file.size;
-    if(form._uploadedAttachments.has(key))continue;
-    if(report)report.textContent='Document '+tracking+' saved. Uploading attachment '+(n+1)+' of '+files.length+': '+file.name;
-    await uploadNewDocumentAttachment(docId,file);
-    form._uploadedAttachments.add(key);
-   }
-   state.modal=null;rememberView('documents');await load();
-   pop('Document '+tracking+' saved'+(files.length?' with '+files.length+' attachment(s)':'')+'.');
-   return;
+   const helper=window.ITRACK_UPLOAD;
+   if(!helper)throw Error('Upload controls did not load. Refresh the app.');
+   let overlay=null;
+   try{
+    const params={p_subject:clean(fd.get('subject')),p_document_type:clean(fd.get('type')),
+     p_recipient_id:clean(fd.get('recipient'))||null,p_destination:clean(fd.get('destination'))||'school',
+     p_return_required:['district','division'].includes(clean(fd.get('destination')))?clean(fd.get('return_required'))==='yes':true,p_notes:clean(fd.get('notes'))};
+    if(params.p_destination==='personal')params.p_recipient_id=null;
+    if(params.p_recipient_id===state.session.user.id)params.p_recipient_id=null;
+    if(!params.p_subject||!params.p_document_type)throw Error('Enter the document title and type.');
+    if(!state.docTypes.some(x=>x.name===params.p_document_type))throw Error('Choose an approved document type.');
+    if(!['school','district','division','personal'].includes(params.p_destination))throw Error('Choose a destination.');
+    const picker=form.querySelector('#doc-attachments');
+    const originals=[...(picker?.files||[])];
+    if(picker?._preparingPromise)await picker._preparingPromise;
+    const files=picker?._preparedFiles||await helper.prepare(originals);
+    const warning=helper.sizeError(files);
+    if(warning)throw Error(warning);
+    if(files.some(f=>!helper.mimeFor(f)||f.size<1))throw Error('Select nonempty PDF, Word or image files only.');
+    let tracking=form.dataset.savedTracking||'';
+    const report=form.querySelector('#doc-save-message');
+    if(!tracking){
+     const recipientName=state.recipients.find(x=>x.user_id===params.p_recipient_id)?.display_name;
+     if(!confirm(params.p_destination==='personal'?'Save this document as a Completed Personal Record? It can be edited or forwarded later.':
+      params.p_recipient_id?'Route this document to '+recipientName+'?':
+      'Save this document '+(params.p_destination==='district'?'for District transmittal':params.p_destination==='division'?'for Division transmittal':'In School')+' with no recipient?'))return;
+    }
+    overlay=helper.progressDialog(files.length?'Routing and uploading document':'Saving document');
+    overlay.update('Saving document details and tracking number…');
+    if(!tracking){
+     const {data,error}=await db.rpc('i_track_create_document',params);
+     if(error)throw error;
+     tracking=data;form.dataset.savedTracking=tracking;
+    }
+    if(report)report.textContent='Saved as '+tracking+'. Preparing attachments…';
+    let docId=form.dataset.savedDocumentId;
+    if(!docId){
+     const found=await db.from('documents').select('id').eq('tracking_number',tracking).eq('created_by',state.session.user.id).single();
+     if(found.error)throw Error('Document '+tracking+' was saved, but its ID could not be loaded. Check My Documents. '+found.error.message);
+     docId=found.data.id;form.dataset.savedDocumentId=docId;
+    }
+    if(!form._uploadedAttachments)form._uploadedAttachments=new Set();
+    const totalBytes=files.reduce((sum,f)=>sum+f.size,0);
+    let uploadedBytes=0;
+    for(let n=0;n<files.length;n++){
+     const file=files[n],original=originals[n]||file;
+     const key=n+':'+original.name+':'+original.size;
+     if(form._uploadedAttachments.has(key)){uploadedBytes+=file.size;continue;}
+     if(report)report.textContent='Document '+tracking+' saved. Uploading attachment '+(n+1)+' of '+files.length+': '+file.name;
+     overlay.update('Preparing attachment '+(n+1)+' of '+files.length+': '+file.name);
+     await uploadNewDocumentAttachment(docId,file,stage=>{
+      if(stage.phase==='transferring'){
+       const ratio=totalBytes?100*(uploadedBytes+file.size*stage.percent/100)/totalBytes:0;
+       overlay.update('Uploading attachment '+(n+1)+' of '+files.length+': '+file.name,Math.round(ratio));
+      }else if(stage.phase==='reading')overlay.update('Preparing '+file.name+' on your device…');
+      else if(stage.phase==='confirming')overlay.update('Confirming the Google Drive receipt for '+file.name+'…');
+     });
+     form._uploadedAttachments.add(key);uploadedBytes+=file.size;
+    }
+    overlay.update('All files confirmed. Refreshing routing history…',100);
+    state.modal=null;rememberView('documents');await load();
+    pop('Document '+tracking+' saved and routed'+(files.length?' with '+files.length+' attachment(s)':'')+'.');
+    return;
+   }catch(error){
+    const tracking=form.dataset.savedTracking,report=form.querySelector('#doc-save-message');
+    if(report&&tracking)report.textContent='Document '+tracking+' exists but one or more attachments are not confirmed. Check My Documents or the upload log before retrying. '+(error.message||error);
+    throw error;
+   }finally{overlay?.close();}
   }
  }catch(e){err(e);}finally{state.busy=false;form.querySelectorAll('button[type=submit]').forEach(x=>{x.disabled=false;});}
 }
@@ -3471,8 +3480,31 @@ $.addEventListener('change',async e=>{
  }
  if(['document-status-filter','document-date-filter'].includes(e.target.id)){filterDocumentRegistry();return;}
  if(e.target.id==='doc-attachments'){
-  const files=[...(e.target.files||[])],message=document.getElementById('doc-attachment-selection');
-  if(message)message.textContent=files.length?files.map(f=>f.name+' ('+(f.size/1024/1024).toFixed(2)+' MB)').join(' · '):'No attachments selected.';
+  const picker=e.target,files=[...(picker.files||[])],message=document.getElementById('doc-attachment-selection');
+  const alert=document.getElementById('doc-attachment-alert'),link=document.getElementById('doc-pdf-compression');
+  const helper=window.ITRACK_UPLOAD;
+  const version=(picker._prepareVersion||0)+1;picker._prepareVersion=version;
+  picker._preparedFiles=null;
+  if(message)message.textContent=files.length?'Automatically compressing selected pictures…':'No attachments selected.';
+  if(alert){alert.hidden=true;alert.textContent='';}
+  if(link)link.hidden=true;
+  picker._preparingPromise=(async()=>{
+   const ready=await helper.prepare(files);
+   if(picker._prepareVersion!==version)return;
+   picker._preparedFiles=ready;
+   const bytes=ready.reduce((sum,f)=>sum+f.size,0);
+   const detail=ready.map((f,i)=>f.name+' ('+helper.fmt(f.size)+(f.size<files[i].size?' · compressed':'')+')').join(' · ');
+   if(message)message.textContent=ready.length?ready.length+' attachment(s) · '+helper.fmt(bytes)+' of 30 MB. '+detail:'No attachments selected.';
+   const warning=helper.sizeError(ready);
+   if(alert){alert.hidden=!warning;alert.textContent=warning;}
+   if(link)link.hidden=!(warning&&ready.some(f=>helper.mimeFor(f)==='application/pdf'));
+  })().catch(error=>{
+   if(picker._prepareVersion!==version)return;
+   if(message)message.textContent='Could not prepare selected files.';
+   if(alert){alert.hidden=false;alert.textContent=error.message||String(error);}
+   throw error;
+  });
+  picker._preparingPromise.catch(()=>{});
   return;
  }
  if(e.target.id==='division-current'){state.divisionSelected=e.target.value;state.transmittalEditing=false;show();return;}

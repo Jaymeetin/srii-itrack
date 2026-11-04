@@ -1,0 +1,17 @@
+/* SRII i-TRACK: authentic document-routing transfer progress. */
+.srii-upload-overlay{position:fixed;inset:0;z-index:100100;background:rgba(10,23,53,.66);display:grid;place-items:center;padding:20px;backdrop-filter:blur(3px)}
+.srii-upload-dialog{background:var(--paper,#fff);color:var(--text,#162337);border:1px solid var(--line,#dae2ed);border-radius:20px;padding:28px;width:min(100%,470px);box-shadow:0 20px 65px #0005;text-align:center}
+.srii-upload-dialog h2{font-size:21px;margin:8px 0 12px;line-height:1.3}
+.srii-upload-symbol{width:54px;height:54px;border-radius:15px;background:#173e88;color:#fff;font-size:34px;font-weight:800;margin:0 auto;display:flex;align-items:center;justify-content:center}
+.srii-upload-step{font-size:13px;min-height:42px;overflow-wrap:anywhere;line-height:1.55;margin:8px 0 15px}
+.srii-upload-meter{height:12px;background:#e7ecf5;border-radius:99px;overflow:hidden;position:relative}
+.srii-upload-meter-fill{background:#2452a2;height:100%;transition:width .15s ease;border-radius:99px}
+.srii-upload-meter-fill.indeterminate{width:40%!important;position:absolute;animation:srii-upload-indeterminate 1.5s linear infinite}
+.srii-upload-percent{display:block;font-size:14px;margin-top:12px}
+.srii-upload-explain{font-size:12px;color:var(--muted,#637286);margin:10px 0 0}
+.route-attachment-alert{color:#9c2e2e;background:#fff0ef;border:1px solid #f0b6b1;border-radius:10px;padding:12px;line-height:1.5;font-size:12px;overflow-wrap:anywhere}
+.route-attachment-alert[hidden],#doc-pdf-compression[hidden]{display:none!important}
+#doc-pdf-compression{display:inline-flex;font-weight:750;margin:8px 0;color:#174a99;text-decoration:underline}
+#doc-attachment-selection{max-height:210px;overflow-y:auto;overflow-wrap:anywhere}
+@keyframes srii-upload-indeterminate{from{left:-42%}to{left:100%}}
+@media(prefers-reduced-motion:reduce){.srii-upload-meter-fill.indeterminate{animation:none;left:30%}}
