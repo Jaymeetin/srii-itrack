@@ -273,7 +273,7 @@ function actionPopupHtml(){
   '<button type="button" class="btn tiny alt" data-a="action-close" aria-label="Close action reminder">Close</button></div>'+
   '<div class="action-inbox-list">'+(rows||'<p class="note">No items currently need your action.</p>')+'</div>'+
   (state.actionError?'<p class="note">Some queues could not be checked. Refresh the page to retry.</p>':'')+
-  '<div class="action-inbox-foot"><button type="button" class="btn alt" data-a="action-close">Remind Me Later</button>'+
+  '<div class="action-inbox-foot"><button type="button" class="btn alt" data-a="action-close">Not Now</button>'+
   '<button type="button" class="btn" data-a="action-refresh">Refresh Actions</button></div>'+
   '</section></div>';
 }
