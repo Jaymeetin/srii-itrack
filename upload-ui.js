@@ -423,49 +423,41 @@ async function toBase64(file,onProgress){
  });
 }
 async function upload(node,kind){
- if(node.dataset.processing==="yes")return;
+ if(node.dataset.processing==="yes"||node._iuPreparing)return;
  const f=node._iuFile,id=node.querySelector(".iu-select")?.value;
- const target=node._iuOptions?.find(x=>x.id===id);
+ const target=node._iuOptions?.find(x=>x.id===id),helper=window.ITRACK_UPLOAD;
  if(!f||!id||!target){notify(node,"Choose both a requirement and a file.","error");return;}
- if(kind==="announcement"&&!node._iuConfirmed){
-   notify(node,"Please confirm the school and announcement before uploading.","error");return;
- }
- if(f.size>MB||f.size<1){notify(node,"File must be between 1 byte and 4 MB. Compress screenshots first if needed.","error");return;}
- const mime=mimeFor(f);
- if(!mime){notify(node,"File extension is not supported.","error");return;}
- const destination=kind==="announcement"?
-  "School: "+target.schoolName+"\nAnnouncement: "+(target.announcementCode?target.announcementCode+" — ":"")+target.announcementTitle:
-  target.label;
- if(!confirm("FINAL UPLOAD CONFIRMATION\n\nFile: "+f.name+" ("+size(f.size)+")\n\n"+destination+
-   "\n\nUpload this file to the private district Google Drive for exactly this destination?"))return;
+ if(kind==="announcement"&&!node._iuConfirmed){notify(node,"Confirm the school and announcement before uploading.","error");return;}
+ if(f.size>MB||f.size<1){notify(node,"This file exceeds 30 MB. Compress the PDF or reduce its size first.","error");return;}
+ if(!mimeFor(f)){notify(node,"File extension is not supported.","error");return;}
  setProcessing(node,true);
- updateUploadPhase(node,"Checking your account…");
- notify(node,"Preparing to upload. Keep this page open.");
- let timer=null;
  try{
+  if(kind==="document"){
+   const {data:current,error:existingError}=await db.from("document_attachments")
+    .select("file_size_bytes").eq("document_id",id);
+   if(existingError)throw Error("Could not verify the existing attachment sizes. Retry when connected.");
+   const existing=(current||[]).reduce((n,x)=>n+Number(x.file_size_bytes||0),0);
+   const warning=helper.sizeError([f],existing);
+   if(warning){notify(node,warning,"error");return;}
+  }
+  const destination=kind==="announcement"?
+   "School: "+target.schoolName+"\nAnnouncement: "+(target.announcementCode?target.announcementCode+" — ":"")+target.announcementTitle:
+   target.label;
+  if(!confirm("FINAL UPLOAD CONFIRMATION\n\nFile: "+f.name+" ("+size(f.size)+")\n\n"+destination+
+   "\n\nUpload this file to the private district Google Drive for this destination?"))return;
+  updateUploadPhase(node,"Checking your login…");
+  notify(node,"Preparing your secure upload. Keep this page open.");
   const {data:{session}}=await db.auth.getSession();
   if(!session?.access_token)throw Error("Your session expired. Please sign in again.");
-  updateUploadPhase(node,"Reading the selected file on your device…",0);
-  const base64=await toBase64(f,pct=>updateUploadPhase(node,"Reading file: "+pct+"% (local preparation)",pct));
-  updateUploadPhase(node,"Transferring file to the secure server… (transfer percentage unavailable)");
-  const controller=new AbortController();
-  timer=setTimeout(()=>controller.abort(),70000);
-  const reply=await fetch(settings.url+"/functions/v1/itrack-upload",{
-   method:"POST",
-   headers:{
-    "Content-Type":"application/json",
-    apikey:settings.publishableKey,
-    Authorization:"Bearer "+session.access_token
-   },
-   body:JSON.stringify({
-    target_type:kind,target_id:id,file_name:f.name,
-    mime_type:mime,content_base64:base64
-   }),
-   signal:controller.signal
+  const body=await helper.upload({
+   file:f,targetType:kind,targetId:id,token:session.access_token,
+   url:settings.url,apikey:settings.publishableKey,
+   onProgress:stage=>{
+    if(stage.phase==="reading")updateUploadPhase(node,"Preparing on device: "+stage.percent+"% (not yet uploaded)",null);
+    else if(stage.phase==="transferring")updateUploadPhase(node,"Uploading: "+stage.percent+"% transferred",stage.percent);
+    else if(stage.phase==="confirming")updateUploadPhase(node,"Transfer finished. Waiting for Google Drive and database confirmation…",null);
+   }
   });
-  updateUploadPhase(node,"Checking the secure server and Google Drive confirmation…");
-  const body=await reply.json().catch(()=>({}));
-  if(!reply.ok||!body.ok)throw Error(body.error||"Upload was not accepted. Status "+reply.status);
   updateUploadPhase(node,"File upload confirmed and recorded.",100);
   node._iuFile=null;node._iuOriginal=null;node.querySelector(".iu-input").value="";
   if(kind==="announcement"){
@@ -475,7 +467,6 @@ async function upload(node,kind){
   }
   updateFile(node);
   await refreshHistory(node,kind);
-  // Update the inline attachment beside Open without rebuilding the upload form.
   if(kind==="document")window.dispatchEvent(new CustomEvent("itrack:document-uploaded",{detail:{documentId:id}}));
   if(kind==="announcement"&&node._iuDelegated){
    window.dispatchEvent(new CustomEvent("itrack:school-submitted",{detail:{
@@ -484,15 +475,13 @@ async function upload(node,kind){
   }
   notify(node,"File uploaded and recorded successfully! Received: "+displayTime(body.received_at)+". "+
    (body.stored_file_name?"Saved in Drive as: "+body.stored_file_name+". ":"")+
-   "Recorded as a submission for "+(node._iuDelegated?"the selected school":"your school")+
-   ". Only the District Administrator verifies submissions; no school approval is required.","success");
- }catch(e){
-  updateUploadPhase(node,"Upload not confirmed. Check the submission history before attempting another upload.");
+   "Announcement submissions still require district verification.","success");
+ }catch(error){
+  updateUploadPhase(node,"Upload not confirmed. Check submission history before retrying.");
   await refreshHistory(node,kind).catch(()=>{});
-  notify(node,e?.name==="AbortError"?
-   "The upload confirmation timed out. DO NOT retry yet; ask the administrator to check Drive and the upload log for duplicates.":
-   "Upload not confirmed: "+(e?.message||String(e))+". Check submission history before retrying to avoid duplicate uploads.","error");
- }finally{if(timer)clearTimeout(timer);if(node.isConnected)setProcessing(node,false);}
+  notify(node,"Upload not confirmed: "+(error?.message||String(error))+
+   ". Check the upload history or ask the administrator to review the log before retrying, to avoid duplicate files.","error");
+ }finally{if(node.isConnected)setProcessing(node,false);}
 }
 const observer=new MutationObserver(markPanel);
 observer.observe(root,{childList:true});
