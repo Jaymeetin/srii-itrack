@@ -1956,10 +1956,11 @@ function divisionPage(){
  const data=state.divisionData||{},ts=data.transmittals||[],items=data.items||[],people=data.people||[];
  const activeId=state.divisionSelected&&ts.some(t=>t.id===state.divisionSelected)?state.divisionSelected:ts[0]?.id;
  const t=ts.find(x=>x.id===activeId);
- const activeItems=items.filter(i=>i.transmittal_id===activeId&&i.division_status!=='cancelled');
- const removedItems=items.filter(i=>i.transmittal_id===activeId&&i.division_status==='cancelled');
+ const retainedItems=items.filter(i=>i.transmittal_id===activeId&&i.division_status!=='cancelled');
+ const activeItems=retainedItems.filter(i=>!i.admin_removed);
+ const removedItems=items.filter(i=>i.transmittal_id===activeId&&(i.division_status==='cancelled'||i.admin_removed));
  const transmittalLocked=!!t&&(!!t.dispatched_at||t.status!=='draft'||
-  activeItems.some(i=>i.submitted_at||i.division_status!=='in_transmittal'));
+  retainedItems.some(i=>i.submitted_at||i.division_status!=='in_transmittal'));
  const canEditDraft=!!t&&!transmittalLocked&&(t.prepared_by===state.profile.id||yesAdmin());
  const ownerPeople=people.filter(p=>p.id).slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')));
  const ownerSelect=(selected,id,cssClass)=>'<select id="'+esc(id)+'" class="'+esc(cssClass||'')+'" aria-label="Rightful document owner">'+
@@ -2010,8 +2011,9 @@ function divisionPage(){
     ((data.eligible_compliances||[]).map(d=>'<label class="division-choice"><input type="checkbox" class="draft-add-compliance" value="'+esc(d.id)+'"><span>'+esc(d.school_name)+' · '+esc(d.subject)+' <small>'+esc(d.tracking_number)+'</small></span></label>').join('')||'<p class="note">No additional verified submissions available to add.</p>')+'</div>'+
    '<button class="btn" data-a="draft-add-items">Add Checked Documents</button></div>':'')
   :t?'<p class="note"><strong>Transmittal locked.</strong> Its first document has been marked Submitted to Division. Document names, authorized school details, and items can no longer be changed.</p>':'';
- const removedHistory=removedItems.length?'<details class="draft-removed-history"><summary>Removed before submission ('+removedItems.length+')</summary>'+
-   removedItems.map(i=>'<p class="small muted">'+esc(i.tracking_number)+' — '+esc(i.document_label)+' (removed; eligible to add again)</p>').join('')+'</details>':'';
+ const removedHistory=removedItems.length?'<details class="draft-removed-history"><summary>Removed / Administratively Archived Items ('+removedItems.length+')</summary>'+
+   removedItems.map(i=>'<p class="small muted">'+esc(i.tracking_number)+' — '+esc(i.document_label)+
+    (i.admin_removed?' (moved to recoverable Trash; original physical history retained)':' (removed from draft before submission)')+'</p>').join('')+'</details>':'';
  const adminPanel=yesAdmin()?'<div class="panel"><h3>Administrator Document Search & Resolution</h3><p class="note">Search any tracking number or document title. A written reason is required for manual changes.</p><div class="toolbar"><input id="division-admin-query" placeholder="Tracking number or document name" value="'+esc(state.divisionQuery||'')+'"><button class="btn alt" data-a="division-admin-search">Search</button></div>'+table(['Tracking #','Document','Status','Resolution'],(state.divisionSearchResults||[]).map(d=>'<tr><td>'+esc(d.tracking_number)+'</td><td>'+esc(d.subject)+'</td><td>'+esc(d.resolution||d.status)+'</td><td>'+(['received','lost','not_for_return','recovered','corrected'].map(a=>'<button class="btn tiny alt" data-a="division-admin-resolve" data-id="'+esc(d.id)+'" data-act="'+a+'">'+esc(label(a))+'</button>').join(' '))+'</td></tr>'))+'</div>':'';
  return '<div class="sectionhead"><div><div class="eyebrow">Physical document custody</div><h1>Division Transmittals</h1><p class="sub">Prepare and submit documents to Division. Retrieval and final receipt are managed separately, with every tracking ID preserved.</p></div><button class="btn alt" data-a="division-refresh">Refresh</button></div>'+
  adminPanel+'<div class="panel"><h3>Division Retrieval</h3><p class="note">Physical pickup, turnover slips, District acknowledgment and final owner receipt are recorded in the separate Division Retrieval page. The original transmittal below remains the official outgoing record.</p><button class="btn alt" data-a="nav" data-page="retrieval">Open Division Retrieval</button></div>'+
