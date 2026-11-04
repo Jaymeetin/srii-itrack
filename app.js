@@ -1955,9 +1955,18 @@ function divisionPage(){
  const transmittalLocked=!!t&&(!!t.dispatched_at||t.status!=='draft'||
   activeItems.some(i=>i.submitted_at||i.division_status!=='in_transmittal'));
  const canEditDraft=!!t&&!transmittalLocked&&(t.prepared_by===state.profile.id||yesAdmin());
+ const ownerPeople=people.filter(p=>p.id).slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')));
+ const ownerSelect=(selected,id,cssClass)=>'<select id="'+esc(id)+'" class="'+esc(cssClass||'')+'" aria-label="Rightful document owner">'+
+  '<option value="">Select rightful owner</option>'+
+  ownerPeople.map(p=>'<option value="'+esc(p.id)+'"'+(p.id===selected?' selected':'')+'>'+
+   esc(p.name||'Registered personnel')+' — '+esc(p.school_name||'District Office')+'</option>').join('')+'</select>';
  const opts=people.map(p=>'<option value="'+esc(p.id)+'" '+(p.id===state.session?.user?.id?'selected':'')+'>'+esc(p.name)+' — '+esc(p.position||'')+'</option>').join('');
- const eligible=(data.eligible||[]).map(d=>'<label style="display:block;padding:8px;border-bottom:1px solid #ddd"><input type="checkbox" class="division-pick" value="'+esc(d.id)+'"> '+esc(d.tracking_number)+' — '+esc(d.subject)+' ('+esc(d.document_type)+')</label>').join('');
- const compEligible=(data.eligible_compliances||[]).map(d=>'<label class="division-choice"><input type="checkbox" class="division-compliance-pick" value="'+esc(d.id)+'"><span><strong>'+esc(d.school_name)+'</strong> · '+esc(d.subject)+' <small>'+esc(d.tracking_number)+'</small></span></label>').join('');
+ const eligible=(data.eligible||[]).map(d=>'<div class="division-owner-choice-row"><label><input type="checkbox" class="division-pick" value="'+esc(d.id)+'"> <strong>'+esc(d.tracking_number)+'</strong> — '+esc(d.subject)+' ('+esc(d.document_type)+')</label>'+
+  '<div class="division-owner-choice-control"><span>Rightful owner (receives returned document)</span>'+
+  ownerSelect(d.default_owner_id,'division-owner-new-'+d.id,'division-owner-choice')+'</div></div>').join('');
+ const compEligible=(data.eligible_compliances||[]).map(d=>'<div class="division-owner-choice-row"><label><input type="checkbox" class="division-compliance-pick" value="'+esc(d.id)+'"><span><strong>'+esc(d.school_name)+'</strong> · '+esc(d.subject)+' <small>'+esc(d.tracking_number)+'</small></span></label>'+
+  '<div class="division-owner-choice-control"><span>Rightful owner (receives returned document)</span>'+
+  ownerSelect(d.default_owner_id,'division-owner-new-'+d.id,'division-owner-choice')+'</div></div>').join('');
  const rows=activeItems.map(i=>{
  const actions=[];
  if(t?.assigned_submitter===state.profile.id&&t.assignment_accepted_at&&i.division_status==='in_transmittal')actions.push('<button class="btn tiny" data-a="division-act" data-act="submit" data-id="'+esc(i.id)+'">Mark as Submitted to Division</button>');
@@ -1967,7 +1976,9 @@ function divisionPage(){
  if(yesAdmin())actions.push('<button class="btn tiny alt" data-a="division-act" data-act="admin_received" data-id="'+esc(i.id)+'">Resolve Received</button><button class="btn tiny alt" data-a="division-act" data-act="lost" data-id="'+esc(i.id)+'">Lost</button><button class="btn tiny alt" data-a="division-act" data-act="not_for_return" data-id="'+esc(i.id)+'">Not for Return</button>'+(i.division_status==='lost'?'<button class="btn tiny alt" data-a="division-act" data-act="recovered" data-id="'+esc(i.id)+'">Recovered</button>':'')+(['lost','not_for_return','received_by_sender'].includes(i.division_status)?'<button class="btn tiny alt" data-a="division-act" data-act="correct" data-id="'+esc(i.id)+'">Correct</button>':''));
  if(canEditDraft&&state.transmittalEditing&&i.division_status==='in_transmittal')actions.unshift('<button class="btn tiny alt" data-a="transmittal-rename" data-id="'+esc(i.id)+'">Edit Name</button>');
  if(canEditDraft&&state.transmittalEditing)actions.unshift('<button class="btn tiny danger" data-a="draft-remove-item" data-id="'+esc(i.id)+'">Remove</button>');
- return '<tr><td>'+esc(i.tracking_number)+'</td><td>'+esc(i.document_label)+'<div class="small muted">'+(i.effective_return_required?'For Return':'No Return')+'</div></td><td>'+pTag(i.division_status==='received_by_sender'&&i.retrieved_from_division_at?'completed':i.division_status)+'</td><td>'+actions.join(' ')+'</td></tr>';
+ return '<tr><td>'+esc(i.tracking_number)+'</td><td>'+esc(i.document_label)+
+  '<div class="small muted">Owner: '+esc(i.rightful_owner_name||'Original sender')+' · '+esc(i.rightful_owner_school||'District Office')+'</div>'+
+  '<div class="small muted">'+(i.effective_return_required?'For Return':'No Return')+'</div></td><td>'+pTag(i.division_status==='received_by_sender'&&i.retrieved_from_division_at?'completed':i.division_status)+'</td><td>'+actions.join(' ')+'</td></tr>';
  });
  const draftControls=canEditDraft?
   '<div class="draft-edit-bar"><button class="btn alt" data-a="draft-toggle-edit">'+(state.transmittalEditing?'Finish Editing':'Edit Transmittal')+'</button>'+
@@ -1979,6 +1990,9 @@ function divisionPage(){
     (activeItems.map(i=>'<div class="draft-current-item"><label><input type="checkbox" class="draft-remove-pick" value="'+esc(i.id)+'" aria-label="Select '+esc(i.document_label)+' for removal">'+
      '<span class="draft-current-description"><strong>'+esc(i.document_label)+'</strong>'+
      '<small>'+esc(i.tracking_number||'No tracking ID')+' · '+esc(i.document_type||'Document')+'</small></span></label>'+
+     '<div class="draft-owner-edit"><label for="division-owner-edit-'+esc(i.id)+'">Rightful Owner</label>'+
+     ownerSelect(i.rightful_owner_id,'division-owner-edit-'+i.id,'division-owner-edit-select')+
+     '<button class="btn tiny alt" data-a="division-owner-save" data-id="'+esc(i.id)+'">Save Owner</button></div>'+
      '<button class="btn tiny alt" data-a="transmittal-rename" data-id="'+esc(i.id)+'">Edit Name</button></div>').join('')||
      '<p class="note">There are no documents attached to this draft. Choose from the available documents below.</p>')+'</div>'+
    (activeItems.length?'<button class="btn danger" data-a="draft-remove-selected">Remove Checked Documents</button>':'')+
@@ -1997,7 +2011,8 @@ function divisionPage(){
  adminPanel+'<div class="panel"><h3>Division Retrieval</h3><p class="note">Physical pickup, turnover slips, District acknowledgment and final owner receipt are recorded in the separate Division Retrieval page. The original transmittal below remains the official outgoing record.</p><button class="btn alt" data-a="nav" data-page="retrieval">Open Division Retrieval</button></div>'+
  '<div class="panel v2-board itrack-preview"><div class="panel-head"><h3>Notifications</h3><button class="btn tiny alt itrack-show-all" data-a="nav" data-page="notifications">Show All</button></div>'+
  ((state.divisionNotices||[]).length?'<div class="v2-notice-list">'+(state.divisionNotices||[]).slice(0,3).map(n=>notificationRow({...n,source:'transmittal'},true)).join('')+'</div>':'<p class="note">No recent Division notifications.</p>')+'</div>'+
- '<div class="panel"><h3>Create Transmittal</h3><p class="note">Select Division documents and verified announcement submissions. Recipient approval is not needed.</p><div class="field"><label>Assigned submitter</label><select id="division-submitter">'+opts+'</select></div><h4>Division Documents</h4><div class="division-eligible-list">'+(eligible||'<p class="note">No eligible documents.</p>')+'</div><h4>Verified School Submissions</h4><div class="division-eligible-list">'+(compEligible||'<p class="note">No verified submissions.</p>')+'</div><button class="btn" data-a="division-create">Create Transmittal</button></div>'+
+ '<div class="panel"><h3>Create Transmittal</h3><p class="note">Select Division documents and verified announcement submissions. Recipient approval is not needed.</p>'+
+ '<p class="note"><strong>Check the rightful owner for every selected document.</strong> The original uploader is preselected, which may be you if you entered documents for another school. The owner is different from the transmittal preparer and assigned submitter.</p><div class="field"><label>Assigned submitter</label><select id="division-submitter">'+opts+'</select></div><h4>Division Documents</h4><div class="division-eligible-list">'+(eligible||'<p class="note">No eligible documents.</p>')+'</div><h4>Verified School Submissions</h4><div class="division-eligible-list">'+(compEligible||'<p class="note">No verified submissions.</p>')+'</div><button class="btn" data-a="division-create">Create Transmittal</button></div>'+
  '<div class="panel"><h3>Transmittal</h3><div class="field"><label>Select transmittal</label><select id="division-current">'+ts.map(x=>'<option value="'+esc(x.id)+'" '+(x.id===activeId?'selected':'')+'>'+esc(x.transmittal_number)+'</option>').join('')+'</select></div>'+
  (t?'<p><strong>'+esc(t.transmittal_number)+'</strong> · '+pTag(transmittalLocked?'dispatched':t.assignment_accepted_at?'accepted':'pending')+'</p>'+draftControls+
  '<div class="division-print-config"><h4>Official Forms</h4><p class="note">Documents display the recorded submitting AO. The transmittal signer is the AO assigned to submit to Division. Endorsement is signed by the district OIC.</p>'+
@@ -2790,9 +2805,39 @@ async function click(e){
    await load();pop(added+' item(s) added to the draft.');return;
   }
   if(a==='division-create'){
-   const docs=[...document.querySelectorAll('.division-pick:checked')].map(x=>x.value),compliances=[...document.querySelectorAll('.division-compliance-pick:checked')].map(x=>x.value),submitter=document.getElementById('division-submitter')?.value;
-   if(!docs.length&&!compliances.length)throw Error('Select a document or approved submission.');
-   state.busy=true;try{const {data,error}=await db.rpc('i_track_create_mixed_transmittal',{p_documents:docs,p_compliances:compliances,p_submitter:submitter});if(error)throw error;state.divisionSelected=data.id;state.transmittalEditing=false;await load();pop('Transmittal created.');}finally{state.busy=false;}return;
+   const selected=[...document.querySelectorAll('.division-pick:checked,.division-compliance-pick:checked')];
+   const docs=selected.filter(c=>c.classList.contains('division-pick')).map(c=>c.value);
+   const compliances=selected.filter(c=>c.classList.contains('division-compliance-pick')).map(c=>c.value);
+   const submitter=document.getElementById('division-submitter')?.value;
+   if(!selected.length)throw Error('Select a document or verified school submission.');
+   if(!submitter)throw Error('Choose a Division submitter.');
+   const owners=selected.map(c=>{
+    const chosen=c.closest('.division-owner-choice-row')?.querySelector('.division-owner-choice')?.value;
+    if(!chosen)throw Error('Choose a rightful owner for each selected document before creating the transmittal.');
+    return {kind:c.classList.contains('division-pick')?'document':'compliance',source_id:c.value,owner_id:chosen};
+   });
+   if(!confirm('Create a Division transmittal for '+selected.length+' document(s) with the selected rightful owners?'))return;
+   state.busy=true;try{
+    const {data,error}=await db.rpc('i_track_create_mixed_transmittal_with_owners',
+     {p_documents:docs,p_compliances:compliances,p_submitter:submitter,p_owners:owners});
+    if(error)throw error;state.divisionSelected=data.id;state.transmittalEditing=false;
+    await load();pop('Transmittal created with rightful owners recorded.');
+   }finally{state.busy=false;}return;
+  }
+  if(a==='division-owner-save'){
+   const item=(state.divisionData.items||[]).find(x=>x.id===t.dataset.id);
+   const trans=(state.divisionData.transmittals||[]).find(x=>x.id===item?.transmittal_id);
+   if(!item||!trans||item.division_status!=='in_transmittal')throw Error('Choose an unsubmitted Division document.');
+   const ownerId=document.getElementById('division-owner-edit-'+item.id)?.value;
+   const owner=(state.divisionData.people||[]).find(x=>x.id===ownerId);
+   if(!owner)throw Error('Choose an approved rightful owner.');
+   if(ownerId===item.rightful_owner_id){pop('This person is already the rightful owner.');return;}
+   if(!confirm('Assign '+owner.name+' ('+(owner.school_name||'District Office')+') as rightful owner of '+item.tracking_number+'? This determines who will confirm final receipt.'))return;
+   state.busy=true;try{
+    const {error}=await db.rpc('i_track_assign_division_owner',{p_item:item.id,p_owner:ownerId});
+    if(error)throw error;
+    await load();pop('Rightful owner updated. Original uploader and document history remain unchanged.');
+   }finally{state.busy=false;}return;
   }
   if(a==='division-print'||a==='division-word'){
    const t=state.divisionData.transmittals.find(x=>x.id===state.divisionSelected)||state.divisionData.transmittals[0];if(!t)throw Error('Choose a transmittal.');
