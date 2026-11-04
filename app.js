@@ -2053,7 +2053,7 @@ function modalHtml(){
      '<textarea name="notes" id="doc-notes" rows="3" placeholder="Type your instructions or other details here…"></textarea></div>'+
     '<div class="field route-attachment-field"><label for="doc-attachments">Attachments <span class="route-optional">(optional)</span></label>'+
      '<div class="route-attachment-picker"><input id="doc-attachments" type="file" multiple accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp">'+
-      '<p id="doc-attachment-selection" class="route-field-note">PDF, Word or images · Up to 5 files, 4 MB each</p></div></div>'+
+      '<p id="doc-attachment-selection" class="route-field-note">PDF, Word and images · Unlimited files, 30 MB combined</p>'+'<p id="doc-attachment-alert" class="route-attachment-alert" role="alert" hidden></p>'+'<a id="doc-pdf-compression" href="https://www.ilovepdf.com/compress_pdf" target="_blank" rel="noopener noreferrer" hidden>Compress PDFs at iLovePDF ↗</a>'+'<p class="route-field-note">Images compress automatically on your device. Avoid sending confidential PDFs to external services unless permitted.</p></div></div>'+
     '<p id="doc-save-message" class="route-save-message" role="status" aria-live="polite"></p>'+
    '</form>'+
    '<details class="route-type-suggestion"><summary>Missing a document type?</summary>'+
@@ -3100,29 +3100,13 @@ async function click(e){
   }
  }catch(e){err(e);}
 }
-async function uploadNewDocumentAttachment(documentId,file){
- const MIME={pdf:'application/pdf',doc:'application/msword',docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',webp:'image/webp'};
- const ext=file.name.split('.').pop().toLowerCase(),mime=MIME[ext];
- if(!mime)throw Error('Unsupported attachment format: '+file.name);
+async function uploadNewDocumentAttachment(documentId,file,onProgress){
+ const upload=window.ITRACK_UPLOAD;
+ if(!upload?.mimeFor(file))throw Error('Unsupported attachment format: '+file.name);
  const {data:{session},error:sessionError}=await db.auth.getSession();
- if(sessionError||!session?.access_token)throw Error('Login expired while uploading. The document is already saved; sign in again and attach the file from My Documents.');
- const base64=await new Promise((resolve,reject)=>{
-  const reader=new FileReader();
-  reader.onload=()=>resolve(String(reader.result).split(',')[1]);
-  reader.onerror=()=>reject(Error('Could not read '+file.name));
-  reader.readAsDataURL(file);
- });
- const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),70000);
- try{
-  const response=await fetch(window.ITRACK_CONFIG.url+'/functions/v1/itrack-upload',{
-   method:'POST',headers:{'Content-Type':'application/json',apikey:window.ITRACK_CONFIG.publishableKey,
-    Authorization:'Bearer '+session.access_token},
-   body:JSON.stringify({target_type:'document',target_id:documentId,file_name:file.name,mime_type:mime,content_base64:base64}),
-   signal:controller.signal
-  });
-  const answer=await response.json().catch(()=>({}));
-  if(!response.ok||!answer.ok)throw Error(answer.error||'Upload was not accepted: HTTP '+response.status);
- }finally{clearTimeout(timeout);}
+ if(sessionError||!session?.access_token)throw Error('Login expired while uploading. Document record may already be saved; sign in again and check attachments.');
+ return await upload.upload({file,targetType:'document',targetId:documentId,
+  token:session.access_token,url:window.ITRACK_CONFIG.url,apikey:window.ITRACK_CONFIG.publishableKey,onProgress});
 }
 async function submit(e){
  const form=e.target;if(!['queue-join','queue-complete','login','resend-email','forgot-password','set-password','form-ann','form-ann-edit','form-doc','settings-email-form','settings-password-form','settings-profile-form','settings-private-form','settings-feedback-form','admin-feedback-form'].includes(form.id))return;
