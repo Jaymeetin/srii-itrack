@@ -2191,7 +2191,11 @@ function documentControlPage(){
  '<div class="toolbar"><input type="search" id="doc-control-search" placeholder="Search tracking number or document title" value="'+esc(search)+'">'+
  '<button type="button" class="btn alt" data-a="doc-control-search">Search</button><button type="button" class="btn tiny alt" data-a="doc-control-refresh">Refresh</button></div>'+
  '<p class="small muted">'+Number(data.total_matching||0)+' matching document(s) · Showing up to 200 most recent records in this view</p>'+
- '<div class="doc-control-list">'+(rows||'<p class="note">No documents match the current search.</p>')+'</div></section>'+(state.docAdminSampleMode?sampleDialog:dialog);
+ '<div class="doc-control-list">'+(rows||'<p class="note">No documents match the current search.</p>')+'</div></section>'+
+ '<section class="panel"><h3>Test Announcements Are Separate</h3>'+
+ '<p class="note">Sample or system-test announcements are managed in the Announcements module, not Document Trash. Cancel those notices to stop new submissions while preserving any real uploaded records and response history.</p>'+
+ '<button type="button" class="btn alt" data-a="nav" data-page="announcements">Review Announcements</button></section>'+
+ (state.docAdminSampleMode?sampleDialog:dialog);
 }
 
 function archivePage(){return `<div class="eyebrow">Administrator controls</div><h1>Archive Documents</h1><p class="sub">Two-month archival to an SSD after verification.</p><div class="panel"><div class="notice warn"><b>Not yet enabled.</b> This will prepare downloadable archives, verify copies, and require administrator confirmation before any Drive files are deleted.</div><button class="btn" disabled>Archive Documents</button><p class="note" style="margin-top:12px">Submission metadata and audit history will remain in Supabase after archiving.</p></div>`;}
