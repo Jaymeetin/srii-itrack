@@ -30,7 +30,7 @@
    '<label>Transmittal '+select('retrieval-transmittal',[['','All Transmittals'],...transmittals.map(t=>[t,t])],trans)+'</label></div>';
   const pickupRows=rows.map(x=>{
    const status=x.owner_id===mine?'Mine — completes automatically':'Other owner — with retriever';
-   return '<tr class="retrieval-doc-row" data-retrieval-search="'+esc([x.tracking_number,x.document_label,x.school_name,x.transmittal_number].join(' ').toLowerCase())+'">'+
+   return '<tr class="retrieval-doc-row" style="cursor:pointer" title="Click row to select this document" data-retrieval-search="'+esc([x.tracking_number,x.document_label,x.school_name,x.transmittal_number].join(' ').toLowerCase())+'">'+
     '<td class="retrieval-check-cell"><input type="checkbox" class="retrieval-check retrieval-pick" value="'+esc(x.item_id)+'"'+(state.retrievalPicked?.has(x.item_id)?' checked':'')+'></td>'+
     '<td class="retrieval-tracking">'+esc(x.tracking_number||'')+'</td>'+
     '<td><strong class="retrieval-name">'+esc(x.document_label||'Document')+'</strong><small class="retrieval-extra">'+esc(x.transmittal_number||'')+'</small></td>'+
@@ -63,6 +63,9 @@
    '<div class="retrieval-slip-pick-list">'+slipRows+'</div>'+
    '<div class="retrieval-bottom-bar"><span id="retrieval-slip-count" class="small muted">'+(state.retrievalSlipPicked?.size||0)+' selected</span>'+
    '<button type="button" class="btn" id="retrieval-slip-print-btn" data-a="retrieval-print-pickup"'+(!state.retrievalSlipPicked?.size?' disabled':'')+'>Print Selected Retrieval Slip</button></div></details>';
+  // The whole document row should toggle selection, not just the tiny checkbox.
+  // Clicking the native input itself is left to the existing app.js change handler.
+  // No retrieval record is changed until the user explicitly confirms pickup.
   const legacy=oldView(state,tools);
   const advancedStart=legacy.indexOf('<div class="panel retrieval-panel"><div class="retrieval-panel-head"><h3>2. My Retrieval Batches</h3>');
   const advanced=advancedStart===-1?'':legacy.slice(advancedStart);
@@ -74,4 +77,11 @@
     '<p class="note">Use this section only for physical transfers to District or confirmation by someone else. Turnover records are separate from optional retrieval slips.</p>'+
     advanced+'</details>':'');
  };
+  // Event delegation survives page redraws, filtering, and mobile layout changes.
+  document.addEventListener('click',function(event){
+   const row=event.target.closest?.('#retrieval-available-list .retrieval-doc-row');
+   if(!row||event.target.closest('input,button,a,select,textarea,label'))return;
+   const checkbox=row.querySelector('input.retrieval-check.retrieval-pick:not(:disabled)');
+   if(checkbox)checkbox.click(); // Native change event updates selection and button.
+  });
 })();
