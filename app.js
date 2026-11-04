@@ -200,12 +200,12 @@ async function loadActionInbox(){
   const ids=rows.map(x=>x.id).sort().join(',');
   add('verify:'+announcementId+':'+ids,'Submission verification',
    rows.length+' school response(s) awaiting review · '+(rows[0]?.announcement_title||'Announcement'),
-   'verification',1,{announcementId,count:rows.length});
+   'verification',1,{announcementId,count:rows.length,sourceIds:rows.map(c=>'verification:'+c.id)});
  }
  const accounts=(results.accounts||[]).filter(p=>p.account_status==='pending'&&(isMain()||p.role!=='oic_psds'));
  if(accounts.length)add('accounts:'+accounts.map(p=>p.id).sort().join(','),
   'Pending account approvals',accounts.length+' registration(s) awaiting your decision',
-  'approvals',2,{count:accounts.length});
+  'approvals',2,{count:accounts.length,sourceIds:accounts.map(p=>'account:'+p.id)});
  const latestByDocument=new Map();
  for(const route of results.routes||[])latestByDocument.set(route.document_id,route);
  for(const route of latestByDocument.values()){
@@ -214,21 +214,21 @@ async function loadActionInbox(){
   add('route:'+route.route_id+':'+route.route_status,
    route.route_status==='awaiting_ack'?'Acknowledge document receipt':'Document awaiting action',
    (doc?.subject||'Routed document')+' · From '+(route.sender_name||'sender'),
-   'documents',3,{documentId:route.document_id,count:1});
+   'documents',3,{documentId:route.document_id,count:1,sourceIds:['route:'+route.route_id+':'+route.route_status]});
  }
  const retrieval=results.retrieval||{};
  const claims=retrieval.claimable||[];
  if(claims.length)add('owner:'+claims.map(x=>x.item_id).sort().join(','),
   'Confirm Document Received',claims.length+' retrieved Division document(s) awaiting your final receipt',
-  'retrieval',2,{count:claims.length,section:'owner'});
+  'retrieval',2,{count:claims.length,section:'owner',sourceIds:claims.map(x=>'owner:'+x.item_id)});
  const districtQueue=retrieval.district_queue||[];
  if(districtQueue.length)add('district-receipt:'+districtQueue.map(x=>x.item_id).sort().join(','),
   'Acknowledge District handoff',districtQueue.length+' physical document(s) awaiting District receiving',
-  'retrieval',2,{count:districtQueue.length,section:'district'});
+  'retrieval',2,{count:districtQueue.length,section:'district',sourceIds:districtQueue.map(x=>'district:'+x.item_id)});
  const myDivisions=(results.division?.transmittals||[]).filter(t=>t.assigned_submitter===uid&&!t.assignment_accepted_at&&t.status==='draft');
  if(myDivisions.length)add('division-assign:'+myDivisions.map(t=>t.id).sort().join(','),
   'Accept Division transmittal assignment',myDivisions.length+' transmittal assignment(s) awaiting acceptance',
-  'division',3,{count:myDivisions.length,transmittalId:myDivisions[0].id});
+  'division',3,{count:myDivisions.length,transmittalId:myDivisions[0].id,sourceIds:myDivisions.map(x=>'division:'+x.id)});
  // A required, not-yet-submitted school call is also a pending task.
  if(state.view==='dashboard'&&!admin&&!oversight){
   const existing=new Set((state.schoolSubmissions||[]).map(x=>x.assignment_id));
@@ -238,7 +238,7 @@ async function loadActionInbox(){
   });
   if(missing.length)add('school-required:'+missing.map(x=>x.id).sort().join(','),
    'School submission required',missing.length+' assigned school requirement(s) not yet submitted',
-   'announcements',4,{count:missing.length,filter:'required'});
+   'announcements',4,{count:missing.length,filter:'required',sourceIds:missing.map(x=>'requirement:'+x.id)});
  }
  items.sort((a,b)=>a.priority-b.priority||a.title.localeCompare(b.title));
  state.actionItems=items;
@@ -246,14 +246,16 @@ async function loadActionInbox(){
  const key='srii-action-seen-'+uid;
  let seen=[];
  try{seen=JSON.parse(sessionStorage.getItem(key)||'[]');if(!Array.isArray(seen))seen=[];}catch(_){seen=[];}
- if(!state.modal&&items.some(item=>!seen.includes(item.key))){
+ if(!state.modal&&items.some(item=>(item.sourceIds||[item.key]).some(id=>!seen.includes(id)))){
   state.actionPopupOpen=true;
-  try{sessionStorage.setItem(key,JSON.stringify([...new Set([...seen,...items.map(x=>x.key)])].slice(-350)));}catch(_){}
+  const viewed=items.flatMap(item=>item.sourceIds||[item.key]);
+  try{sessionStorage.setItem(key,JSON.stringify([...new Set([...seen,...viewed])].slice(-800)));}catch(_){}
  }
  if(!items.length)state.actionPopupOpen=false;
 }
 function actionPopupHtml(){
  const tasks=state.actionItems||[];
+ const total=tasks.reduce((sum,x)=>sum+(x.count||1),0);
  const rows=tasks.map((item,i)=>'<div class="action-inbox-item">'+
   '<div class="action-inbox-index">'+(i+1)+'</div><div class="action-inbox-info"><strong>'+esc(item.title)+'</strong>'+
   '<p>'+esc(item.detail)+'</p></div>'+
@@ -261,7 +263,7 @@ function actionPopupHtml(){
  return '<div class="action-inbox-backdrop" role="presentation">'+
   '<section class="action-inbox-dialog" role="dialog" aria-modal="true" aria-labelledby="action-inbox-title" tabindex="-1">'+
   '<div class="action-inbox-head"><div><span class="eyebrow">SRII i-TRACK · Action Center</span>'+
-  '<h2 id="action-inbox-title">Action Required ('+tasks.length+')</h2>'+
+  '<h2 id="action-inbox-title">Action Required ('+total+')</h2>'+
   '<p class="note">These items need your attention. Opening a task will not approve or acknowledge it automatically.</p></div>'+
   '<button type="button" class="btn tiny alt" data-a="action-close" aria-label="Close action reminder">Close</button></div>'+
   '<div class="action-inbox-list">'+(rows||'<p class="note">No items currently need your action.</p>')+'</div>'+
@@ -1110,7 +1112,7 @@ function appPage(){
   '<button type="button" data-a="nav" data-page="dashboard" class="connected-crumb">Home</button>'+
   '<span class="connected-crumb-current">'+esc(title)+'</span></div>':'';
  $.innerHTML=`<div class="app"><aside class="sidebar">${brand()}<nav>${nav}</nav><div class="sidebar-footer"><button data-a="theme">◐ Light / Dark Mode</button><button data-a="logout">↩ Sign Out</button><div class="user-mini">${esc(name)}<br>${esc(label(state.profile.role))} · ${esc(school)}</div></div></aside>
- <div class="main"><header class="topbar"><div><h2>${esc(title)}</h2><div class="note">One District. One Direction.</div></div><div class="topbar-actions">${pTag('active')}<button type="button" class="action-inbox-trigger" data-a="action-open" aria-label="Open items requiring your action">▣ Actions${state.actionItems.length?' ('+state.actionItems.length+')':''}</button><button class="desktop-signout" type="button" data-a="logout" title="Sign out of SRII i-TRACK">↩ Sign Out</button></div></header><div class="content">${breadcrumb}${body}</div></div></div>${state.modal?modalHtml():''}${state.actionPopupOpen&&!state.modal?actionPopupHtml():''}`;
+ <div class="main"><header class="topbar"><div><h2>${esc(title)}</h2><div class="note">One District. One Direction.</div></div><div class="topbar-actions">${pTag('active')}<button type="button" class="action-inbox-trigger" data-a="action-open" aria-label="Open items requiring your action">▣ Actions${state.actionItems.length?' ('+state.actionItems.reduce((n,item)=>n+(item.count||1),0)+')':''}</button><button class="desktop-signout" type="button" data-a="logout" title="Sign out of SRII i-TRACK">↩ Sign Out</button></div></header><div class="content">${breadcrumb}${body}</div></div></div>${state.modal?modalHtml():''}${state.actionPopupOpen&&!state.modal?actionPopupHtml():''}`;
 }
 
 function feedbackPage(){
