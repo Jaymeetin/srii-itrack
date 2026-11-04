@@ -137,7 +137,7 @@ function setProcessing(node,yes){
  node.dataset.processing=yes?"yes":"no";
  const hasTarget=!!node.querySelector(".iu-select")?.value;
  const confirmed=node._iuKind!=="announcement"||node._iuConfirmed===true;
- const ready=!yes&&!!node._iuFile&&hasTarget&&confirmed&&node._iuFile.size<=MB;
+ const ready=!yes&&!node._iuPreparing&&!!node._iuFile&&hasTarget&&confirmed&&node._iuFile.size<=MB;
  const upload=node.querySelector(".iu-upload");
  if(upload){upload.disabled=!ready;upload.textContent=yes?"Uploading, please wait…":"Upload to Google Drive";}
  const comp=node.querySelector(".iu-compress");
@@ -281,9 +281,11 @@ async function initialize(node,kind){
     node._iuOriginal=null;node._iuFile=null;
   }
   const input=node.querySelector(".iu-input");
-  input.addEventListener("change",()=>{
+  input.addEventListener("change",async()=>{
    const file=input.files?.[0]||null;
+   const version=(node._iuFileVersion||0)+1;node._iuFileVersion=version;
    node._iuOriginal=file;node._iuFile=file;
+   node._iuPreparing=!!file;setProcessing(node,!!file);
    if(kind==="announcement"){
     node._iuConfirmed=false;
     const check=node.querySelector(".iu-confirm-input");
@@ -291,9 +293,23 @@ async function initialize(node,kind){
    }
    const mime=file&&mimeFor(file);
    if(file&&!mime){
-    node._iuFile=null;notify(node,"Unsupported file extension. Choose PDF, Word, JPG, PNG or WebP.","error");
-   }else{node.querySelector(".iu-message").hidden=true;}
-   updateFile(node);
+    node._iuFile=null;node._iuPreparing=false;
+    notify(node,"Unsupported file extension. Choose PDF, Word, JPG, PNG or WebP.","error");
+    updateFile(node);return;
+   }
+   if(!file){node._iuPreparing=false;updateFile(node);return;}
+   if(mime?.startsWith("image/")){
+    notify(node,"Automatically compressing the image on your device…");
+    try{
+     const smaller=await window.ITRACK_UPLOAD.optimizeImage(file);
+     if(node._iuFileVersion!==version)return;
+     node._iuFile=smaller;
+     notify(node,smaller.size<file.size?
+      "Image compressed: "+size(file.size)+" → "+size(smaller.size)+". Check text legibility before uploading.":
+      "Image is already optimized; keeping the smaller original.","success");
+    }catch(error){if(node._iuFileVersion===version)notify(node,"Image compression unavailable: "+(error.message||error),"error");}
+   }else node.querySelector(".iu-message").hidden=true;
+   if(node._iuFileVersion===version){node._iuPreparing=false;updateFile(node);}
   });
   select.addEventListener("change",()=>updateTarget(node,kind));
   node.querySelector(".iu-compress").addEventListener("click",()=>compress(node));
