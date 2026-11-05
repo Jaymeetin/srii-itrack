@@ -1,6 +1,8 @@
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { createHash } from "node:crypto";
+import { Buffer } from "node:buffer";
 
 const SITE_ORIGIN = "https://jaymeetin.github.io";
 const FILE_LIMIT = 30 * 1024 * 1024;
@@ -43,6 +45,28 @@ function validFileMagic(b: Uint8Array, mime: string): boolean {
   if (mime === "application/msword") return b.length>=8 && [208,207,17,224,161,177,26,225].every((x,i)=>b[i]===x);
   if (mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") return b.length>=4 && b[0]===80 && b[1]===75 && [3,5,7].includes(b[2]) && [4,6,8].includes(b[3]);
   return false;
+}
+
+// Validate and hash Base64 using small native chunks instead of materializing
+// several entire file copies. Each chunk ends on a Base64 quartet boundary.
+function inspectBase64File(b64: string) {
+  const digest = createHash("sha256");
+  const head = Buffer.alloc(16);
+  const CHUNK_CHARS = 65536;
+  let headLength = 0;
+  let totalBytes = 0;
+  for (let offset = 0; offset < b64.length; offset += CHUNK_CHARS) {
+    const chunk = Buffer.from(b64.slice(offset, offset + CHUNK_CHARS), "base64");
+    if (headLength < head.length) {
+      const count = Math.min(head.length - headLength, chunk.length);
+      chunk.copy(head, headLength, 0, count);
+      headLength += count;
+    }
+    totalBytes += chunk.length;
+    if (totalBytes > FILE_LIMIT) throw new Error("File exceeds the 30 MB upload limit");
+    digest.update(chunk);
+  }
+  return {byteLength: totalBytes, magic: head.subarray(0, headLength), sha: digest.digest("base64url")};
 }
 
 Deno.serve(async (req: Request) => {
@@ -90,7 +114,7 @@ Deno.serve(async (req: Request) => {
         typeof name!=="string" || name.length<1 || name.length>180 ||
         typeof mime!=="string" || !ACCEPTED_MIME.has(mime) ||
         typeof b64!=="string" || b64.length>Math.ceil(FILE_LIMIT / 3) * 4 ||
-        !/^[A-Za-z0-9+/]+={0,2}$/.test(b64)) {
+        b64.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(b64)) {
       return response({error:"Invalid file or upload target"},400);
     }
 
@@ -182,11 +206,10 @@ Deno.serve(async (req: Request) => {
       schoolName=school.name;
     }
 
-    const decoded=atob(b64);
-    if (decoded.length<1 || decoded.length>FILE_LIMIT)
+    const {byteLength,magic,sha}=inspectBase64File(b64);
+    if (byteLength<1 || byteLength>FILE_LIMIT)
       return response({error:"Each file must be no larger than 30 MB"},413);
-    const bytes=Uint8Array.from(decoded,c=>c.charCodeAt(0));
-    if (!validFileMagic(bytes,mime))
+    if (!validFileMagic(magic,mime))
       return response({error:"File does not match its declared type"},400);
 
     // Each routed document has a total of 30 MiB across all attachments.
@@ -198,7 +221,7 @@ Deno.serve(async (req: Request) => {
           .select("file_size_bytes").eq("document_id",targetId).range(offset,offset+999);
         if(priorError) throw new Error("Could not verify existing attachment sizes");
         existingTotal+=(prior||[]).reduce((n,x)=>n+Number(x.file_size_bytes||0),0);
-        if(existingTotal+bytes.length>FILE_LIMIT)
+        if(existingTotal+byteLength>FILE_LIMIT)
           return response({error:"This document would exceed 30 MB across all attachments. Compress a PDF or remove files before retrying."},413);
         if(!prior||prior.length<1000) break;
       }
@@ -207,11 +230,10 @@ Deno.serve(async (req: Request) => {
         .eq("document_id",targetId).in("status",["processing","drive_saved"]);
       if(reservedError) throw new Error("Could not verify pending document uploads");
       const inFlight=(reserved||[]).reduce((n,x)=>n+Number(x.file_size_bytes||0),0);
-      if(existingTotal+inFlight+bytes.length>FILE_LIMIT)
+      if(existingTotal+inFlight+byteLength>FILE_LIMIT)
         return response({error:"Pending uploads would exceed this document's 30 MB limit. Check pending file transfers first."},413);
     }
 
-    const sha=base64url(new Uint8Array(await crypto.subtle.digest("SHA-256",bytes)));
     uploadId=crypto.randomUUID();
     const cleanFilename=sanitizedName(name);
     const {data:attempt,error:insErr}=await db.from("upload_attempts").insert({
@@ -219,7 +241,7 @@ Deno.serve(async (req: Request) => {
       assignment_id:targetType==="announcement"?targetId:null,
       document_id:targetType==="document"?targetId:null,
       original_filename:cleanFilename,content_type:mime,
-      file_size_bytes:bytes.length,sha256:sha,status:"processing"
+      file_size_bytes:byteLength,sha256:sha,status:"processing"
     }).select("first_received_at").single();
     if(insErr||!attempt) throw new Error("Could not record securely received time");
 
@@ -240,7 +262,7 @@ Deno.serve(async (req: Request) => {
       targetType==="announcement"?targetId:"",
       targetType==="document"?targetId:"",
       targetType==="announcement"?"Announcements":"Documents",
-      schoolName,folderLabel,storedFilename,mime,String(bytes.length),sha
+      schoolName,folderLabel,storedFilename,mime,String(byteLength),sha
     ].join("\n");
     const hmacKey=await crypto.subtle.importKey("raw",new TextEncoder().encode(uploadSecret),
       {name:"HMAC",hash:"SHA-256"},false,["sign"]);
@@ -263,7 +285,7 @@ Deno.serve(async (req: Request) => {
       documentId:targetType==="document"?targetId:"",
       category:targetType==="announcement"?"Announcements":"Documents",
       schoolName,folderLabel,fileName:storedFilename,mimeType:mime,
-      byteLength:bytes.length,sha256:sha,signature,contentBase64:b64,
+      byteLength:byteLength,sha256:sha,signature,contentBase64:b64,
       ...(targetType==="document"?{documentType,pathSignature,subjectTitle,subjectPathSignature}:{})
     };
 
@@ -292,7 +314,7 @@ Deno.serve(async (req: Request) => {
         .replace(/[A-Za-z0-9_-]{24,}/g,"[redacted]")
         .slice(0,180);
       console.error("SRII Google Drive receiver rejected upload",{
-        file_bytes:bytes.length,
+        file_bytes:byteLength,
         bridge_success:result.success===true,
         file_id_valid:typeof result.fileId==="string"&&/^[A-Za-z0-9_-]{10,200}$/.test(result.fileId),
         reason:safeExplanation||"No explanation returned"
