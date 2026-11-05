@@ -283,8 +283,22 @@ Deno.serve(async (req: Request) => {
     let result:Record<string,unknown>;
     try{result=await gas.json();}catch{throw new Error("Drive returned an invalid response");}
     if(result.success!==true||typeof result.fileId!=="string"||
-       !/^[A-Za-z0-9_-]{10,200}$/.test(result.fileId))
+       !/^[A-Za-z0-9_-]{10,200}$/.test(result.fileId)) {
+      // Keep diagnostic details in private server logs; never expose Drive data or secrets to clients.
+      const explanation=typeof result.error==="string"?result.error:
+        typeof result.message==="string"?result.message:"";
+      const safeExplanation=explanation
+        .replace(/https?:\/\/\S+/gi,"[url]")
+        .replace(/[A-Za-z0-9_-]{24,}/g,"[redacted]")
+        .slice(0,180);
+      console.error("SRII Google Drive receiver rejected upload",{
+        file_bytes:bytes.length,
+        bridge_success:result.success===true,
+        file_id_valid:typeof result.fileId==="string"&&/^[A-Za-z0-9_-]{10,200}$/.test(result.fileId),
+        reason:safeExplanation||"No explanation returned"
+      });
       throw new Error("Drive could not store the document");
+    }
     driveSaved=true;
     const fileId=result.fileId;
     const {error:markError}=await db.from("upload_attempts")
