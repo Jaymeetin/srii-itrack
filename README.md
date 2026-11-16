@@ -11,6 +11,9 @@ The frontend is intentionally lightweight: plain HTML, CSS and JavaScript hosted
 - Image compression runs locally. SSD archiving is planned but not enabled in the current interface.
 - Only authorized records should be uploaded. Role-based access, user account approval, upload history, and file verification should be reviewed with real approved accounts during maintenance.
 
+## Design
+The look of the app lives in one file, `theme.css`, loaded after the other stylesheets: colors, typography, buttons, forms, cards, lists, dialogs and the phone layout for both light and dark themes. Change the tokens at the top of that file to adjust the palette. `icons.js` holds the interface icons, and the Inter typeface is served from `assets/fonts/` (SIL Open Font License). None of these touch data, permissions or wording.
+
 ## Publish
 In GitHub repository Settings → Pages, select Deploy from a branch → main → /(root) → Save.
 Expected Pages URL: https://jaymeetin.github.io/srii-itrack/

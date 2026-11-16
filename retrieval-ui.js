@@ -23,7 +23,7 @@ window.ITRACK_RETRIEVAL_VIEW=function(state,{esc,date,label,divisionStageLabel})
    '<td class="retrieval-status" title="'+esc(divisionStageLabel(status))+'">'+esc(divisionStageLabel(status))+'</td></tr>';
  }
  function table(rows,kind,selected=new Set(),disabled=new Set()){
-  return '<div class="retrieval-table-scroll"><table class="retrieval-table"><thead><tr><th class="retrieval-check-cell">✓</th>'+
+  return '<div class="retrieval-table-scroll"><table class="retrieval-table"><thead><tr><th class="retrieval-check-cell" aria-label="Select">'+(window.ITRACK_ICON?.('check')||'✓')+'</th>'+
    '<th>Tracking ID</th><th>Document</th><th class="retrieval-school">School</th><th class="retrieval-status">Status</th></tr></thead>'+
    '<tbody>'+(rows.length?rows.map(i=>docRow(i,kind,selected,disabled.has(i.item_id))).join(''):
     '<tr><td class="retrieval-empty" colspan="5">No documents to display.</td></tr>')+'</tbody></table></div>';
@@ -61,7 +61,7 @@ window.ITRACK_RETRIEVAL_VIEW=function(state,{esc,date,label,divisionStageLabel})
    '<p class="note">No documents available for rightful-owner assignment.</p>';
  return '<div class="sectionhead"><div><div class="eyebrow">Physical document custody</div><h1>Division Retrieval</h1>'+
   '<p class="sub">One line per document. Every pickup, turnover and final claim stays connected to the original tracking ID.</p></div>'+
-  '<button class="btn alt" data-a="retrieval-refresh">Refresh</button></div>'+
+  '<button class="btn alt" data-a="retrieval-refresh">'+(window.ITRACK_ICON?.('refresh')||'')+'Refresh</button></div>'+
   '<div class="panel retrieval-panel"><div class="retrieval-panel-head"><h3>1. Retrieve from Division</h3>'+
   '<span class="small muted">'+available.length+' at Division</span></div>'+
   '<div class="toolbar retrieval-search-bar"><input type="search" id="retrieval-search" placeholder="Search tracking ID, document, or school" value="'+esc(state.retrievalSearch||'')+'">'+

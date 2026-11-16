@@ -30,7 +30,7 @@
    '<label>Transmittal '+select('retrieval-transmittal',[['','All Transmittals'],...transmittals.map(t=>[t,t])],trans)+'</label></div>';
   const pickupRows=rows.map(x=>{
    const status=x.owner_id===mine?'Mine — completes automatically':'Other owner — with retriever';
-   return '<tr class="retrieval-doc-row" style="cursor:pointer" title="Click row to select this document" data-retrieval-search="'+esc([x.tracking_number,x.document_label,x.school_name,x.transmittal_number].join(' ').toLowerCase())+'">'+
+   return '<tr class="retrieval-doc-row" title="Click row to select this document" data-retrieval-search="'+esc([x.tracking_number,x.document_label,x.school_name,x.transmittal_number].join(' ').toLowerCase())+'">'+
     '<td class="retrieval-check-cell"><input type="checkbox" class="retrieval-check retrieval-pick" value="'+esc(x.item_id)+'"'+(state.retrievalPicked?.has(x.item_id)?' checked':'')+'></td>'+
     '<td class="retrieval-tracking">'+esc(x.tracking_number||'')+'</td>'+
     '<td><strong class="retrieval-name">'+esc(x.document_label||'Document')+'</strong><small class="retrieval-extra">'+esc(x.transmittal_number||'')+'</small></td>'+
@@ -44,7 +44,7 @@
    '<button class="btn tiny alt" data-a="retrieval-clear">Clear</button></div>'+toolsHtml+
    '<p class="note">Check documents physically collected at Division. Your own documents become Completed automatically. Documents for others remain With Retriever until handed over.</p>'+
    '<div id="retrieval-available-list"><div class="retrieval-table-scroll"><table class="retrieval-table">'+
-   '<thead><tr><th>✓</th><th>Tracking ID</th><th>Document / Transmittal</th><th>School</th><th>Ownership / Status</th></tr></thead>'+
+   '<thead><tr><th class="retrieval-check-cell" aria-label="Select">'+(window.ITRACK_ICON?.('check')||'✓')+'</th><th class="retrieval-tracking">Tracking ID</th><th>Document / Transmittal</th><th class="retrieval-school">School</th><th class="retrieval-status">Ownership / Status</th></tr></thead>'+
    '<tbody>'+pickupRows+'</tbody></table></div></div>'+
    '<div class="retrieval-bottom-bar"><span class="small muted" id="retrieval-pick-count">'+(state.retrievalPicked?.size||0)+' checked</span>'+
    '<button class="btn" id="retrieval-pickup-btn" data-a="retrieval-pickup"'+(!state.retrievalPicked?.size?' disabled':'')+'>Confirm Physical Retrieval</button></div></section>';
@@ -89,7 +89,7 @@
     advanced=advanced.slice(0,oldReceiptStart)+advanced.slice(ownerSettingsStart);
   return '<div class="sectionhead"><div><div class="eyebrow">Physical document custody</div><h1>Division Retrieval</h1>'+
    '<p class="sub">All submitted documents in one searchable list. Print a retrieval slip only if needed.</p></div>'+
-   '<button class="btn alt" data-a="retrieval-refresh">Refresh</button></div>'+
+   '<button class="btn alt" data-a="retrieval-refresh">'+(window.ITRACK_ICON?.('refresh')||'')+'Refresh</button></div>'+
    pickup+ownerReceipt+slip+
    (advanced?'<details class="panel retrieval-panel retrieval-advanced"><summary><strong>Advanced: District Handoffs & Final Receipt</strong><span class="small muted">Open only if needed</span></summary>'+
     '<p class="note">Use this section only for physical transfers to District or confirmation by someone else. Turnover records are separate from optional retrieval slips.</p>'+

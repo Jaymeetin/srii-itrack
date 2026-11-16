@@ -16,9 +16,13 @@ const icons={
  chevron:'<path d="m9 18 6-6-6-6"/>'
 };
 const safe=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+// Shared interface icons (icons.js) keep phone and desktop identical; the local set is a fallback.
+const shared={home:'home',notices:'megaphone',status:'chart',reports:'barChart',docs:'fileText',more:'more',chevron:'chevronRight'};
 function icon(which){
- return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">'+icons[which]+'</svg>';
+ const drawn=typeof window.ITRACK_ICON==='function'?window.ITRACK_ICON(shared[which]||which):'';
+ return drawn||(icons[which]?'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">'+icons[which]+'</svg>':'');
 }
+const navIcons=window.ITRACK_NAV_ICONS||{};
 const tabs=[
  {page:"dashboard",label:"Home",icon:"home"},
  {page:"announcements",label:"Notices",icon:"notices"},
@@ -43,7 +47,8 @@ function makeShell(app){
  const head=app.querySelector(".topbar");
  if(!head)return;
  const user=identity(app);
- const actionCount=Number(app.querySelector('.action-inbox-trigger')?.textContent?.match(/\((\d+)\)/)?.[1]||0);
+ const trigger=app.querySelector('.action-inbox-trigger');
+ const actionCount=Number(trigger?.dataset.count||trigger?.textContent?.match(/\((\d+)\)/)?.[1]||0);
  if(!head.querySelector(".mobile-header")){
   head.insertAdjacentHTML("afterbegin",
    '<div class="mobile-header">'+
@@ -102,16 +107,17 @@ function openMore(){
  // Mirror the authorized sidebar: hiding a page in the sidebar must also hide
  // it on mobile. Newly released modules should not be omitted from More.
  const available=page=>!!app.querySelector('.sidebar nav button[data-page="'+page+'"]');
+ const row=(name,title)=>'<span class="mobile-menu-label">'+icon(name)+'<span>'+title+'</span></span><small aria-hidden="true">'+icon('chevron')+'</small>';
  const link=(page,title)=>available(page)?
-  '<button type="button" class="mobile-menu-button" data-mobile="navigate" data-page="'+page+'">'+title+' <small>›</small></button>':"";
+  '<button type="button" class="mobile-menu-button" data-mobile="navigate" data-page="'+page+'">'+row(navIcons[page]||'file',title)+'</button>':"";
  const workplace=[
-  link('division','▤ Division Transmittals'),
-  link('district','▤ District Transmittals'),
-  link('retrieval','✓ Division Retrieval')
+  link('division','Division Transmittals'),
+  link('district','District Transmittals'),
+  link('retrieval','Division Retrieval')
  ].join("");
  const administrative=[
-  link('document-types','▦ Document Types'),
-  link('document-control','▣ Document Control / Trash'),
+  link('document-types','Document Types'),
+  link('document-control','Document Control / Trash'),
   link('school-files','All School Attachments'),
   link('verification','Submission Verification'),
   link('reports','District Reports'),
@@ -128,18 +134,18 @@ function openMore(){
  sheet.innerHTML=
  '<div class="mobile-more-sheet" role="dialog" aria-modal="true" aria-label="Account and app options">'+
   '<div class="mobile-sheet-handle" aria-hidden="true"></div>'+
-  '<div class="mobile-more-top"><strong>More options</strong><button type="button" class="mobile-close" data-mobile="close" aria-label="Close menu">×</button></div>'+
+  '<div class="mobile-more-top"><strong>More options</strong><button type="button" class="mobile-close" data-mobile="close" aria-label="Close menu">'+(icon('x')||'×')+'</button></div>'+
   '<div class="mobile-identity"><span class="mobile-avatar" aria-hidden="true">'+safe(user.initials)+'</span><div><strong>'+safe(user.name)+'</strong><small>'+safe(user.detail)+'</small></div></div>'+
   '<span class="mobile-sheet-label">WORKSPACE</span>'+
-  link('feedback','✎ Report a Problem / Suggestion')+
-  '<button type="button" class="mobile-menu-button" data-mobile="navigate" data-page="notifications">◉ &nbsp; Notifications <small>›</small></button>'+
+  link('feedback','Report a Problem / Suggestion')+
+  '<button type="button" class="mobile-menu-button" data-mobile="navigate" data-page="notifications">'+row('bell','Notifications')+'</button>'+
   workplaceSection+administrationSection+
   '<span class="mobile-sheet-label">PREFERENCES</span>'+
   (app.querySelector('.sidebar nav button[data-page="settings"]')?
-   '<button type="button" class="mobile-menu-button" data-mobile="navigate" data-page="settings">⚙ &nbsp; Personal Settings <small>›</small></button>':'')+
-  '<button type="button" class="mobile-menu-button" data-mobile="theme">◐ &nbsp; Switch Light / Dark Mode <small>›</small></button>'+
-  link('system-updates','↻ System Updates')+
-  '<button type="button" class="mobile-menu-button danger" data-mobile="logout">↩ &nbsp; Sign Out <small>›</small></button>'+
+   '<button type="button" class="mobile-menu-button" data-mobile="navigate" data-page="settings">'+row('sliders','Personal Settings')+'</button>':'')+
+  '<button type="button" class="mobile-menu-button" data-mobile="theme">'+row('contrast','Switch Light / Dark Mode')+'</button>'+
+  link('system-updates','System Updates')+
+  '<button type="button" class="mobile-menu-button danger" data-mobile="logout">'+row('logout','Sign Out')+'</button>'+
  '</div>';
  sheet.addEventListener("click",e=>{if(e.target===sheet)closeMore();});
  app.appendChild(sheet);

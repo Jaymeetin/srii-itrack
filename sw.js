@@ -1,7 +1,7 @@
 /* SRII i-TRACK app shell cache v2: assets only, always prefer the network. */
-const CACHE_NAME="srii-itrack-attachments-v75";
+const CACHE_NAME="srii-itrack-design-polish-v83";
 const CORE_ASSETS=[
- "./","./index.html","./styles.css","./mobile.css",
+ "./","./index.html","./styles.css","./mobile.css","./theme.css","./icons.js","./assets/fonts/inter-latin-wght-normal.woff2",
  "./app.js","./upload-enhancements.js","./upload-enhancements.css","./compact-rows.js","./compact-rows.css","./version-history.js","./compact-notices.css","./retrieval-ui.js","./district-ui.js","./district-print.js","./document-types-ui.js","./district.css","./official-print.js?v=retrieval-fields-v74","./mobile-shell.js","./upload-ui.css","./upload-ui.js","./download-ui.js","./config.js",
  "./assets/division-sample-endorsement-header.webp","./assets/division-sample-endorsement-footer.webp",
  "./assets/division-sample-transmittal-header.webp","./assets/division-sample-transmittal-footer.webp",

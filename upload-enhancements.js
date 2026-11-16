@@ -86,7 +86,7 @@ function progressDialog(title) {
  overlay.setAttribute("role","dialog");
  overlay.setAttribute("aria-modal","true");
  overlay.setAttribute("aria-label","Upload in progress");
- overlay.innerHTML='<div class="srii-upload-dialog"><div class="srii-upload-symbol" aria-hidden="true">↑</div><h2></h2><p class="srii-upload-step" role="status" aria-live="polite"></p><div class="srii-upload-meter"><div class="srii-upload-meter-fill"></div></div><strong class="srii-upload-percent"></strong><p class="srii-upload-explain">Please keep this page open. Do not click Route again.</p></div>';
+ overlay.innerHTML='<div class="srii-upload-dialog"><div class="srii-upload-symbol" aria-hidden="true">'+(window.ITRACK_ICON?.('arrowUp')||'↑')+'</div><h2></h2><p class="srii-upload-step" role="status" aria-live="polite"></p><div class="srii-upload-meter"><div class="srii-upload-meter-fill"></div></div><strong class="srii-upload-percent"></strong><p class="srii-upload-explain">Please keep this page open. Do not click Route again.</p></div>';
  document.body.append(overlay);
  overlay.querySelector("h2").textContent=title||"Uploading document";
  const step=overlay.querySelector(".srii-upload-step");

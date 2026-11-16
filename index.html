@@ -19,11 +19,13 @@
 <link rel="stylesheet" href="./district.css?v=completion-v48">
 <link rel="stylesheet" href="./compact-notices.css?v=notifications-v49">
 <link rel="stylesheet" href="./compact-rows.css?v=compact-records-v69">
+<link rel="preload" href="./assets/fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="./theme.css?v=design-polish-v83">
 <style>
 @media (min-width:769px){
-  .topbar .desktop-signout{display:inline-flex!important;align-items:center;justify-content:center;background:#173e88!important;color:#fff!important;border:2px solid #e0b443!important;border-radius:10px!important;padding:10px 18px!important;font-size:14px!important;font-weight:800!important;cursor:pointer!important;visibility:visible!important;opacity:1!important}
+  /* Keep the desktop Sign Out control visible; its appearance lives in theme.css. */
+  .topbar .desktop-signout{display:inline-flex!important;align-items:center;justify-content:center;cursor:pointer!important;visibility:visible!important;opacity:1!important}
   .topbar .topbar-actions{display:flex!important;align-items:center!important;gap:12px!important}
-  .sidebar{overflow-y:auto!important}
 }
 </style>
 </head>
@@ -31,7 +33,7 @@
 <style>
 #intro-splash{position:fixed;inset:0;z-index:99999;background:#fff;display:none;align-items:center;justify-content:center;overflow:hidden}
 #intro-video{width:100%;height:100%;object-fit:contain;background:#fff}
-#intro-skip{position:absolute;right:16px;top:max(16px,env(safe-area-inset-top));border:0;border-radius:20px;padding:10px 16px;background:#173e88;color:#fff;font:600 14px system-ui;cursor:pointer}
+#intro-skip{position:absolute;right:16px;top:max(16px,env(safe-area-inset-top));border:0;border-radius:10px;padding:10px 16px;background:#173e88;color:#fff;font:600 14px "Inter Variable",system-ui,sans-serif;cursor:pointer}
 </style>
 <div id="intro-splash" aria-label="SRII i-TRACK opening video">
 <video id="intro-video" muted playsinline preload="none"><source src="./SRII_iTRACK_3sec_Portrait_Opening_Preview.mp4" type="video/mp4"></video>
@@ -60,19 +62,20 @@
 <div id="toast" role="status" aria-live="polite"></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" defer></script>
 <script src="./config.js" defer></script>
+<script src="./icons.js?v=design-polish-v83" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js" defer></script>
 <script src="./official-print.js?v=retrieval-fields-v74" defer></script>
-<script src="./retrieval-ui.js?v=division-retrieval-v47" defer></script>
-<script src="./retrieval-simple.js?v=owner-receipt-v77" defer></script>
-<script src="./district-ui.js?v=completion-v48" defer></script>
+<script src="./retrieval-ui.js?v=design-polish-v83" defer></script>
+<script src="./retrieval-simple.js?v=design-polish-v83" defer></script>
+<script src="./district-ui.js?v=design-polish-v83" defer></script>
 <script src="./district-print.js?v=completion-v48" defer></script>
-<script src="./document-types-ui.js?v=completion-v48" defer></script>
+<script src="./document-types-ui.js?v=design-polish-v83" defer></script>
 <script src="./version-history.js?v=early-notes-v67" defer></script>
-<script src="./compact-rows.js?v=compact-records-v69" defer></script>
-<script src="./upload-enhancements.js?v=attachment-v75" defer></script>
-<script src="./app.js?v=sample-cleanup-v82" defer></script>
-<script src="./mobile-shell.js?v=document-control-v80" defer></script>
-<script src="./upload-ui.js?v=attachment-v75" defer></script>
+<script src="./compact-rows.js?v=design-polish-v83" defer></script>
+<script src="./upload-enhancements.js?v=design-polish-v83" defer></script>
+<script src="./app.js?v=design-polish-v83" defer></script>
+<script src="./mobile-shell.js?v=design-polish-v83" defer></script>
+<script src="./upload-ui.js?v=design-polish-v83" defer></script>
 <script src="./download-ui.js?v=self-tracking-v40" defer></script>
 </body>
 </html>

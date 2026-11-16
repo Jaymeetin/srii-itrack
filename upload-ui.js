@@ -109,7 +109,7 @@ function markPanel(){
    (kind==="announcement"?'<div class="iu-announcement-review" aria-live="polite">Choose an announcement to view its school and title before uploading.</div>'+
      '<label class="iu-confirm-row"><input type="checkbox" class="iu-confirm-input" disabled> <span>I checked the <strong>school and announcement</strong> above. This is the correct destination for my file.</span></label>':'')+
    '<div class="iu-date" aria-live="polite"></div>'+
-   '<div class="iu-file"><span class="iu-file-icon" aria-hidden="true">↥</span><div class="iu-file-inner"><label for="iu-file-'+kind+'">Choose a PDF, Word or image file</label>'+
+   '<div class="iu-file"><span class="iu-file-icon" aria-hidden="true">'+(window.ITRACK_ICON?.('upload')||'↥')+'</span><div class="iu-file-inner"><label for="iu-file-'+kind+'">Choose a PDF, Word or image file</label>'+
     '<input id="iu-file-'+kind+'" class="iu-input" type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp" aria-label="Select document to upload"></div></div>'+
    '<div class="iu-selection">No document selected</div>'+
    '<img class="iu-image" alt="Preview of selected screenshot" hidden>'+

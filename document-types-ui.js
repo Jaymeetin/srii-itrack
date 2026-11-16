@@ -16,11 +16,11 @@ window.ITRACK_TYPES_VIEW=function(state,{esc,date}){
   '<p class="note">No document types exist.</p>';
  return '<div class="sectionhead"><div><div class="eyebrow">District Administration</div><h1>Document Types</h1>'+
   '<p class="sub">Approve suggestions, add types directly and deactivate old types without deleting historical documents.</p></div>'+
-  '<button class="btn alt" data-a="types-refresh">Refresh</button></div>'+
+  '<button class="btn alt" data-a="types-refresh">'+(window.ITRACK_ICON?.('refresh')||'')+'Refresh</button></div>'+
   '<div class="panel"><h3>Pending Requests ('+pending.length+')</h3>'+pendingRows+'</div>'+
   '<div class="panel"><h3>Add Approved Document Type</h3>'+
   '<p class="note">Administrators can add a type immediately. It becomes available in the document creation dropdown after refresh.</p>'+
-  '<div class="toolbar"><input id="types-new-name" type="text" maxlength="140" placeholder="e.g., School Form 6" style="flex:1 1 250px;border:1px solid var(--line);border-radius:9px;padding:10px;color:var(--text);background:var(--paper)">'+
+  '<div class="toolbar"><input id="types-new-name" type="text" maxlength="140" placeholder="e.g., School Form 6" style="flex:1 1 250px">'+
   '<button class="btn" data-a="types-add">+ Add Document Type</button></div></div>'+
   '<div class="panel"><h3>Approved & Inactive Types ('+types.length+')</h3><p class="note">Deactivation only hides a type from new documents. Old document tracking IDs and history are kept.</p>'+typeRows+'</div>';
 };

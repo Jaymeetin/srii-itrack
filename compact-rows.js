@@ -10,16 +10,31 @@ function groupFor(parent){
  return groupNames.get(parent);
 }
 function labelText(node){return (node?.textContent||'').replace(/\s+/g,' ').trim();}
+// Row title = the cell's own leading text, without the supporting lines that follow it
+// (owner, reference number, return rule). Those remain visible when the row is opened.
+function leadText(node){
+ let out='';
+ for(const child of node?.childNodes||[]){
+  if(child.nodeType===3)out+=child.textContent;
+  else if(child.nodeType===1&&/^(DIV|P|UL|OL|TABLE|SECTION|DETAILS|BR)$/.test(child.tagName)){if(out.trim())break;}
+  else out+=child.textContent||'';
+ }
+ return out.replace(/\s+/g,' ').trim();
+}
+const drawIcon=name=>typeof window.ITRACK_ICON==='function'?window.ITRACK_ICON(name):'';
+const toneOf=value=>typeof window.ITRACK_TONE==='function'?window.ITRACK_TONE(value):'neutral';
 function chip(value){
  const el=document.createElement('span');el.className='itrack-row-status';
- el.textContent=String(value||'').trim();return el;
+ el.textContent=String(value||'').trim();el.dataset.tone=toneOf(el.textContent);return el;
 }
 function summary(name,status){
  const el=document.createElement('summary');el.className='itrack-row-summary';
  const title=document.createElement('span');title.className='itrack-row-title';title.textContent=name||'Untitled record';
  const right=document.createElement('span');right.className='itrack-row-right';
  if(status)right.appendChild(status);
- const arrow=document.createElement('span');arrow.className='itrack-row-chevron';arrow.textContent='›';arrow.setAttribute('aria-hidden','true');
+ const arrow=document.createElement('span');arrow.className='itrack-row-chevron';arrow.setAttribute('aria-hidden','true');
+ const chevron=drawIcon('chevronRight');
+ if(chevron)arrow.innerHTML=chevron;else arrow.textContent='›';
  right.appendChild(arrow);el.append(title,right);return el;
 }
 function addCount(list,count){
@@ -42,7 +57,9 @@ function compactTables(){
    const cells=Array.from(tr.cells);
    const first=cells[titleIx]||cells[0];
    const preferred=first.querySelector('.connected-ann-title,.school-files-name strong,.retrieval-name,strong');
-   const name=labelText(preferred)||labelText(first)||'Record';
+   // A bold first line followed by one supporting line (code + title, name + position) reads as one title.
+   const support=preferred&&preferred.parentElement===first?labelText(first.querySelector(':scope > .small')):'';
+   const name=(labelText(preferred)+(support?' · '+support:''))||leadText(first)||labelText(first)||'Record';
    const statusCell=statusIx>=0?cells[statusIx]:null;
    const statusBadge=statusCell?.querySelector('.tag,.verify-status,.account-email-state');
    const status=statusBadge?statusBadge.cloneNode(true):(statusCell?chip(labelText(statusCell)):null);
@@ -72,7 +89,7 @@ const configs=[
  ['.type-admin-row',el=>labelText(el.querySelector('strong')),el=>chip(/Pending/.test(labelText(el.parentElement?.previousElementSibling))?'Pending':(/Inactive/i.test(labelText(el))?'Inactive':/Active/i.test(labelText(el))?'Active':'Pending'))],
  ['.district-action-row',function(el){
   const container=el.firstElementChild;const id=labelText(container?.querySelector('strong'));
-  return labelText(container).replace(id,'').replace(/^[\s·–-]+/,'').split(' · ')[0]||id;
+  return leadText(container).replace(id,'').replace(/^[\s·–-]+/,'').split(' · ')[0]||id;
  },el=>chip(labelText(el.querySelector('.small')).split(' · ')[0]||'Document')],
  ['.retrieval-slip-row',el=>labelText(el.querySelector('strong')),el=>chip(labelText(el.querySelector('.small')).split(' · ')[0]||'Slip')],
  ['.retrieval-claim-row',el=>labelText(el.querySelector('.retrieval-name'))||labelText(el.querySelector('strong')),el=>chip('Awaiting receipt')],

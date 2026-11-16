@@ -49,6 +49,10 @@ localStorage.removeItem('srii-current-view');
 const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],monitorSchoolDetails:null,oversightUploads:[],oversightShowAllUploads:false,connectedFilter:'',monitorStatusFilter:'',reportFilter:'',navTrail:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:arrivedFromExpiredEmailLink?'resend':importedQueueTicket?'queue':'login',emailHelpReason:arrivedFromExpiredEmailLink?'expired':'',queueTicket:importedQueueTicket||localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],showRemovedAccounts:false,modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],districtHistory:[],documentDistrictStatuses:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],compliances:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewCompliances:[],reviewAllCompliances:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],notificationLimit:50,notificationHasMore:false,divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',districtData:{eligible:[],transmittals:[],items:[],claimable:[],people:[]},districtPicked:new Set(),districtSubmitPicked:new Set(),districtSelected:'',districtSchoolId:'',adminDocumentTypes:{types:[],requests:[]},documentDivisionStatuses:[],approverAssignments:[],announcementApproverEditing:null,announcementEditId:null,announcementEditorData:null,announcementCancelId:null,transmittalEditing:false,retrievalData:{},retrievalPicked:new Set(),retrievalSlipPicked:new Set(),retrievalScope:'all',retrievalOrder:'recent',retrievalTransmittal:'',retrievalTurnoverPicked:new Set(),retrievalDistrictPicked:new Set(),retrievalSearch:'',privateDetails:null,profileRequests:[],userFeedback:[],feedbackInbox:[],adminFeedbackEntries:[],feedbackAuthors:[],feedbackFilter:'all',feedbackType:'all',versionHistoryLatestFirst:false,versionHistoryDocumentedOnly:false,issue:null,maintenance:{enabled:false,message:''},systemUpdates:[],recoveryScan:null,misfiledReview:null,recoveryChecking:false,actionItems:[],actionPopupOpen:false,actionError:false,docAdminData:{documents:[],total_matching:0},docAdminScope:'active',docAdminSearch:'',docAdminTarget:null,docAdminStage:0,docAdminSampleMode:false,docAdminSampleStage:0,docAdminSampleIds:[]};
 document.documentElement.dataset.theme=state.theme;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// Presentation helpers (icons.js). They only return markup or a colour family; a missing
+// icons.js leaves the text labels intact instead of breaking the page.
+const ico=(name,cls)=>typeof window.ITRACK_ICON==='function'?window.ITRACK_ICON(name,cls):'';
+const tone=x=>typeof window.ITRACK_TONE==='function'?window.ITRACK_TONE(x):'neutral';
 const date=x=>x?new Date(x).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}):'—';
 const short=x=>x?new Date(x).toLocaleDateString('en-PH',{dateStyle:'medium',timeZone:'Asia/Manila'}):'—';
 const phtDatetimeLocal=x=>x?new Date(new Date(x).getTime()+8*60*60*1000).toISOString().slice(0,16):'';
@@ -91,7 +95,7 @@ function connectedFilterLabel(value){
  return {open:'Open announcements',required:'My assigned requirements',submitted:'My submitted requirements',pending:'Pending items',late:'Late requirements'}[value]||'';
 }
 
-const pTag=x=>`<span class="tag ${['active','submitted','received','open','Submitted'].includes(x)?'good':['pending','awaiting_ack','Pending','returned'].includes(x)?'warn':['Late','disabled'].includes(x)?'bad':'info'}">${esc(label(x))}</span>`;
+const pTag=x=>`<span class="tag ${['active','submitted','received','open','Submitted'].includes(x)?'good':['pending','awaiting_ack','Pending','returned'].includes(x)?'warn':['Late','disabled'].includes(x)?'bad':'info'}" data-tone="${tone(x)}">${esc(label(x))}</span>`;
 const table=(cols,rows)=>rows.length?`<div class="tablewrap"><table class="data"><thead><tr>${cols.map(x=>`<th>${esc(x)}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`:'<div class="empty">No records available yet.</div>';
 const eyeIcon='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="3"/></svg>';
 const eyeOffIcon='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 3 18 18"/><path d="M10.6 5.1A11.8 11.8 0 0 1 12 5c6.4 0 10 7 10 7a15 15 0 0 1-3.3 3.6M6 6C3.5 8 2 12 2 12s3.6 7 10 7c1.7 0 3.2-.5 4.4-1.2"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>';
@@ -112,7 +116,7 @@ function emailQuotaError(error,context='Email'){
 }
 
 const schoolOpts=()=>state.schools.filter(s=>s.is_active).map(s=>`<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('');
-function pop(message,error=false){toast.textContent=message;toast.style.background=error?'#a43142':'#173d80';toast.classList.add('show');clearTimeout(pop.timer);pop.timer=setTimeout(()=>toast.classList.remove('show'),5000);}
+function pop(message,error=false){toast.textContent=message;toast.style.background=error?'#b3261e':'#102a63';toast.classList.add('show');clearTimeout(pop.timer);pop.timer=setTimeout(()=>toast.classList.remove('show'),5000);}
 function brand(){return `<div class="brand"><a class="brandmark logo-download-link" href="./assets/srii-itrack-official-logo.png" download="SRII-iTRACK-Official-Logo.png" title="Click or tap to save the original SRII i-TRACK logo" aria-label="Download official SRII i-TRACK logo"><img class="official-logo-image" src="./assets/srii-itrack-logo-optimized.webp" alt="SRII i-TRACK official district emblem" width="48" height="45" decoding="async"></a><span class="brand-label">SRII <span class="brand-accent">i-TRACK</span><small>DOCUMENT TRACKING SYSTEM</small></span></div>`;}
 function stat(label,value,desc,action='',detail=''){
  const content='<span class="label">'+esc(label)+'</span><strong>'+esc(value)+'</strong><span class="note">'+esc(desc)+'</span>';
@@ -523,7 +527,7 @@ function attachmentListHtml(documentId){
   const filename=String(f.original_filename||'Attachment');
   const previewable=['application/pdf','image/jpeg','image/png','image/webp'].includes(f.content_type);
   const data=' data-kind="document" data-id="'+esc(f.id)+'" data-name="'+esc(filename)+'"';
-  return '<div class="doc-att-row"><span class="doc-att-icon" aria-hidden="true">▤</span>'+
+  return '<div class="doc-att-row"><span class="doc-att-icon" aria-hidden="true">'+ico('fileText')+'</span>'+
    '<span class="doc-att-name" title="'+esc(filename)+'">'+esc(filename)+'</span>'+
    '<span class="doc-att-actions">'+(previewable?
    '<button type="button" class="btn tiny alt iu-file-action"'+data+' data-mode="view" aria-label="View '+esc(filename)+'">View</button>':'')+
@@ -784,7 +788,7 @@ function schoolAttachmentsPage(){
   'No schools have uploaded attachments yet.';
  return '<div class="sectionhead"><div><div class="eyebrow">District administrator · secure records</div>'+
   '<h1>School Attachments</h1><p class="sub">Browse all submitted files from every school and announcement, including previous versions. File access is checked and recorded.</p></div>'+
-  '<button type="button" class="btn alt" data-a="refresh-school-files">↻ Refresh</button></div>'+
+  '<button type="button" class="btn alt" data-a="refresh-school-files">'+ico('refresh')+'Refresh</button></div>'+
   '<div class="school-files-metrics">'+
    '<div><strong>'+state.schools.length+'</strong><span>Schools in district</span></div>'+
    '<div><strong>'+activeSchools.size+'</strong><span>Schools with uploads</span></div>'+
@@ -886,14 +890,14 @@ function verificationPage(){
  });
  if(!yesAdmin())return '<div class="sectionhead"><div><div class="eyebrow">Assigned Approver</div><h1>Submission Verification</h1>'+
   '<p class="sub">Any one assigned approver may approve or return a pending school response. The other assigned approvers will see the outcome.</p></div>'+
-  '<button class="btn alt" data-a="refresh-verification">↻ Refresh</button></div>'+
+  '<button class="btn alt" data-a="refresh-verification">'+ico('refresh')+'Refresh</button></div>'+
   '<section class="panel"><div class="field"><label>Announcement</label><select id="review-ann">'+options+'</select></div>'+
   '<p class="note">Only submissions for your assigned announcements are shown. Attachments are not required.</p>'+
   table(['School / Submission ID','Evidence','Status','Review'],complianceRows)+'</section>';
  return '<div class="sectionhead"><div><div class="eyebrow">District administrator</div>'+
   '<h1>Submission Verification</h1>'+
   '<p class="sub">See submissions from all announcements, then inspect and verify the correct requirement and school.</p></div>'+
-  '<button class="btn alt" data-a="refresh-verification">↻ Refresh</button></div>'+
+  '<button class="btn alt" data-a="refresh-verification">'+ico('refresh')+'Refresh</button></div>'+
   allAnnouncementOverview+
   '<section class="panel"><div class="field"><label for="review-ann">Announcement to review</label>'+
   '<select id="review-ann">'+options+'</select></div><p class="note">Choose a requirement to inspect uploaded files and earlier versions. Pending approvals across all announcements are shown above.</p></section>'+
@@ -915,7 +919,7 @@ function show(){
  if(!state.session){window.ITRACK_CONTEXT=null;authPage();return;}
  if(!state.profile){$.innerHTML='<div class="startup">Preparing account…</div>';return;}
  if(!active()){window.ITRACK_CONTEXT=null;pendingPage();return;}
- if(state.maintenance.enabled&&!yesAdmin()){window.ITRACK_CONTEXT=null;$.innerHTML='<div class="startup" style="max-width:580px;margin:12vh auto;padding:30px;text-align:center"><h2>🔧 SRII i-TRACK Maintenance</h2><p>'+esc(state.maintenance.message)+'</p><p class="note">Your account and saved documents remain unchanged.</p><button class="btn" data-a="maintenance-refresh">Check Again</button> <button class="btn alt" data-a="logout">Sign Out</button></div>';return;}
+ if(state.maintenance.enabled&&!yesAdmin()){window.ITRACK_CONTEXT=null;$.innerHTML='<div class="startup maintenance-screen" style="max-width:580px;margin:12vh auto;padding:30px;text-align:center"><div class="maintenance-mark" aria-hidden="true">'+ico('wrench')+'</div><h2>SRII i-TRACK Maintenance</h2><p>'+esc(state.maintenance.message)+'</p><p class="note">Your account and saved documents remain unchanged.</p><button class="btn" data-a="maintenance-refresh">Check Again</button> <button class="btn alt" data-a="logout">Sign Out</button></div>';return;}
  appPage();
 }
 
@@ -1076,7 +1080,7 @@ function authPage(){
    '<p>San Remigio II District — integrated announcements, document routing and compliance monitoring.</p></div>'+
   '<small>SAN REMIGIO II · OFFICIAL DISTRICT WORKSPACE</small></aside>'+
   '<main class="auth-content"><div class="auth-card">'+
-   '<div class="auth-top"><button class="btn alt tiny" data-a="theme">◐ Light / Dark</button></div>'+
+   '<div class="auth-top"><button class="btn alt tiny" data-a="theme">'+ico('contrast')+'Light / Dark</button></div>'+
    '<div class="eyebrow">Welcome to SRII i-TRACK</div><h1>'+heading+'</h1><p class="sub">'+intro+'</p>'+
    pendingText+verificationNotice+
    (queued?queueCard():('<form id="'+formId+'">'+formContents+
@@ -1099,15 +1103,16 @@ function pendingPage(){
   pTag(state.profile.account_status)+'<p></p><div class="toolbar"><button class="btn" data-a="refresh">Check Again</button>'+
   '<button class="btn alt" data-a="logout">Sign Out</button></div></div>';
 }
-const menu=[['dashboard','⌂ Home'],['announcements','▤ Announcements'],['notifications','◉ Notifications'],['monitoring','▥ Submission Status']];
+const navIcons=window.ITRACK_NAV_ICONS||{};
+const menu=[['dashboard','Home'],['announcements','Announcements'],['notifications','Notifications'],['monitoring','Submission Status']];
 function appPage(){
- const nav=[...menu,...(!isOic()?[['documents','▣ My Documents'],['division','▤ Division Transmittals'],['district','▤ District Transmittals'],['retrieval','✓ Division Retrieval']]:[]),...(districtOversight()?[['reports','▥ District Reports'],['system-recovery','◷ Record Recovery']]:[]),...(yesAdmin()?[['feedback-admin','✎ Reports & Suggestions']]:[['feedback','✎ Report / Suggest']]),...(!yesAdmin()?[['settings','⚙ Personal Settings']]:[]),...((yesAdmin()||state.approverAssignments.some(x=>x.user_id===state.session.user.id))?[['verification','✓ Submission Verification']]:[]),...(yesAdmin()?[['school-files','▣ School Attachments'],['approvals','♙ Account Approvals'],['document-types','▦ Document Types'],['archive','▤ Archive Documents']]:[]),...(isMain()?[['document-control','▣ Document Control / Trash']]:[]),['system-updates','↻ System Updates']].map(([id,title])=>`<button class="${state.view===id?'active':''}" data-a="nav" data-page="${id}">${title}</button>`).join('');
+ const nav=[...menu,...(!isOic()?[['documents','My Documents'],['division','Division Transmittals'],['district','District Transmittals'],['retrieval','Division Retrieval']]:[]),...(districtOversight()?[['reports','District Reports'],['system-recovery','Record Recovery']]:[]),...(yesAdmin()?[['feedback-admin','Reports & Suggestions']]:[['feedback','Report / Suggest']]),...(!yesAdmin()?[['settings','Personal Settings']]:[]),...((yesAdmin()||state.approverAssignments.some(x=>x.user_id===state.session.user.id))?[['verification','Submission Verification']]:[]),...(yesAdmin()?[['school-files','School Attachments'],['approvals','Account Approvals'],['document-types','Document Types'],['archive','Archive Documents']]:[]),...(isMain()?[['document-control','Document Control / Trash']]:[]),['system-updates','System Updates']].map(([id,title])=>`<button class="${state.view===id?'active':''}" data-a="nav" data-page="${id}"${state.view===id?' aria-current="page"':''}>${ico(navIcons[id]||'file')}<span>${title}</span></button>`).join('');
  const title={dashboard:'Home',announcements:'Announcements',notifications:'Notifications',monitoring:'Submission Monitoring',documents:'My Documents',division:'Division Transmittals',district:'District Transmittals','document-types':'Document Types',retrieval:'Division Retrieval',settings:'Personal Settings',reports:'District Reports','system-recovery':'Record Recovery','system-updates':'System Updates',feedback:'Report / Suggest','feedback-admin':'Reports & Suggestions','school-files':'School Attachments',verification:'Submission Verification',approvals:'Account Management',archive:'Document Archiving','document-control':'Document Control / Trash'}[state.view]||'Overview';
  const school=state.schools.find(x=>x.id===state.profile.school_id)?.name||'District Office';
  const name=state.profile.display_name||(isOic()?'OIC-PSDS':yesAdmin()?'District Administrator':'School Personnel');
  let body={dashboard:dashboardPage,announcements:announcementPage,notifications:notificationsPage,monitoring:monitorPage,documents:documentPage,division:divisionPage,district:districtPage,'document-types':documentTypesAdminPage,retrieval:retrievalPage,settings:settingsPage,reports:districtReportPage,'system-updates':systemUpdatesPage,'system-recovery':systemRecoveryPage,feedback:feedbackPage,'feedback-admin':feedbackAdminPage,'school-files':schoolAttachmentsPage,verification:verificationPage,approvals:approvalPage,archive:archivePage,'document-control':documentControlPage}[state.view]?.()||dashboardPage();
  if(state.view==='dashboard')body=body+systemUpdatePanel();
- if(state.view==='dashboard'&&yesAdmin())body='<section class="panel" style="padding:20px;margin:16px 0;border:2px solid #d7bd6b"><h3>🔧 System Maintenance</h3><p class="note">Pause access for regular users while admins continue working.</p><p><strong>Status: '+(state.maintenance.enabled?'MAINTENANCE ON':'Running normally')+'</strong></p><button class="btn" data-a="maintenance-toggle">'+(state.maintenance.enabled?'Turn OFF Maintenance — Reopen App':'Turn ON Maintenance — Pause Users')+'</button></section>'+body;
+ if(state.view==='dashboard'&&yesAdmin())body='<section class="panel maintenance-panel"><h3>'+ico('wrench')+'System Maintenance</h3><p class="note">Pause access for regular users while admins continue working.</p><p><strong>Status: '+(state.maintenance.enabled?'MAINTENANCE ON':'Running normally')+'</strong></p><button class="btn" data-a="maintenance-toggle">'+(state.maintenance.enabled?'Turn OFF Maintenance — Reopen App':'Turn ON Maintenance — Pause Users')+'</button></section>'+body;
  // Read-only presentation context for the upload panel. Not an authorization
  // mechanism: Supabase RLS and the Edge Function enforce permissions.
  window.ITRACK_CONTEXT={
@@ -1119,11 +1124,12 @@ function appPage(){
    docs:state.docs.map(d=>({id:d.id,tracking_number:d.tracking_number,subject:d.subject}))
  };
  const breadcrumb=state.view!=='dashboard'?'<div class="connected-breadcrumb">'+
-  '<button type="button" data-a="go-back" class="connected-crumb">‹ Back</button>'+
+  '<button type="button" data-a="go-back" class="connected-crumb connected-crumb-back">'+ico('chevronLeft')+'Back</button>'+
   '<button type="button" data-a="nav" data-page="dashboard" class="connected-crumb">Home</button>'+
   '<span class="connected-crumb-current">'+esc(title)+'</span></div>':'';
- $.innerHTML=`<div class="app"><aside class="sidebar">${brand()}<nav>${nav}</nav><div class="sidebar-footer"><button data-a="theme">◐ Light / Dark Mode</button><button data-a="logout">↩ Sign Out</button><div class="user-mini">${esc(name)}<br>${esc(label(state.profile.role))} · ${esc(school)}</div></div></aside>
- <div class="main"><header class="topbar"><div><h2>${esc(title)}</h2><div class="note">One District. One Direction.</div></div><div class="topbar-actions">${pTag('active')}<button type="button" class="action-inbox-trigger" data-a="action-open" aria-label="Open items requiring your action">▣ Actions${state.actionItems.length?' ('+state.actionItems.reduce((n,item)=>n+(item.count||1),0)+')':''}</button><button class="desktop-signout" type="button" data-a="logout" title="Sign out of SRII i-TRACK">↩ Sign Out</button></div></header><div class="content">${breadcrumb}${body}</div></div></div>${state.modal?modalHtml():''}${state.actionPopupOpen&&!state.modal?actionPopupHtml():''}`;
+ const actionTotal=state.actionItems.reduce((n,item)=>n+(item.count||1),0);
+ $.innerHTML=`<div class="app"><aside class="sidebar">${brand()}<nav>${nav}</nav><div class="sidebar-footer"><button data-a="theme">${ico('contrast')}<span>Light / Dark Mode</span></button><button data-a="logout">${ico('logout')}<span>Sign Out</span></button><div class="user-mini">${esc(name)}<br>${esc(label(state.profile.role))} · ${esc(school)}</div></div></aside>
+ <div class="main"><header class="topbar"><div class="topbar-title"><h2>${esc(title)}</h2><div class="note">One District. One Direction.</div></div><div class="topbar-actions">${pTag('active')}<button type="button" class="action-inbox-trigger" data-a="action-open" data-count="${actionTotal}" aria-label="Open items requiring your action${actionTotal?' ('+actionTotal+')':''}">${ico('listChecks')}<span>Actions</span>${actionTotal?'<span class="action-count">'+actionTotal+'</span>':''}</button><button class="desktop-signout" type="button" data-a="logout" title="Sign out of SRII i-TRACK">${ico('logout')}<span>Sign Out</span></button></div></header><div class="content">${breadcrumb}${body}</div></div></div>${state.modal?modalHtml():''}${state.actionPopupOpen&&!state.modal?actionPopupHtml():''}`;
 }
 
 function feedbackPage(){
@@ -1191,7 +1197,7 @@ function feedbackAdminPage(){
  return '<div class="sectionhead"><div><div class="eyebrow">Consolidation</div><h1>Reports & Suggestions</h1>'+
  '<p class="sub">Review genuine user submissions alongside separately attributed administrator-entered feedback references.</p>'+
  '<p class="note">User-submitted: '+esc((state.feedbackInbox||[]).length)+' · Administrator-entered: '+esc((state.adminFeedbackEntries||[]).length)+'</p></div>'+
- '<button type="button" class="btn alt" data-a="feedback-refresh">Refresh Reports</button></div>'+
+ '<button type="button" class="btn alt" data-a="feedback-refresh">'+ico('refresh')+'Refresh Reports</button></div>'+
  addForm+'<div class="feedback-stats">'+stats+'</div>'+
  '<div class="toolbar feedback-toolbar"><label for="fb-type-filter">Show</label>'+
  '<select id="fb-type-filter"><option value="all"'+(type==='all'?' selected':'')+'>All Types</option>'+
@@ -1258,7 +1264,7 @@ function notificationRow(n,compact=false){
  const actionAttrs=' data-a="'+actionType+'" data-page="'+(n.source==='transmittal'?'division':'documents')+'" data-id="'+esc(actionId||'')+'"';
  const action='<button type="button" class="btn tiny alt"'+actionAttrs+'>'+(canReview?'Review':'View')+'</button>';
  return '<div class="v2-notice-item itrack-notice-row'+(unread?' itrack-unread':'')+'">'+
-  '<span class="itrack-notice-icon" aria-hidden="true">'+(n.source==='transmittal'?'▤':'▣')+'</span>'+
+  '<span class="itrack-notice-icon" aria-hidden="true">'+ico(n.source==='transmittal'?'send':'fileText')+'</span>'+
   '<button type="button" class="v2-notice-copy connected-copy"'+actionAttrs+'><strong>'+esc(n.message)+'</strong><small>'+esc(context+' · '+date(n.created_at))+(unread?' · Unread':'')+'</small></button>'+
   '<div class="itrack-notice-actions">'+action+
   (!compact&&unread?'<button class="btn tiny alt" data-a="doc-notice-read" data-id="'+esc(n.id)+'" data-source="'+esc(n.source)+'">Mark Read</button>':'')+'</div></div>';
@@ -1276,7 +1282,7 @@ function notificationsPage(){
  const notices=allNotificationEntries();
  return '<div class="sectionhead"><div><div class="eyebrow">Your activity</div>'+
   '<h1>All Notifications</h1><p class="sub">Document routing, Division activity, and important updates. Newest first.</p></div>'+
-  '<button class="btn alt" data-a="notifications-refresh">Refresh</button></div>'+
+  '<button class="btn alt" data-a="notifications-refresh">'+ico('refresh')+'Refresh</button></div>'+
   '<section class="panel v2-board itrack-notification-page"><div class="panel-head"><h3>Notification History</h3>'+
   '<button class="btn tiny alt" data-a="nav" data-page="announcements">Announcements</button></div>'+
   (notices.length?'<div class="v2-notice-list">'+notices.map(n=>notificationRow(n)).join('')+'</div>':
@@ -1450,18 +1456,18 @@ function dashboardPage(){
   ["Pending",pending,"clock"],
   ["Late",late,"alert"]
  ];
- const signs={school:"▥","file-text":"▤",folder:"▣",user:"♙",check:"✓",clock:"◷",alert:"!"};
+ const signs={school:ico('school'),"file-text":ico('fileText'),folder:ico('folder'),user:ico('userCheck'),check:ico('checkCircle'),clock:ico('clock'),alert:ico('alert')};
  const targets=admin?[['monitoring',''],['announcements','open'],['documents',''],['approvals','pending']]:
   oversight?[['monitoring',''],['announcements',''],['reports',''],['reports','']]:
   [['announcements','required'],['announcements','submitted'],['announcements','pending'],['announcements','late']];
  const metricHtml=metrics.map(([title,num,key],i)=>
   '<button type="button" class="v2-metric v2-metric-'+i+'" data-a="connected-nav" data-page="'+targets[i][0]+'" data-filter="'+targets[i][1]+'" aria-label="Open '+esc(title)+' details">'+
-  '<span class="v2-metric-icon" aria-hidden="true">'+signs[key]+'</span><span class="v2-metric-content"><span class="v2-metric-label">'+esc(title)+'</span><strong>'+esc(num)+'</strong></span><span class="connected-card-arrow" aria-hidden="true">›</span></button>'
+  '<span class="v2-metric-icon" aria-hidden="true">'+signs[key]+'</span><span class="v2-metric-content"><span class="v2-metric-label">'+esc(title)+'</span><strong>'+esc(num)+'</strong></span><span class="connected-card-arrow" aria-hidden="true">'+ico('chevronRight')+'</span></button>'
  ).join("");
  const announcements=latest.map(a=>{
   const status=admin||oversight?a.status:schoolStatus(a);
   const detail=admin||oversight?"View status":status==="Submitted"?"View":"Open";
-  return '<div class="v2-notice-item"><span class="v2-notice-symbol" aria-hidden="true">▤</span>'+
+  return '<div class="v2-notice-item"><span class="v2-notice-symbol" aria-hidden="true">'+ico('megaphone')+'</span>'+
    '<button type="button" class="v2-notice-copy connected-copy" data-a="announcement-focus" data-id="'+esc(a.id)+'"><strong>'+esc(a.title)+'</strong><small>'+esc((a.announcement_code?a.announcement_code+' · ':'')+short(a.deadline_at))+'</small></button>'+
    '<span class="v2-notice-state">'+pTag(status)+'</span>'+
    '<button type="button" class="btn tiny alt" data-a="announcement-focus" data-id="'+esc(a.id)+'">'+detail+'</button></div>';
@@ -1470,20 +1476,20 @@ function dashboardPage(){
  const actionNeededHtml=actionNeeded.map(d=>'<div class="v2-notice-item"><div class="v2-notice-copy"><strong>'+esc(d.subject)+'</strong><small>'+esc(d.tracking_number)+'</small></div><button class="btn tiny alt" data-a="detail" data-id="'+esc(d.id)+'">Review</button></div>').join('')||'<p class="note">No documents currently need your action.</p>';
  const upcoming=(admin||oversight?state.announcements.filter(a=>a.status!=="draft"):mine).filter(a=>a.deadline_at&&new Date(a.deadline_at)>new Date()&&a.status==="open")
   .sort((a,b)=>new Date(a.deadline_at)-new Date(b.deadline_at)).slice(0,3);
- const reminders=upcoming.map(a=>'<button type="button" class="v2-reminder connected-reminder" data-a="announcement-focus" data-id="'+esc(a.id)+'"><span class="v2-dot" aria-hidden="true"></span><span>'+esc(short(a.deadline_at))+'</span><strong>'+esc(announcementName(a))+'</strong><span class="connected-reminder-arrow" aria-hidden="true">›</span></button>').join("")||
+ const reminders=upcoming.map(a=>'<button type="button" class="v2-reminder connected-reminder" data-a="announcement-focus" data-id="'+esc(a.id)+'"><span class="v2-dot" aria-hidden="true"></span><span>'+esc(short(a.deadline_at))+'</span><strong>'+esc(announcementName(a))+'</strong><span class="connected-reminder-arrow" aria-hidden="true">'+ico('chevronRight')+'</span></button>').join("")||
   '<p class="note">No upcoming deadlines.</p>';
  const quick=oversight?
   '<div class="v2-actions">'+
-   '<button data-a="nav" data-page="announcements"><span>▤</span><strong>Announcements</strong><small>District notices</small></button>'+
-   '<button data-a="nav" data-page="monitoring"><span>▥</span><strong>School Status</strong><small>District-wide compliance</small></button>'+
-   '<button data-a="nav" data-page="reports"><span>▦</span><strong>District Reports</strong><small>Read-only summaries</small></button>'+
+   '<button data-a="nav" data-page="announcements"><span>'+ico('megaphone')+'</span><strong>Announcements</strong><small>District notices</small></button>'+
+   '<button data-a="nav" data-page="monitoring"><span>'+ico('chart')+'</span><strong>School Status</strong><small>District-wide compliance</small></button>'+
+   '<button data-a="nav" data-page="reports"><span>'+ico('barChart')+'</span><strong>District Reports</strong><small>Read-only summaries</small></button>'+
   '</div>':
   '<div class="v2-actions">'+
-   '<button data-a="nav" data-page="announcements"><span>↥</span><strong>Submit a File</strong><small>School requirements</small></button>'+
-   '<button data-a="nav" data-page="documents"><span>▣</span><strong>My Documents</strong><small>Route and track</small></button>'+
-   '<button data-a="nav" data-page="monitoring"><span>▥</span><strong>District Status</strong><small>Submission progress</small></button>'+
-   (admin?'<button data-a="nav" data-page="approvals"><span>♙</span><strong>Account Review</strong><small>Approve school users</small></button>':
-    '<button data-a="nav" data-page="announcements"><span>◷</span><strong>Due Dates</strong><small>Latest notices</small></button>')+
+   '<button data-a="nav" data-page="announcements"><span>'+ico('upload')+'</span><strong>Submit a File</strong><small>School requirements</small></button>'+
+   '<button data-a="nav" data-page="documents"><span>'+ico('fileText')+'</span><strong>My Documents</strong><small>Route and track</small></button>'+
+   '<button data-a="nav" data-page="monitoring"><span>'+ico('chart')+'</span><strong>District Status</strong><small>Submission progress</small></button>'+
+   (admin?'<button data-a="nav" data-page="approvals"><span>'+ico('userCheck')+'</span><strong>Account Review</strong><small>Approve school users</small></button>':
+    '<button data-a="nav" data-page="announcements"><span>'+ico('calendar')+'</span><strong>Due Dates</strong><small>Latest notices</small></button>')+
   '</div>';
  return '<section class="v2-intro"><div><div class="eyebrow">SAN REMIGIO II DISTRICT</div><h1>Welcome back, '+esc(name)+'!</h1><p class="v2-role">'+esc(oversight?"OIC-PSDS · District Oversight (Read Only)":admin?"District Administrator":school)+'</p></div><div class="v2-motto">One District. One Direction.<br><strong>Organized for a Stronger SRII.</strong></div></section>'+
   '<div class="v2-metrics">'+metricHtml+'</div>'+
@@ -1540,7 +1546,7 @@ function districtReportPage(){
  return '<div class="sectionhead"><div><div class="eyebrow">District-wide reporting</div>'+
   '<h1>District Reports</h1><p class="sub">Read-only compliance summaries and individual announcement upload times in Philippine time (PHT). File contents remain permission-controlled.</p></div>'+
   '<div class="toolbar">'+(yesAdmin()?'<button type="button" class="btn" data-a="nav" data-page="feedback-admin">Reports & Suggestions</button>':'')+
-  '<button class="btn alt" data-a="export-district-report"'+(!reports.length?' disabled':'')+'>↧ Export CSV</button></div></div>'+
+  '<button class="btn alt" data-a="export-district-report"'+(!reports.length?' disabled':'')+'>'+ico('download')+'Export CSV</button></div></div>'+
   '<div class="stats">'+stat('Announcements',reports.length,'Published district requests','report-stat','all')+
   stat('School requirements',total.required,'Across all announcements','report-stat','all')+
   stat('On-time submissions',total.onTime,'Received by the deadline','report-stat','onTime')+
@@ -1632,13 +1638,13 @@ function monitorPage(){
    '<span class="status-school-name">'+esc(school.name)+
    (districtOversight()?'<small class="oversight-upload-time">'+(latest?'Latest file: '+esc(date(latest.uploaded_at))+' · '+uploads.length+' version(s)':'No file uploaded')+'</small>':'')+
    '</span>'+pTag(status)+
-   '<span class="status-school-chevron" aria-hidden="true">›</span></button>';
+   '<span class="status-school-chevron" aria-hidden="true">'+ico('chevronRight')+'</span></button>';
  }).join('');
  return '<div class="eyebrow">District-wide visibility</div><h1>Submission Monitoring</h1>'+
   '<p class="sub">Tap any school to view its submission status.'+
    (isAoII()?' As an approved AO II, you may submit for another school when its AO II is unavailable.':'')+
    ' Only district administrators and assigned approvers can verify submissions. File access remains restricted.</p>'+
-  (yesAdmin()?'<div class="school-files-monitor-link"><button type="button" class="btn alt" data-a="nav" data-page="school-files">▣ View All School Attachments</button></div>':'')+
+  (yesAdmin()?'<div class="school-files-monitor-link"><button type="button" class="btn alt" data-a="nav" data-page="school-files">'+ico('paperclip')+'View All School Attachments</button></div>':'')+
   '<div class="panel"><div class="field"><label for="pick-ann">Announcement</label><select id="pick-ann"><option value="">Choose an announcement</option>'+opts+'</select></div></div>'+
   (state.selectedId?(isCancelledAnnouncement?'<div class="notice warn"><strong>Cancelled announcement.</strong> '+esc(currentAnnouncement?.cancellation_reason||'This announcement was cancelled by the district administrator.')+' New submissions are disabled; existing records are retained.</div>':'')+'<div class="stats">'+(isCancelledAnnouncement?stat('Status','Cancelled','No pending compliance required')+stat('Previously assigned schools',state.monitor.length,'Historical record','monitor-stat','all'):stat('Required Schools',state.monitor.length,'For selected announcement','monitor-stat','all')+
    stat('Verified',n('Submitted')+n('Late'),'Admin approved','monitor-stat','verified')+stat('Awaiting Review',n('Pending Verification'),'Pending approval','monitor-stat','Pending Verification')+stat('Returned',n('Returned for Correction'),'Needs correction','monitor-stat','Returned for Correction')+
@@ -1911,7 +1917,7 @@ function documentPage(){
    'aria-label="Open files and routing history for '+esc(d.tracking_number)+' · '+esc(d.subject)+'">'+
    '<span class="compact-doc-id">'+esc(d.tracking_number)+'</span>'+
    '<span class="compact-doc-name" title="'+esc(d.subject)+'">'+esc(d.subject)+(division?'<span class="small muted doc-division-tag">'+esc(divisionStageLabel(division.division_status))+'</span>':district?'<span class="small muted doc-division-tag">'+esc(districtStageLabel(district.item_status))+'</span>':'')+'</span>'+
-   '<span class="compact-doc-arrow" aria-hidden="true">›</span></button>'};
+   '<span class="compact-doc-arrow" aria-hidden="true">'+ico('chevronRight')+'</span></button>'};
  });
  const newestSchoolFiles=new Map();
  for(const f of (state.schoolSubmissionDocs||[])){
@@ -1926,11 +1932,11 @@ function documentPage(){
    'aria-label="Open submitted files for '+esc(name)+'">'+
    '<span class="compact-doc-id">'+esc(id)+'</span>'+
    '<span class="compact-doc-name" title="'+esc(name)+'">'+esc(name)+'</span>'+
-   '<span class="compact-doc-arrow" aria-hidden="true">›</span></button>'};
+   '<span class="compact-doc-arrow" aria-hidden="true">'+ico('chevronRight')+'</span></button>'};
  });
  const fileless=(state.compliances||[]).filter(c=>!newestSchoolFiles.has(c.assignment_id)).map(c=>({
   when:c.submitted_at,markup:'<button type="button" class="compact-doc-row" data-document-row data-a="open-compliance" data-id="'+esc(c.id)+'" data-route-status="submission" data-created="'+esc((c.submitted_at||'').slice(0,10))+'">'+
-  '<span class="compact-doc-id">'+esc(c.number)+'</span><span class="compact-doc-name">'+esc(c.school_name+' · '+c.announcement_title+' · '+label(c.status))+'</span><span class="compact-doc-arrow">›</span></button>'
+  '<span class="compact-doc-id">'+esc(c.number)+'</span><span class="compact-doc-name">'+esc(c.school_name+' · '+c.announcement_title+' · '+label(c.status))+'</span><span class="compact-doc-arrow" aria-hidden="true">'+ico('chevronRight')+'</span></button>'
  }));
  const rows=[...routed,...schoolRows,...fileless].sort((a,b)=>new Date(b.when)-new Date(a.when)).map(r=>r.markup);
  return '<div class="sectionhead"><div><div class="eyebrow">Routing, files and school submissions</div><h1>My Documents</h1>'+
@@ -2015,7 +2021,7 @@ function divisionPage(){
    removedItems.map(i=>'<p class="small muted">'+esc(i.tracking_number)+' — '+esc(i.document_label)+
     (i.admin_removed?' (moved to recoverable Trash; original physical history retained)':' (removed from draft before submission)')+'</p>').join('')+'</details>':'';
  const adminPanel=yesAdmin()?'<div class="panel"><h3>Administrator Document Search & Resolution</h3><p class="note">Search any tracking number or document title. A written reason is required for manual changes.</p><div class="toolbar"><input id="division-admin-query" placeholder="Tracking number or document name" value="'+esc(state.divisionQuery||'')+'"><button class="btn alt" data-a="division-admin-search">Search</button></div>'+table(['Tracking #','Document','Status','Resolution'],(state.divisionSearchResults||[]).map(d=>'<tr><td>'+esc(d.tracking_number)+'</td><td>'+esc(d.subject)+'</td><td>'+esc(d.resolution||d.status)+'</td><td>'+(['received','lost','not_for_return','recovered','corrected'].map(a=>'<button class="btn tiny alt" data-a="division-admin-resolve" data-id="'+esc(d.id)+'" data-act="'+a+'">'+esc(label(a))+'</button>').join(' '))+'</td></tr>'))+'</div>':'';
- return '<div class="sectionhead"><div><div class="eyebrow">Physical document custody</div><h1>Division Transmittals</h1><p class="sub">Prepare and submit documents to Division. Retrieval and final receipt are managed separately, with every tracking ID preserved.</p></div><button class="btn alt" data-a="division-refresh">Refresh</button></div>'+
+ return '<div class="sectionhead"><div><div class="eyebrow">Physical document custody</div><h1>Division Transmittals</h1><p class="sub">Prepare and submit documents to Division. Retrieval and final receipt are managed separately, with every tracking ID preserved.</p></div><button class="btn alt" data-a="division-refresh">'+ico('refresh')+'Refresh</button></div>'+
  adminPanel+'<div class="panel"><h3>Division Retrieval</h3><p class="note">Physical pickup, turnover slips, District acknowledgment and final owner receipt are recorded in the separate Division Retrieval page. The original transmittal below remains the official outgoing record.</p><button class="btn alt" data-a="nav" data-page="retrieval">Open Division Retrieval</button></div>'+
  '<div class="panel v2-board itrack-preview"><div class="panel-head"><h3>Notifications</h3><button class="btn tiny alt itrack-show-all" data-a="nav" data-page="notifications">Show All</button></div>'+
  ((state.divisionNotices||[]).length?'<div class="v2-notice-list">'+(state.divisionNotices||[]).slice(0,3).map(n=>notificationRow({...n,source:'transmittal'},true)).join('')+'</div>':'<p class="note">No recent Division notifications.</p>')+'</div>'+
@@ -2286,7 +2292,7 @@ function modalHtml(){
      '<textarea name="notes" id="doc-notes" rows="3" placeholder="Type your instructions or other details here…"></textarea></div>'+
     '<div class="field route-attachment-field"><label for="doc-attachments">Attachments <span class="route-optional">(optional)</span></label>'+
      '<div class="route-attachment-picker"><input id="doc-attachments" type="file" multiple accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp">'+
-      '<p id="doc-attachment-selection" class="route-field-note">PDF, Word and images · Unlimited files, 30 MB combined</p>'+'<p id="doc-attachment-alert" class="route-attachment-alert" role="alert" hidden></p>'+'<a id="doc-pdf-compression" href="https://www.ilovepdf.com/compress_pdf" target="_blank" rel="noopener noreferrer" hidden>Compress PDFs at iLovePDF ↗</a>'+'<p class="route-field-note">Images compress automatically on your device. Avoid sending confidential PDFs to external services unless permitted.</p></div></div>'+
+      '<p id="doc-attachment-selection" class="route-field-note">PDF, Word and images · Unlimited files, 30 MB combined</p>'+'<p id="doc-attachment-alert" class="route-attachment-alert" role="alert" hidden></p>'+'<a id="doc-pdf-compression" href="https://www.ilovepdf.com/compress_pdf" target="_blank" rel="noopener noreferrer" hidden>Compress PDFs at iLovePDF '+ico('external')+'</a>'+'<p class="route-field-note">Images compress automatically on your device. Avoid sending confidential PDFs to external services unless permitted.</p></div></div>'+
     '<p id="doc-save-message" class="route-save-message" role="status" aria-live="polite"></p>'+
    '</form>'+
    '<details class="route-type-suggestion"><summary>Missing a document type?</summary>'+
@@ -2371,7 +2377,7 @@ function modalHtml(){
     '<button class="btn" data-a="route" data-id="'+esc(last.route_id)+'" data-return="false">Forward</button>':'');
 
  }
- return `<div class="dialog-backdrop"><div class="dialog${m==='send'?' route-document-dialog':''}" role="dialog" aria-modal="true" aria-label="${esc(title)}"><header><div><h2>${esc(title)}</h2>${m==='send'?'<p class="route-dialog-subtitle">Document Tracking · SRII i-TRACK</p>':''}</div><button class="btn alt tiny" data-a="close" aria-label="Close dialog">✕</button></header>${m==='send'?'<div class="route-dialog-content">'+body+'</div>':body}<footer>${footer}</footer></div></div>`;
+ return `<div class="dialog-backdrop"><div class="dialog${m==='send'?' route-document-dialog':''}" role="dialog" aria-modal="true" aria-label="${esc(title)}"><header><div><h2>${esc(title)}</h2>${m==='send'?'<p class="route-dialog-subtitle">Document Tracking · SRII i-TRACK</p>':''}</div><button class="btn alt tiny dialog-close" data-a="close" aria-label="Close dialog">${ico('x')}</button></header>${m==='send'?'<div class="route-dialog-content">'+body+'</div>':body}<footer>${footer}</footer></div></div>`;
 }
 async function openDetail(id){
  const d=state.docs.find(x=>x.id===id);if(!d)return;

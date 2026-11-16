@@ -16,7 +16,7 @@ window.ITRACK_DISTRICT_VIEW=function(state,{esc,date,label}){
  const schoolOpts=schools.map(s=>'<option value="'+esc(s.id)+'"'+(s.id===schoolId?' selected':'')+'>'+esc(s.name)+'</option>').join('');
  function listing(list,checkboxClass,selection,showStatus=true){
   return '<div class="district-list-scroll"><table class="district-list"><thead><tr>'+
-   '<th class="district-check-col">✓</th><th>Tracking ID</th><th>Document Name</th>'+
+   '<th class="district-check-col" aria-label="Select">'+(window.ITRACK_ICON?.('check')||'✓')+'</th><th>Tracking ID</th><th>Document Name</th>'+
    '<th class="district-return-col">Completion Rule</th>'+(showStatus?'<th class="district-status-col">Status</th>':'')+
    '</tr></thead><tbody>'+
    (list.map(d=>'<tr><td class="district-check-col"><input class="'+checkboxClass+'" type="checkbox" value="'+esc(d.id)+'"'+
@@ -48,7 +48,7 @@ window.ITRACK_DISTRICT_VIEW=function(state,{esc,date,label}){
  const defaultAddress=school?.postal_address||((school?.name||'School')+', San Remigio, Antique');
  return '<div class="sectionhead"><div><div class="eyebrow">School Documents · District Office</div>'+
   '<h1>District Transmittals</h1><p class="sub">One document per line. Print one transmittal signed by the preparing user.</p></div>'+
-  '<button class="btn alt" data-a="district-refresh">Refresh</button></div>'+
+  '<button class="btn alt" data-a="district-refresh">'+(window.ITRACK_ICON?.('refresh')||'')+'Refresh</button></div>'+
   '<div class="panel"><h3>1. Prepare School Transmittal</h3>'+
   '<p class="note">Select a school, then check District-bound documents belonging to that school. No Return documents complete automatically upon confirmed submission.</p>'+
   '<div class="field"><label for="district-school">Originating School</label>'+
