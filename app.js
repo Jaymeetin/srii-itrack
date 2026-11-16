@@ -506,7 +506,7 @@ async function loadDocumentAttachments(){
  const records=[];
  for(let i=0;i<ids.length;i+=40){
   const {data,error}=await db.from('document_attachments')
-   .select('id,document_id,original_filename,content_type,file_size_bytes,uploaded_at')
+   .select('id,document_id,original_filename,content_type,file_size_bytes,uploaded_at,copy_type')
    .in('document_id',ids.slice(i,i+40))
    .order('uploaded_at',{ascending:false})
    .limit(500);
@@ -528,7 +528,7 @@ function attachmentListHtml(documentId){
   const previewable=['application/pdf','image/jpeg','image/png','image/webp'].includes(f.content_type);
   const data=' data-kind="document" data-id="'+esc(f.id)+'" data-name="'+esc(filename)+'"';
   return '<div class="doc-att-row"><span class="doc-att-icon" aria-hidden="true">'+ico('fileText')+'</span>'+
-   '<span class="doc-att-name" title="'+esc(filename)+'">'+esc(filename)+'</span>'+
+   '<span class="doc-att-name" title="'+esc(filename)+'">'+esc(filename)+(window.ITRACK_UPLOAD?.copyTag?.(f.copy_type)||'')+'</span>'+
    '<span class="doc-att-actions">'+(previewable?
    '<button type="button" class="btn tiny alt iu-file-action"'+data+' data-mode="view" aria-label="View '+esc(filename)+'">View</button>':'')+
    '<button type="button" class="btn tiny alt iu-file-action"'+data+' data-mode="download" aria-label="Download '+esc(filename)+'">Download</button>'+
@@ -647,7 +647,7 @@ async function loadVerification(){
    // there are hundreds of records across the district.
    for(let offset=0;;offset+=500){
     const {data,error}=await db.from('submissions')
-     .select('id,assignment_id,original_filename,content_type,file_size_bytes,first_received_at,version_number,verification_status,verified_at,storage_status')
+     .select('id,assignment_id,original_filename,content_type,file_size_bytes,first_received_at,version_number,verification_status,verified_at,storage_status,copy_type,batch_id')
      .in('assignment_id',ids.slice(i,i+40))
      .in('storage_status',['uploaded','archived'])
      .order('version_number',{ascending:false})
@@ -718,7 +718,7 @@ async function loadSchoolFiles(){
   const ids=assignments.slice(i,i+35).map(a=>a.id);
   for(let offset=0;;offset+=250){
    const {data,error}=await db.from('submissions')
-    .select('id,assignment_id,original_filename,content_type,file_size_bytes,first_received_at,stored_at,version_number,verification_status,verified_at,storage_status')
+    .select('id,assignment_id,original_filename,content_type,file_size_bytes,first_received_at,stored_at,version_number,verification_status,verified_at,storage_status,copy_type,batch_id')
     .in('assignment_id',ids).in('storage_status',['uploaded','archived'])
     .order('first_received_at',{ascending:false}).order('id',{ascending:false})
     .range(offset,offset+249);
@@ -749,7 +749,7 @@ async function loadSchoolFiles(){
      new Date(f.first_received_at)>new Date(current.first_received_at))
    latestVersion.set(f.assignment_id,f);
  }
- for(const f of files)f.is_latest=latestVersion.get(f.assignment_id)?.id===f.id;
+ for(const f of files)f.is_latest=Number(latestVersion.get(f.assignment_id)?.version_number)===Number(f.version_number);
  state.schoolFiles=files.sort((a,b)=>new Date(b.first_received_at)-new Date(a.first_received_at)
   ||String(b.id).localeCompare(String(a.id)));
 }
@@ -774,7 +774,7 @@ function schoolAttachmentsPage(){
   return '<tr>'+
    '<td><strong>'+esc(f.school_name)+'</strong></td>'+
    '<td><span class="small">'+esc(f.announcement_name)+'</span></td>'+
-   '<td class="school-files-name"><strong>'+esc(f.original_filename||'Unnamed attachment')+'</strong>'+
+   '<td class="school-files-name"><strong>'+esc(f.original_filename||'Unnamed attachment')+'</strong>'+(window.ITRACK_UPLOAD?.copyTag?.(f.copy_type)||'')+
     '<div class="small muted">Version '+esc(f.version_number)+(f.is_latest?' · Latest':' · Previous')+
     ' · '+esc((Number(f.file_size_bytes||0)/1024).toFixed(1))+' KB</div></td>'+
    '<td><div class="school-files-date">'+esc(date(f.first_received_at))+'</div>'+
@@ -849,10 +849,11 @@ function verificationPage(){
   '<p class="note">No school compliance responses have been recorded.</p>')+
   '</details></section>';
  const awaitingNow=state.reviewRows.filter(s=>s.verification_status==='pending').length;
- const oldPending=state.reviewRows.reduce((count,s)=>count+s.versions.slice(1).filter(f=>f.verification_status==='pending').length,0);
+ const oldPending=state.reviewRows.reduce((count,s)=>count+s.versions.filter(f=>Number(f.version_number)<Number(s.version_number)&&f.verification_status==='pending').length,0);
  const currentVerified=state.reviewRows.filter(s=>s.verification_status==='verified').length;
  const rows=state.reviewRows.map(s=>{
   const name=String(s.original_filename||'Uploaded document');
+  const together=s.versions.filter(f=>Number(f.version_number)===Number(s.version_number)).length;
   const currentStatus=['pending','verified','rejected'].includes(s.verification_status)?s.verification_status:'pending';
   const approved=s.latestVerified;
   const approvedText=approved?
@@ -866,13 +867,13 @@ function verificationPage(){
    '<span class="small muted">'+(currentStatus==='verified'?'Latest upload already verified':'Latest upload rejected')+'</span>';
   const history=s.versions.map((f,index)=>{
    const versionStatus=['pending','verified','rejected'].includes(f.verification_status)?f.verification_status:'pending';
-   const superseded=index>0;
+   const superseded=Number(f.version_number)<Number(s.version_number);
    const flag=superseded?'Previous version': 'Latest upload';
    const statusLabel=superseded&&versionStatus==='pending'?'Pending (superseded)':label(versionStatus);
    return '<div class="verify-history-entry'+(superseded?' is-prior':' is-current')+'">'+
     '<div class="verify-history-top"><strong>V'+esc(f.version_number)+' · '+flag+'</strong>'+
     '<span class="verify-status verify-status-'+versionStatus+(superseded&&versionStatus==='pending'?' verify-status-superseded':'')+'">'+esc(statusLabel)+'</span></div>'+
-    '<div class="verify-history-file">'+esc(f.original_filename)+'</div>'+
+    '<div class="verify-history-file">'+esc(f.original_filename)+(window.ITRACK_UPLOAD?.copyTag?.(f.copy_type)||'')+'</div>'+
     '<div class="small muted">Received '+esc(date(f.first_received_at))+
     (f.verified_at?' · Reviewed '+esc(date(f.verified_at)):'')+'</div>'+
     reviewFileActions(f,true)+'</div>';
@@ -881,7 +882,8 @@ function verificationPage(){
    '<div class="verify-history-list">'+history+'</div></details>';
   return '<tr><td><strong>'+esc(s.school_name)+'</strong></td>'+
    '<td class="verify-file-cell"><span class="verify-current-label">Latest upload · V'+esc(s.version_number)+'</span>'+
-   '<strong class="verify-file-name">'+esc(name)+'</strong>'+
+   '<strong class="verify-file-name">'+esc(name)+(window.ITRACK_UPLOAD?.copyTag?.(s.copy_type)||'')+'</strong>'+
+   (together>1?'<div class="small muted">'+together+' files were submitted together in this version. Open the version history to see them all; approving covers all of them.</div>':'')+
    '<div class="small muted">Received '+esc(date(s.first_received_at))+' · '+(Number(s.file_size_bytes||0)/1024).toFixed(1)+' KB</div>'+
    reviewFileActions(s)+'</td>'+
    '<td class="verify-approved-cell">'+approvedText+'</td>'+
@@ -1740,7 +1742,7 @@ async function openMonitorSubmission(schoolId){
  const ids=assignments.map(a=>a.id),files=[];
  for(let offset=0;;offset+=200){
   const {data,error}=await db.from('submissions')
-   .select('id,assignment_id,original_filename,content_type,file_size_bytes,first_received_at,stored_at,version_number,verification_status,verified_at,storage_status')
+   .select('id,assignment_id,original_filename,content_type,file_size_bytes,first_received_at,stored_at,version_number,verification_status,verified_at,storage_status,copy_type,batch_id')
    .in('assignment_id',ids).in('storage_status',['uploaded','archived'])
    .order('first_received_at',{ascending:false}).order('id',{ascending:false})
    .range(offset,offset+199);
@@ -1775,7 +1777,7 @@ function monitorSubmissionModal(){
    return '<section class="monitor-file-entry">'+
     '<div class="monitor-file-entry-head"><strong>Version '+esc(f.version_number)+(i===0?' · Latest':'')+'</strong>'+
     '<span class="verify-status verify-status-'+esc(vstatus)+'">'+esc(label(vstatus))+'</span></div>'+
-    '<div class="monitor-file-name">'+esc(name)+'</div>'+
+    '<div class="monitor-file-name">'+esc(name)+(window.ITRACK_UPLOAD?.copyTag?.(f.copy_type)||'')+'</div>'+
     '<div class="monitor-file-meta"><span>Received: '+esc(date(f.first_received_at))+'</span>'+
     '<span>Stored: '+esc(date(f.stored_at))+'</span>'+
     '<span>Size: '+esc((Number(f.file_size_bytes||0)/1024).toFixed(1))+' KB</span>'+
@@ -2326,7 +2328,7 @@ function modalHtml(){
      '<textarea name="notes" id="doc-notes" rows="3" placeholder="Type your instructions or other details here…"></textarea></div>'+
     '<div class="field route-attachment-field"><label for="doc-attachments">Attachments <span class="route-optional">(optional)</span></label>'+
      '<div class="route-attachment-picker"><input id="doc-attachments" type="file" multiple accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp">'+
-      '<p id="doc-attachment-selection" class="route-field-note">PDF, Word and images · Unlimited files, 30 MB combined</p>'+'<p id="doc-attachment-alert" class="route-attachment-alert" role="alert" hidden></p>'+'<a id="doc-pdf-compression" href="https://www.ilovepdf.com/compress_pdf" target="_blank" rel="noopener noreferrer" hidden>Compress PDFs at iLovePDF '+ico('external')+'</a>'+'<p class="route-field-note">Images compress automatically on your device. Avoid sending confidential PDFs to external services unless permitted.</p></div></div>'+
+      '<div id="doc-attachment-selection" class="route-field-note">PDF, Word and images · Any number of files, 30 MB combined</div>'+'<p id="doc-attachment-alert" class="route-attachment-alert" role="alert" hidden></p>'+'<a id="doc-pdf-compression" href="https://www.ilovepdf.com/compress_pdf" target="_blank" rel="noopener noreferrer" hidden>Compress PDFs at iLovePDF '+ico('external')+'</a>'+'<p class="route-field-note">Images compress automatically on your device. Avoid sending confidential PDFs to external services unless permitted.</p></div></div>'+
     '<p id="doc-save-message" class="route-save-message" role="status" aria-live="polite"></p>'+
    '</form>'+
    '<details class="route-type-suggestion"><summary>Missing a document type?</summary>'+
@@ -3503,13 +3505,13 @@ async function click(e){
   }
  }catch(e){err(e);}
 }
-async function uploadNewDocumentAttachment(documentId,file,onProgress){
+async function uploadNewDocumentAttachment(documentId,file,copyType,onProgress){
  const upload=window.ITRACK_UPLOAD;
  if(!upload?.mimeFor(file))throw Error('Unsupported attachment format: '+file.name);
  const {data:{session},error:sessionError}=await db.auth.getSession();
  if(sessionError||!session?.access_token)throw Error('Login expired while uploading. Document record may already be saved; sign in again and check attachments.');
  return await upload.upload({file,targetType:'document',targetId:documentId,
-  token:session.access_token,url:window.ITRACK_CONFIG.url,apikey:window.ITRACK_CONFIG.publishableKey,onProgress});
+  token:session.access_token,url:window.ITRACK_CONFIG.url,apikey:window.ITRACK_CONFIG.publishableKey,onProgress,copyType});
 }
 async function submit(e){
  const form=e.target;if(!['queue-join','queue-complete','login','resend-email','forgot-password','set-password','form-ann','form-ann-edit','form-doc','settings-email-form','settings-password-form','settings-profile-form','settings-private-form','settings-feedback-form','admin-feedback-form'].includes(form.id))return;
@@ -3762,6 +3764,8 @@ async function submit(e){
     const warning=helper.sizeError(files);
     if(warning)throw Error(warning);
     if(files.some(f=>!helper.mimeFor(f)||f.size<1))throw Error('Select nonempty PDF, Word or image files only.');
+    const copyTypes=files.map((f,i)=>form.querySelector('.doc-copy-type[data-index="'+i+'"]')?.value||'');
+    if(copyTypes.some(x=>!x))throw Error('Choose a copy type (Scanned copy, Soft copy or Proof) for every attachment.');
     let tracking=form.dataset.savedTracking||'';
     const report=form.querySelector('#doc-save-message');
     if(!tracking){
@@ -3793,7 +3797,7 @@ async function submit(e){
      if(form._uploadedAttachments.has(key)){uploadedBytes+=file.size;continue;}
      if(report)report.textContent='Document '+tracking+' saved. Uploading attachment '+(n+1)+' of '+files.length+': '+file.name;
      overlay.update('Preparing attachment '+(n+1)+' of '+files.length+': '+file.name);
-     await uploadNewDocumentAttachment(docId,file,stage=>{
+     await uploadNewDocumentAttachment(docId,file,copyTypes[n],stage=>{
       if(stage.phase==='transferring'){
        const ratio=totalBytes?100*(uploadedBytes+file.size*stage.percent/100)/totalBytes:0;
        overlay.update('Uploading attachment '+(n+1)+' of '+files.length+': '+file.name,Math.round(ratio));
@@ -3882,6 +3886,11 @@ $.addEventListener('change',async e=>{
   }
  }
  if(['document-status-filter','document-date-filter'].includes(e.target.id)){filterDocumentRegistry();return;}
+ if(e.target.matches('.doc-copy-type')){
+  const picker=document.getElementById('doc-attachments'),file=picker?.files?.[Number(e.target.dataset.index)];
+  if(picker&&file){picker._copyTypes=picker._copyTypes||{};picker._copyTypes[file.name+':'+file.size]=e.target.value;}
+  return;
+ }
  if(e.target.id==='doc-attachments'){
   const picker=e.target,files=[...(picker.files||[])],message=document.getElementById('doc-attachment-selection');
   const alert=document.getElementById('doc-attachment-alert'),link=document.getElementById('doc-pdf-compression');
@@ -3896,8 +3905,10 @@ $.addEventListener('change',async e=>{
    if(picker._prepareVersion!==version)return;
    picker._preparedFiles=ready;
    const bytes=ready.reduce((sum,f)=>sum+f.size,0);
-   const detail=ready.map((f,i)=>f.name+' ('+helper.fmt(f.size)+(f.size<files[i].size?' · compressed':'')+')').join(' · ');
-   if(message)message.textContent=ready.length?ready.length+' attachment(s) · '+helper.fmt(bytes)+' of 30 MB. '+detail:'No attachments selected.';
+   const kept=picker._copyTypes||{};
+   if(message)message.innerHTML=ready.length?'<span class="iu-total">'+ready.length+' attachment(s) · <strong>'+esc(helper.fmt(bytes))+'</strong> of 30 MB · choose a copy type for each file</span>'+
+    '<span class="iu-files">'+ready.map((f,i)=>'<span class="iu-file-row"><span class="iu-file-name"><strong>'+esc(f.name)+'</strong><small>'+esc(helper.fmt(f.size))+(f.size<files[i].size?' · compressed':'')+'</small></span>'+
+     helper.copySelect('class="doc-copy-type" data-index="'+i+'"',kept[files[i].name+':'+files[i].size]||'')+'</span>').join('')+'</span>':'No attachments selected.';
    const warning=helper.sizeError(ready);
    if(alert){alert.hidden=!warning;alert.textContent=warning;}
    if(link)link.hidden=!(warning&&ready.some(f=>helper.mimeFor(f)==='application/pdf'));

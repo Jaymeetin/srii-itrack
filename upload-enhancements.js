@@ -46,7 +46,18 @@ async function prepare(files, onProgress) {
  }
  return output;
 }
-function upload({file,targetType,targetId,token,url,apikey,onProgress}) {
+// Copy type chosen for every uploaded file. Values are stored; labels are display only.
+const COPY_TYPES=[["scanned_copy","Scanned copy"],["soft_copy","Soft copy"],["proof","Proof"]];
+const copyLabel=value=>(COPY_TYPES.find(x=>x[0]===value)||[])[1]||"";
+function copySelect(attributes,value) {
+ return '<select '+attributes+' aria-label="Copy type"><option value="">Choose copy type</option>'+
+  COPY_TYPES.map(x=>'<option value="'+x[0]+'"'+(x[0]===value?" selected":"")+'>'+x[1]+'</option>').join("")+'</select>';
+}
+function copyTag(value) {
+ const text=copyLabel(value);
+ return text?'<span class="copy-type copy-type--'+value+'">'+text+'</span>':"";
+}
+function upload({file,targetType,targetId,token,url,apikey,onProgress,copyType,batchId}) {
  return new Promise((resolve,reject) => {
   if (!token) {reject(Error("Sign in again before uploading."));return;}
   const reader=new FileReader();
@@ -72,7 +83,7 @@ function upload({file,targetType,targetId,token,url,apikey,onProgress}) {
     }
     resolve(answer);
    };
-   xhr.send(JSON.stringify({target_type:targetType,target_id:targetId,file_name:file.name,mime_type:mimeFor(file),content_base64:String(reader.result).split(",")[1]}));
+   xhr.send(JSON.stringify({target_type:targetType,target_id:targetId,file_name:file.name,mime_type:mimeFor(file),content_base64:String(reader.result).split(",")[1],copy_type:copyType||null,batch_id:batchId||null}));
   };
   reader.readAsDataURL(file);
  });
@@ -102,5 +113,5 @@ function progressDialog(title) {
   close(){overlay.remove();}
  };
 }
-window.ITRACK_UPLOAD = Object.freeze({LIMIT,fmt,mimeFor,PDF_URL,sizeError,prepare,optimizeImage,upload,progressDialog});
+window.ITRACK_UPLOAD = Object.freeze({LIMIT,fmt,mimeFor,PDF_URL,sizeError,prepare,optimizeImage,upload,progressDialog,COPY_TYPES,copyLabel,copySelect,copyTag});
 })();

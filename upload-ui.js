@@ -109,13 +109,14 @@ function markPanel(){
    (kind==="announcement"?'<div class="iu-announcement-review" aria-live="polite">Choose an announcement to view its school and title before uploading.</div>'+
      '<label class="iu-confirm-row"><input type="checkbox" class="iu-confirm-input" disabled> <span>I checked the <strong>school and announcement</strong> above. This is the correct destination for my file.</span></label>':'')+
    '<div class="iu-date" aria-live="polite"></div>'+
-   '<div class="iu-file"><span class="iu-file-icon" aria-hidden="true">'+(window.ITRACK_ICON?.('upload')||'↥')+'</span><div class="iu-file-inner"><label for="iu-file-'+kind+'">Choose a PDF, Word or image file</label>'+
-    '<input id="iu-file-'+kind+'" class="iu-input" type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp" aria-label="Select document to upload"></div></div>'+
-   '<div class="iu-selection">No document selected</div>'+
-   '<img class="iu-image" alt="Preview of selected screenshot" hidden>'+
-   '<div class="iu-actions"><button type="button" class="btn alt iu-compress" disabled>Compress File</button>'+
+   '<div class="iu-file"><span class="iu-file-icon" aria-hidden="true">'+(window.ITRACK_ICON?.('upload')||'↥')+'</span><div class="iu-file-inner"><label for="iu-file-'+kind+'">Choose PDF, Word or image files</label>'+
+    '<input id="iu-file-'+kind+'" class="iu-input" type="file" multiple accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp" aria-label="Select one or more files to upload">'+
+    '<p class="iu-muted">You can pick several files at once. Together they must not be more than 30 MB.</p></div></div>'+
+   '<div class="iu-selection">No files selected</div>'+
+   '<img class="iu-image" alt="Preview of the selected picture" hidden>'+
+   '<div class="iu-actions"><button type="button" class="btn alt iu-compress" disabled>Compress Pictures</button>'+
     '<button type="button" class="btn iu-upload" disabled>Upload to Google Drive</button></div><div class="iu-progress" hidden role="status" aria-live="polite"><span class="iu-progress-label">Preparing upload…</span><progress class="iu-progress-bar" max="100"></progress></div>'+
-   '<p class="iu-limits">30 MB per uploaded file; routed-document attachments share one 30 MB total. No fixed file-count limit. Images compress automatically on your device. PDF and Word files retain their format. For oversized PDFs, <a href="https://www.ilovepdf.com/compress_pdf" target="_blank" rel="noopener noreferrer">use iLovePDF Compress PDF ↗</a> only where document privacy permits.</p>'+
+   '<p class="iu-limits">30 MB in total for the files you upload together; a routed document also shares one 30 MB total across all its attachments. No fixed file-count limit. Images compress automatically on your device. PDF and Word files retain their format. For oversized PDFs, <a href="https://www.ilovepdf.com/compress_pdf" target="_blank" rel="noopener noreferrer">use iLovePDF Compress PDF ↗</a> only where document privacy permits.</p>'+
    '<div class="iu-history" aria-live="polite"><h4>Submission history</h4><div class="iu-history-list">Select a requirement to view its records.</div></div>'+
   '</div>'+
   '<div class="iu-message" hidden aria-live="polite"></div>';
@@ -133,42 +134,52 @@ function markPanel(){
  }
  initialize(newPanel,kind);
 }
+const helperApi=()=>window.ITRACK_UPLOAD;
+const totalBytes=node=>(node._iuFiles||[]).reduce((sum,x)=>sum+x.file.size,0);
 function setProcessing(node,yes){
  node.dataset.processing=yes?"yes":"no";
+ const list=node._iuFiles||[];
  const hasTarget=!!node.querySelector(".iu-select")?.value;
  const confirmed=node._iuKind!=="announcement"||node._iuConfirmed===true;
- const ready=!yes&&!node._iuPreparing&&!!node._iuFile&&hasTarget&&confirmed&&node._iuFile.size<=MB;
+ const typed=list.every(x=>!!x.type);
+ const ready=!yes&&!node._iuPreparing&&list.length>0&&typed&&hasTarget&&confirmed&&totalBytes(node)<=MB;
  const upload=node.querySelector(".iu-upload");
- if(upload){upload.disabled=!ready;upload.textContent=yes?"Uploading, please wait…":"Upload to Google Drive";}
+ if(upload){upload.disabled=!ready;upload.textContent=yes?"Uploading, please wait…":
+  list.length>1?"Upload "+list.length+" Files to Google Drive":"Upload to Google Drive";}
  const comp=node.querySelector(".iu-compress");
- if(comp)comp.disabled=yes||!node._iuOriginal||!/^image\//.test(mimeFor(node._iuOriginal));
+ if(comp)comp.disabled=yes||!list.some(x=>/^image\//.test(mimeFor(x.original)));
  node.querySelector(".iu-input")?.toggleAttribute("disabled",yes);
  node.querySelector(".iu-select")?.toggleAttribute("disabled",yes);
+ node.querySelectorAll(".iu-copy-type,.iu-remove").forEach(el=>el.toggleAttribute("disabled",yes));
 }
-function preview(node,file){
+function preview(node){
  const image=node.querySelector(".iu-image");
  if(!image)return;
  if(node._iuBlobUrl){URL.revokeObjectURL(node._iuBlobUrl);node._iuBlobUrl=null;}
- if(file&&mimeFor(file).startsWith("image/")){
-  node._iuBlobUrl=URL.createObjectURL(file);
+ const only=(node._iuFiles||[]).length===1?node._iuFiles[0].file:null;
+ if(only&&mimeFor(only).startsWith("image/")){
+  node._iuBlobUrl=URL.createObjectURL(only);
   image.src=node._iuBlobUrl;image.hidden=false;
  }else{image.hidden=true;image.removeAttribute("src");}
 }
 function updateFile(node){
+ const list=node._iuFiles||[];
  if(node._iuKind&&node._iuOwner){
-   liveDrafts.set(node._iuKind,{
-    owner:node._iuOwner,
-    original:node._iuOriginal||null,
-    file:node._iuFile||null,
-    targetId:node.querySelector(".iu-select")?.value||null
-   });
+   liveDrafts.set(node._iuKind,{owner:node._iuOwner,files:list,
+    targetId:node.querySelector(".iu-select")?.value||null});
  }
- const f=node._iuFile;
  const caption=node.querySelector(".iu-selection");
- caption.innerHTML=f?
-  'Selected: <strong>'+esc(f.name)+'</strong> · '+size(f.size)+(f.size>MB?' · exceeds 30 MB limit':''):
-  'No document selected';
- preview(node,f);
+ const total=totalBytes(node),over=total>MB,untyped=list.filter(x=>!x.type).length;
+ caption.innerHTML=list.length?
+  '<div class="iu-files">'+list.map((x,i)=>
+   '<div class="iu-file-row"><div class="iu-file-name"><strong>'+esc(x.file.name)+'</strong>'+
+   '<small>'+size(x.file.size)+(x.file.size<x.original.size?' · compressed from '+size(x.original.size):'')+'</small></div>'+
+   helperApi().copySelect('class="iu-copy-type" data-index="'+i+'"',x.type)+
+   '<button type="button" class="btn tiny alt iu-remove" data-index="'+i+'" aria-label="Remove '+esc(x.file.name)+'">Remove</button></div>').join("")+'</div>'+
+  '<p class="iu-total'+(over?' is-over':'')+'">'+list.length+' file'+(list.length===1?'':'s')+' · <strong>'+size(total)+'</strong> of 30 MB'+
+   (over?' · over the limit: remove or compress files':untyped?' · choose a copy type for '+(untyped===1?'the remaining file':untyped+' files'):'')+'</p>':
+  'No files selected';
+ preview(node);
  setProcessing(node,false);
 }
 async function initialize(node,kind){
@@ -275,47 +286,55 @@ async function initialize(node,kind){
     // Only document uploads may restore their previous target. Announcement
     // uploads always require an explicit choice, even after page navigation.
     if(kind!=="announcement"&&saved.targetId&&options.some(x=>x.id===saved.targetId))select.value=saved.targetId;
-    node._iuOriginal=saved.original||null;
-    node._iuFile=saved.file||null;
-  }else{
-    node._iuOriginal=null;node._iuFile=null;
-  }
+    node._iuFiles=Array.isArray(saved.files)?saved.files:[];
+  }else node._iuFiles=[];
   const input=node.querySelector(".iu-input");
   input.addEventListener("change",async()=>{
-   const file=input.files?.[0]||null;
+   const picked=[...(input.files||[])];
+   input.value="";                       // the same file can be picked again after removal
+   if(!picked.length)return;
    const version=(node._iuFileVersion||0)+1;node._iuFileVersion=version;
-   node._iuOriginal=file;node._iuFile=file;
-   node._iuPreparing=!!file;setProcessing(node,!!file);
+   const unsupported=picked.filter(f=>!mimeFor(f)||f.size<1);
+   const usable=picked.filter(f=>mimeFor(f)&&f.size>0);
    if(kind==="announcement"){
     node._iuConfirmed=false;
     const check=node.querySelector(".iu-confirm-input");
     if(check)check.checked=false;
    }
-   const mime=file&&mimeFor(file);
-   if(file&&!mime){
-    node._iuFile=null;node._iuPreparing=false;
-    notify(node,"Unsupported file extension. Choose PDF, Word, JPG, PNG or WebP.","error");
-    updateFile(node);return;
+   node._iuPreparing=true;setProcessing(node,true);
+   if(usable.some(f=>mimeFor(f).startsWith("image/")))notify(node,"Automatically compressing pictures on your device…");
+   const added=[];
+   for(const original of usable){
+    let file=original;
+    if(mimeFor(original).startsWith("image/")){
+     // A damaged picture must never leave the panel stuck on "preparing".
+     try{file=await Promise.race([window.ITRACK_UPLOAD.optimizeImage(original),new Promise(resolve=>setTimeout(()=>resolve(original),8000))]);}catch(_){file=original;}
+    }
+    added.push({original,file,type:""});
    }
-   if(!file){node._iuPreparing=false;updateFile(node);return;}
-   if(mime?.startsWith("image/")){
-    notify(node,"Automatically compressing the image on your device…");
-    try{
-     const smaller=await window.ITRACK_UPLOAD.optimizeImage(file);
-     if(node._iuFileVersion!==version)return;
-     node._iuFile=smaller;
-     notify(node,smaller.size<file.size?
-      "Image compressed: "+size(file.size)+" → "+size(smaller.size)+". Check text legibility before uploading.":
-      "Image is already optimized; keeping the smaller original.","success");
-    }catch(error){if(node._iuFileVersion===version)notify(node,"Image compression unavailable: "+(error.message||error),"error");}
-   }else node.querySelector(".iu-message").hidden=true;
-   if(node._iuFileVersion===version){node._iuPreparing=false;updateFile(node);}
+   if(node._iuFileVersion!==version||!node.isConnected)return;
+   const known=new Set((node._iuFiles||[]).map(x=>x.original.name+":"+x.original.size));
+   node._iuFiles=[...(node._iuFiles||[]),...added.filter(x=>!known.has(x.original.name+":"+x.original.size))];
+   node._iuPreparing=false;
+   if(unsupported.length)notify(node,"Skipped "+unsupported.length+" unsupported or empty file(s). Choose PDF, Word, JPG, PNG or WebP.","error");
+   else node.querySelector(".iu-message").hidden=true;
+   updateFile(node);
+  });
+  // One listener serves every row: copy type choice and Remove.
+  node.querySelector(".iu-selection").addEventListener("change",event=>{
+   const pick=event.target.closest(".iu-copy-type");if(!pick)return;
+   const item=node._iuFiles?.[Number(pick.dataset.index)];if(!item)return;
+   item.type=pick.value;updateFile(node);
+  });
+  node.querySelector(".iu-selection").addEventListener("click",event=>{
+   const remove=event.target.closest(".iu-remove");if(!remove||node.dataset.processing==="yes")return;
+   node._iuFiles.splice(Number(remove.dataset.index),1);updateFile(node);
   });
   select.addEventListener("change",()=>updateTarget(node,kind));
   node.querySelector(".iu-compress").addEventListener("click",()=>compress(node));
   node.querySelector(".iu-upload").addEventListener("click",()=>upload(node,kind));
   await updateTarget(node,kind);
-  if(node.isConnected&&node._iuFile)updateFile(node);
+  if(node.isConnected&&node._iuFiles?.length)updateFile(node);
  }catch(e){
   if(!node.isConnected)return;
   node.querySelector(".iu-loading")?.remove();
@@ -345,8 +364,7 @@ async function updateTarget(node,kind){
    const previous=liveDrafts.get(node._iuKind)||{};
    liveDrafts.set(node._iuKind,{
      owner:node._iuOwner,
-     original:node._iuOriginal||previous.original||null,
-     file:node._iuFile||previous.file||null,
+     files:node._iuFiles?.length?node._iuFiles:previous.files||[],
      targetId:id||null
    });
  }
@@ -359,8 +377,8 @@ async function refreshHistory(node,kind){
  history.textContent="Loading saved files…";
  try{
   const query=kind==="announcement"?
-   db.from("submissions").select("id,original_filename,content_type,file_size_bytes,first_received_at,version_number,verification_status,storage_status").eq("assignment_id",id).order("version_number",{ascending:false}).limit(6):
-   db.from("document_attachments").select("id,original_filename,content_type,file_size_bytes,uploaded_at").eq("document_id",id).order("uploaded_at",{ascending:false}).limit(6);
+   db.from("submissions").select("id,original_filename,content_type,file_size_bytes,first_received_at,version_number,verification_status,storage_status,copy_type").eq("assignment_id",id).order("version_number",{ascending:false}).order("first_received_at",{ascending:false}).limit(12):
+   db.from("document_attachments").select("id,original_filename,content_type,file_size_bytes,uploaded_at,copy_type").eq("document_id",id).order("uploaded_at",{ascending:false}).limit(12);
   const {data,error}=await withDeadline(query,"Submission history loading",15000);
   if(error)throw error;
   if(!node.isConnected||node.querySelector(".iu-select")?.value!==id)return;
@@ -376,33 +394,35 @@ async function refreshHistory(node,kind){
      (viewable?'<button type="button" class="btn tiny alt iu-file-action" data-mode="view" data-kind="'+kind+'" data-id="'+esc(x.id)+'" data-name="'+esc(x.original_filename)+'">View</button>':'')+
      '<button type="button" class="btn tiny alt iu-file-action" data-mode="download" data-kind="'+kind+'" data-id="'+esc(x.id)+'" data-name="'+esc(x.original_filename)+'">Download</button></div>':
      '<span class="iu-archived">Archived offline</span>';
-   return '<div class="iu-history-item"><div class="iu-history-detail"><strong>'+esc(x.original_filename)+'</strong><small>'+esc(details)+'</small></div>'+
+   return '<div class="iu-history-item"><div class="iu-history-detail"><strong>'+esc(x.original_filename)+'</strong><small>'+helperApi().copyTag(x.copy_type)+esc(details)+'</small></div>'+
     '<span class="iu-state iu-state--'+esc(state)+'">'+esc(state==='pending'?'AWAITING REVIEW':state.toUpperCase())+'</span>'+actions+'</div>';
   }).join("");
  }catch(e){if(node.isConnected)history.textContent="Could not load history: "+(e?.message||e);}
 }
 async function compress(node){
- const original=node._iuOriginal;
- if(!original||!/^image\//.test(mimeFor(original))){notify(node,"Choose an image first. PDF and Word files are preserved without compression.","error");return;}
+ const pictures=(node._iuFiles||[]).filter(x=>/^image\//.test(mimeFor(x.original)));
+ if(!pictures.length){notify(node,"Choose a picture first. PDF and Word files are preserved without compression.","error");return;}
+ let saved=0;
  try{
-  const bmp=await createImageBitmap(original);
-  const scale=Math.min(1,2100/Math.max(bmp.width,bmp.height));
-  const canvas=document.createElement("canvas");
-  canvas.width=Math.max(1,Math.round(bmp.width*scale));
-  canvas.height=Math.max(1,Math.round(bmp.height*scale));
-  const ctx=canvas.getContext("2d",{alpha:false});
-  ctx.fillStyle="#fff";ctx.fillRect(0,0,canvas.width,canvas.height);
-  ctx.drawImage(bmp,0,0,canvas.width,canvas.height);
-  bmp.close?.();
-  const blob=await new Promise(ok=>canvas.toBlob(ok,"image/webp",0.84));
-  if(!blob)throw Error("Image compression is unavailable on this browser.");
-  if(blob.size>=original.size){
-   node._iuFile=original;notify(node,"Original file is already smaller; no compression was applied.");
-  }else{
-   const filename=original.name.replace(/\.[^.]+$/,"").slice(0,150)+"-compressed.webp";
-   node._iuFile=new File([blob],filename,{type:"image/webp"});
-   notify(node,"Compression complete: "+size(original.size)+" → "+size(blob.size)+". Inspect the preview to ensure all text is readable.","success");
+  for(const item of pictures){
+   const bmp=await createImageBitmap(item.original);
+   const scale=Math.min(1,2100/Math.max(bmp.width,bmp.height));
+   const canvas=document.createElement("canvas");
+   canvas.width=Math.max(1,Math.round(bmp.width*scale));
+   canvas.height=Math.max(1,Math.round(bmp.height*scale));
+   const ctx=canvas.getContext("2d",{alpha:false});
+   ctx.fillStyle="#fff";ctx.fillRect(0,0,canvas.width,canvas.height);
+   ctx.drawImage(bmp,0,0,canvas.width,canvas.height);
+   bmp.close?.();
+   const blob=await new Promise(ok=>canvas.toBlob(ok,"image/webp",0.84));
+   if(!blob)throw Error("Image compression is unavailable on this browser.");
+   if(blob.size<item.file.size){
+    saved+=item.file.size-blob.size;
+    item.file=new File([blob],item.original.name.replace(/\.[^.]+$/,"").slice(0,150)+"-compressed.webp",{type:"image/webp"});
+   }
   }
+  notify(node,saved?"Compression complete: saved "+size(saved)+". Inspect the pictures to ensure all text is readable.":
+   "The pictures are already as small as they can be; nothing was changed.",saved?"success":"");
   updateFile(node);
  }catch(e){notify(node,"Compression failed: "+(e?.message||String(e)),"error");}
 }
@@ -424,42 +444,55 @@ async function toBase64(file,onProgress){
 }
 async function upload(node,kind){
  if(node.dataset.processing==="yes"||node._iuPreparing)return;
- const f=node._iuFile,id=node.querySelector(".iu-select")?.value;
+ const list=node._iuFiles||[],id=node.querySelector(".iu-select")?.value;
  const target=node._iuOptions?.find(x=>x.id===id),helper=window.ITRACK_UPLOAD;
- if(!f||!id||!target){notify(node,"Choose both a requirement and a file.","error");return;}
+ if(!list.length||!id||!target){notify(node,"Choose both a requirement and at least one file.","error");return;}
  if(kind==="announcement"&&!node._iuConfirmed){notify(node,"Confirm the school and announcement before uploading.","error");return;}
- if(f.size>MB||f.size<1){notify(node,"This file exceeds 30 MB. Compress the PDF or reduce its size first.","error");return;}
- if(!mimeFor(f)){notify(node,"File extension is not supported.","error");return;}
+ if(list.some(x=>!x.type)){notify(node,"Choose a copy type (Scanned copy, Soft copy or Proof) for every file.","error");return;}
+ const total=totalBytes(node);
+ if(total>MB){notify(node,"These files total "+size(total)+", which is more than 30 MB. Remove or compress some files first.","error");return;}
+ if(list.some(x=>!mimeFor(x.file)||x.file.size<1)){notify(node,"One of the files has an unsupported extension or is empty.","error");return;}
  setProcessing(node,true);
+ let done=0;
+ const count=list.length;      // the list shrinks as files are confirmed
  try{
   if(kind==="document"){
    const {data:current,error:existingError}=await db.from("document_attachments")
     .select("file_size_bytes").eq("document_id",id);
    if(existingError)throw Error("Could not verify the existing attachment sizes. Retry when connected.");
    const existing=(current||[]).reduce((n,x)=>n+Number(x.file_size_bytes||0),0);
-   const warning=helper.sizeError([f],existing);
+   const warning=helper.sizeError(list.map(x=>x.file),existing);
    if(warning){notify(node,warning,"error");return;}
   }
   const destination=kind==="announcement"?
    "School: "+target.schoolName+"\nAnnouncement: "+(target.announcementCode?target.announcementCode+" — ":"")+target.announcementTitle:
    target.label;
-  if(!confirm("FINAL UPLOAD CONFIRMATION\n\nFile: "+f.name+" ("+size(f.size)+")\n\n"+destination+
-   "\n\nUpload this file to the private district Google Drive for this destination?"))return;
+  const listing=list.map((x,i)=>(i+1)+". "+x.file.name+" ("+size(x.file.size)+", "+helper.copyLabel(x.type)+")").join("\n");
+  if(!confirm("FINAL UPLOAD CONFIRMATION\n\n"+list.length+" file"+(list.length===1?"":"s")+", "+size(total)+" in total:\n"+listing+"\n\n"+destination+
+   "\n\nUpload "+(list.length===1?"this file":"these files")+" to the private district Google Drive for this destination?"))return;
   updateUploadPhase(node,"Checking your login…");
   notify(node,"Preparing your secure upload. Keep this page open.");
-  const {data:{session}}=await db.auth.getSession();
-  if(!session?.access_token)throw Error("Your session expired. Please sign in again.");
-  const body=await helper.upload({
-   file:f,targetType:kind,targetId:id,token:session.access_token,
-   url:settings.url,apikey:settings.publishableKey,
-   onProgress:stage=>{
-    if(stage.phase==="reading")updateUploadPhase(node,"Preparing on device: "+stage.percent+"% (not yet uploaded)",null);
-    else if(stage.phase==="transferring")updateUploadPhase(node,"Uploading: "+stage.percent+"% transferred",stage.percent);
-    else if(stage.phase==="confirming")updateUploadPhase(node,"Transfer finished. Waiting for Google Drive and database confirmation…",null);
-   }
-  });
-  updateUploadPhase(node,"File upload confirmed and recorded.",100);
-  node._iuFile=null;node._iuOriginal=null;node.querySelector(".iu-input").value="";
+  // Files sent together for one requirement form one submission version.
+  const batchId=kind==="announcement"&&crypto.randomUUID?crypto.randomUUID():null;
+  let last=null;
+  while(node._iuFiles.length){
+   const item=node._iuFiles[0],position=(done+1)+" of "+count;
+   const {data:{session}}=await db.auth.getSession();
+   if(!session?.access_token)throw Error("Your session expired. Please sign in again.");
+   last=await helper.upload({
+    file:item.file,targetType:kind,targetId:id,token:session.access_token,
+    url:settings.url,apikey:settings.publishableKey,copyType:item.type,batchId,
+    onProgress:stage=>{
+     if(stage.phase==="reading")updateUploadPhase(node,"File "+position+": preparing on device "+stage.percent+"% (not yet uploaded)",null);
+     else if(stage.phase==="transferring")updateUploadPhase(node,"File "+position+": "+stage.percent+"% transferred",stage.percent);
+     else if(stage.phase==="confirming")updateUploadPhase(node,"File "+position+": waiting for Google Drive and database confirmation…",null);
+    }
+   });
+   done++;
+   node._iuFiles.shift();           // confirmed files leave the list, so a retry never sends them twice
+   updateFile(node);setProcessing(node,true);
+  }
+  updateUploadPhase(node,done===1?"File upload confirmed and recorded.":"All "+done+" files confirmed and recorded.",100);
   if(kind==="announcement"){
    node._iuConfirmed=false;
    const checkbox=node.querySelector(".iu-confirm-input");
@@ -473,14 +506,16 @@ async function upload(node,kind){
     schoolId:node._iuDelegated.schoolId,announcementId:node._iuDelegated.announcementId
    }}));
   }
-  notify(node,"File uploaded and recorded successfully! Received: "+displayTime(body.received_at)+". "+
-   (body.stored_file_name?"Saved in Drive as: "+body.stored_file_name+". ":"")+
+  notify(node,(done===1?"File uploaded and recorded successfully!":done+" files uploaded and recorded successfully!")+
+   " Received: "+displayTime(last?.received_at)+". "+
    "Announcement submissions still require district verification.","success");
  }catch(error){
   updateUploadPhase(node,"Upload not confirmed. Check submission history before retrying.");
   await refreshHistory(node,kind).catch(()=>{});
-  notify(node,"Upload not confirmed: "+(error?.message||String(error))+
-   ". Check the upload history or ask the administrator to review the log before retrying, to avoid duplicate files.","error");
+  if(kind==="document"&&done)window.dispatchEvent(new CustomEvent("itrack:document-uploaded",{detail:{documentId:id}}));
+  notify(node,(done?done+" of "+count+" files were saved. The file that stopped: ":"Upload not confirmed: ")+(error?.message||String(error))+
+   ". Check the upload history or ask the administrator to review the log before retrying, to avoid duplicate files."+
+   (done?" The files still listed above were not uploaded.":""),"error");
  }finally{if(node.isConnected)setProcessing(node,false);}
 }
 const observer=new MutationObserver(markPanel);

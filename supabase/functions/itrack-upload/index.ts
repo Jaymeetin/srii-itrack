@@ -7,6 +7,8 @@ import { Buffer } from "node:buffer";
 const SITE_ORIGIN = "https://jaymeetin.github.io";
 const FILE_LIMIT = 30 * 1024 * 1024;
 const REQUEST_LIMIT = 44_500_000; // Base64 overhead for a 30 MiB file.
+// Copy type recorded with every file (v88). Older clients may omit it.
+const COPY_TYPES = new Set(["proof", "soft_copy", "scanned_copy"]);
 const ACCEPTED_MIME = new Set([
   "image/jpeg", "image/png", "image/webp", "application/pdf",
   "application/msword",
@@ -109,6 +111,13 @@ Deno.serve(async (req: Request) => {
     const mime=input.mime_type;
     const name=input.file_name;
     const b64=input.content_base64;
+    const copyType=input.copy_type==null||input.copy_type===""?null:input.copy_type;
+    const batchId=input.batch_id==null||input.batch_id===""?null:input.batch_id;
+    if ((copyType!==null && (typeof copyType!=="string" || !COPY_TYPES.has(copyType))) ||
+        (batchId!==null && (typeof batchId!=="string" ||
+          !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(batchId)))) {
+      return response({error:"Invalid copy type or upload batch"},400);
+    }
     if (!["announcement","document"].includes(targetType) ||
         typeof targetId!=="string" || !/^[a-f0-9-]{36}$/i.test(targetId) ||
         typeof name!=="string" || name.length<1 || name.length>180 ||
@@ -146,7 +155,8 @@ Deno.serve(async (req: Request) => {
       .select("id",{count:"exact",head:true}).eq("uploaded_by",uid)
       .gte("first_received_at",new Date(Date.now()-3600000).toISOString());
     if (limitError) throw new Error("Could not verify upload limit");
-    if ((recent??0)>=(targetType==="document"?500:12)) return response({error:"Hourly upload safety limit reached. Please retry later."},429);
+    // Several files may now be submitted together for one requirement.
+    if ((recent??0)>=(targetType==="document"?500:120)) return response({error:"Hourly upload safety limit reached. Please retry later."},429);
     const extensionRules:Record<string,RegExp>={
       "image/jpeg":/\.(jpg|jpeg)$/i,
       "image/png":/\.png$/i,
@@ -234,6 +244,20 @@ Deno.serve(async (req: Request) => {
         return response({error:"Pending uploads would exceed this document's 30 MB limit. Check pending file transfers first."},413);
     }
 
+    // Files submitted together for one requirement share a 30 MiB total.
+    if (targetType==="announcement" && batchId) {
+      const {data:together,error:batchError}=await db.from("upload_attempts")
+        .select("file_size_bytes,uploaded_by")
+        .eq("assignment_id",targetId).eq("batch_id",batchId)
+        .in("status",["processing","drive_saved","recorded"]);
+      if(batchError) throw new Error("Could not verify the upload batch size");
+      if((together||[]).some(x=>x.uploaded_by!==uid))
+        return response({error:"This upload batch belongs to another user"},403);
+      const batchTotal=(together||[]).reduce((n,x)=>n+Number(x.file_size_bytes||0),0);
+      if(batchTotal+byteLength>FILE_LIMIT)
+        return response({error:"These files together would exceed 30 MB. Remove or compress some files before retrying."},413);
+    }
+
     uploadId=crypto.randomUUID();
     const cleanFilename=sanitizedName(name);
     const {data:attempt,error:insErr}=await db.from("upload_attempts").insert({
@@ -241,7 +265,9 @@ Deno.serve(async (req: Request) => {
       assignment_id:targetType==="announcement"?targetId:null,
       document_id:targetType==="document"?targetId:null,
       original_filename:cleanFilename,content_type:mime,
-      file_size_bytes:byteLength,sha256:sha,status:"processing"
+      file_size_bytes:byteLength,sha256:sha,status:"processing",
+      copy_type:copyType,
+      batch_id:targetType==="announcement"?batchId:null
     }).select("first_received_at").single();
     if(insErr||!attempt) throw new Error("Could not record securely received time");
 
