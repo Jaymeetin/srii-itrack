@@ -1962,18 +1962,28 @@ function divisionPage(){
  const compEligible=(data.eligible_compliances||[]).map(d=>'<div class="division-owner-choice-row"><label><input type="checkbox" class="division-compliance-pick" value="'+esc(d.id)+'"><span><strong>'+esc(d.school_name)+'</strong> · '+esc(d.subject)+' <small>'+esc(d.tracking_number)+'</small></span></label>'+
   '<div class="division-owner-choice-control"><span>Rightful owner (receives returned document)</span>'+
   ownerSelect(d.default_owner_id,'division-owner-new-'+d.id,'division-owner-choice')+'</div></div>').join('');
+ const mineId=state.profile.id;
+ const submitterName=people.find(p=>p.id===t?.assigned_submitter)?.name||'the assigned submitter';
+ const iAmSubmitter=!!t&&t.assigned_submitter===mineId;
+ // One visible row per document: its status, and the single action that applies to it now.
  const rows=activeItems.map(i=>{
- const actions=[];
- if(t?.assigned_submitter===state.profile.id&&t.assignment_accepted_at&&i.division_status==='in_transmittal')actions.push('<button class="btn tiny" data-a="division-act" data-act="submit" data-id="'+esc(i.id)+'">Mark as Submitted to Division</button>');
- if(i.division_status==='in_transmittal'&&(t?.prepared_by===state.profile.id||t?.assigned_submitter===state.profile.id||yesAdmin()))
-  actions.push('<button class="btn tiny alt" data-a="division-item-rule" data-id="'+esc(i.id)+'" data-return="'+
-   (i.effective_return_required?'no':'yes')+'">'+(i.effective_return_required?'Set No Return':'Set For Return')+'</button>');
- if(yesAdmin())actions.push('<button class="btn tiny alt" data-a="division-act" data-act="admin_received" data-id="'+esc(i.id)+'">Resolve Received</button><button class="btn tiny alt" data-a="division-act" data-act="lost" data-id="'+esc(i.id)+'">Lost</button><button class="btn tiny alt" data-a="division-act" data-act="not_for_return" data-id="'+esc(i.id)+'">Not for Return</button>'+(i.division_status==='lost'?'<button class="btn tiny alt" data-a="division-act" data-act="recovered" data-id="'+esc(i.id)+'">Recovered</button>':'')+(['lost','not_for_return','received_by_sender'].includes(i.division_status)?'<button class="btn tiny alt" data-a="division-act" data-act="correct" data-id="'+esc(i.id)+'">Correct</button>':''));
- if(canEditDraft&&state.transmittalEditing&&i.division_status==='in_transmittal')actions.unshift('<button class="btn tiny alt" data-a="transmittal-rename" data-id="'+esc(i.id)+'">Edit Name</button>');
- if(canEditDraft&&state.transmittalEditing)actions.unshift('<button class="btn tiny danger" data-a="draft-remove-item" data-id="'+esc(i.id)+'">Remove</button>');
- return '<tr><td>'+esc(i.tracking_number)+'</td><td>'+esc(i.document_label)+
-  '<div class="small muted">Owner: '+esc(i.rightful_owner_name||'Original sender')+' · '+esc(i.rightful_owner_school||'District Office')+'</div>'+
-  '<div class="small muted">'+(i.effective_return_required?'For Return':'No Return')+'</div></td><td>'+pTag(i.division_status==='received_by_sender'&&i.retrieved_from_division_at?'completed':i.division_status)+'</td><td>'+actions.join(' ')+'</td></tr>';
+  const main=iAmSubmitter&&t.assignment_accepted_at&&i.division_status==='in_transmittal'?
+   '<button class="btn tiny" data-a="division-act" data-act="submit" data-id="'+esc(i.id)+'">Mark as Submitted to Division</button>':'';
+  const rule=i.division_status==='in_transmittal'&&(t?.prepared_by===mineId||iAmSubmitter||yesAdmin())?
+   '<button class="btn tiny alt" data-a="division-item-rule" data-id="'+esc(i.id)+'" data-return="'+
+   (i.effective_return_required?'no':'yes')+'">'+(i.effective_return_required?'Set No Return':'Set For Return')+'</button>':'';
+  const admin=yesAdmin()?'<details class="rt-more"><summary>Administrator</summary><div class="rt-row-actions">'+
+   '<button class="btn tiny alt" data-a="division-act" data-act="admin_received" data-id="'+esc(i.id)+'">Resolve Received</button>'+
+   '<button class="btn tiny alt" data-a="division-act" data-act="lost" data-id="'+esc(i.id)+'">Lost</button>'+
+   '<button class="btn tiny alt" data-a="division-act" data-act="not_for_return" data-id="'+esc(i.id)+'">Not for Return</button>'+
+   (i.division_status==='lost'?'<button class="btn tiny alt" data-a="division-act" data-act="recovered" data-id="'+esc(i.id)+'">Recovered</button>':'')+
+   (['lost','not_for_return','received_by_sender'].includes(i.division_status)?'<button class="btn tiny alt" data-a="division-act" data-act="correct" data-id="'+esc(i.id)+'">Correct</button>':'')+
+   '</div></details>':'';
+  return '<div class="rt-row"><div class="rt-item-main"><strong>'+esc(i.document_label)+'</strong>'+
+   '<small>'+esc(i.tracking_number)+' · Owner: '+esc(i.rightful_owner_name||'Original sender')+' · '+esc(i.rightful_owner_school||'District Office')+
+   ' · '+(i.effective_return_required?'For Return':'No Return')+'</small></div>'+
+   pTag(i.division_status==='received_by_sender'&&i.retrieved_from_division_at?'completed':i.division_status)+
+   (main||rule?'<div class="rt-row-actions">'+main+rule+'</div>':'')+admin+'</div>';
  });
  const draftControls=canEditDraft?
   '<div class="draft-edit-bar"><button class="btn alt" data-a="draft-toggle-edit">'+(state.transmittalEditing?'Finish Editing':'Edit Transmittal')+'</button>'+
@@ -2002,22 +2012,64 @@ function divisionPage(){
  const removedHistory=removedItems.length?'<details class="draft-removed-history"><summary>Removed / Administratively Archived Items ('+removedItems.length+')</summary>'+
    removedItems.map(i=>'<p class="small muted">'+esc(i.tracking_number)+' — '+esc(i.document_label)+
     (i.admin_removed?' (moved to recoverable Trash; original physical history retained)':' (removed from draft before submission)')+'</p>').join('')+'</details>':'';
- const adminPanel=yesAdmin()?'<div class="panel"><h3>Administrator Document Search & Resolution</h3><p class="note">Search any tracking number or document title. A written reason is required for manual changes.</p><div class="toolbar"><input id="division-admin-query" placeholder="Tracking number or document name" value="'+esc(state.divisionQuery||'')+'"><button class="btn alt" data-a="division-admin-search">Search</button></div>'+table(['Tracking #','Document','Status','Resolution'],(state.divisionSearchResults||[]).map(d=>'<tr><td>'+esc(d.tracking_number)+'</td><td>'+esc(d.subject)+'</td><td>'+esc(d.resolution||d.status)+'</td><td>'+(['received','lost','not_for_return','recovered','corrected'].map(a=>'<button class="btn tiny alt" data-a="division-admin-resolve" data-id="'+esc(d.id)+'" data-act="'+a+'">'+esc(label(a))+'</button>').join(' '))+'</td></tr>'))+'</div>':'';
- return '<div class="sectionhead"><div><div class="eyebrow">Physical document custody</div><h1>Division Transmittals</h1><p class="sub">Prepare and submit documents to Division. Retrieval and final receipt are managed separately, with every tracking ID preserved.</p></div></div>'+
- adminPanel+'<div class="panel"><h3>Division Retrieval</h3><p class="note">Physical pickup, turnover slips, District acknowledgment and final owner receipt are recorded in the separate Division Retrieval page. The original transmittal below remains the official outgoing record.</p><button class="btn alt" data-a="nav" data-page="retrieval">Open Division Retrieval</button></div>'+
- '<div class="panel v2-board itrack-preview"><div class="panel-head"><h3>Notifications</h3><button class="btn tiny alt itrack-show-all" data-a="nav" data-page="notifications">Show All</button></div>'+
- ((state.divisionNotices||[]).length?'<div class="v2-notice-list">'+(state.divisionNotices||[]).slice(0,3).map(n=>notificationRow({...n,source:'transmittal'},true)).join('')+'</div>':'<p class="note">No recent Division notifications.</p>')+'</div>'+
- '<div class="panel"><h3>Create Transmittal</h3><p class="note">Select Division documents and verified announcement submissions. Recipient approval is not needed.</p>'+
- '<p class="note"><strong>Check the rightful owner for every selected document.</strong> The original uploader is preselected, which may be you if you entered documents for another school. The owner is different from the transmittal preparer and assigned submitter.</p><div class="field"><label>Assigned submitter</label><select id="division-submitter">'+opts+'</select></div><h4>Division Documents</h4><div class="division-eligible-list">'+(eligible||'<p class="note">No eligible documents.</p>')+'</div><h4>Verified School Submissions</h4><div class="division-eligible-list">'+(compEligible||'<p class="note">No verified submissions.</p>')+'</div><button class="btn" data-a="division-create">Create Transmittal</button></div>'+
- '<div class="panel"><h3>Transmittal</h3><div class="field"><label>Select transmittal</label><select id="division-current">'+ts.map(x=>'<option value="'+esc(x.id)+'" '+(x.id===activeId?'selected':'')+'>'+esc(x.transmittal_number)+'</option>').join('')+'</select></div>'+
- (t?'<p><strong>'+esc(t.transmittal_number)+'</strong> · '+pTag(transmittalLocked?'dispatched':t.assignment_accepted_at?'accepted':'pending')+'</p>'+draftControls+
- '<div class="division-print-config"><h4>Official Forms</h4><p class="note">Documents display the recorded submitting AO. The transmittal signer is the AO assigned to submit to Division. Endorsement is signed by the district OIC.</p>'+
- '<div class="notice"><strong>Transmittal signer (assigned AO):</strong> '+esc(people.find(p=>p.id===t.assigned_submitter)?.name||activeItems.find(i=>i.ao_sender_is_submitted)?.ao_sender_name||'Name unavailable')+' · '+esc(people.find(p=>p.id===t.assigned_submitter)?.position||activeItems.find(i=>i.ao_sender_is_submitted)?.ao_sender_position||'Administrative Officer II')+'</div>'+
- '<div class="notice"><strong>Endorsement signer (fixed):</strong> SHERILL E. CORTEJO, PhD · School Principal II · OIC, Office of the Public Schools District Supervisor</div>'+
- '<div class="field"><label>Authorized School (Endorsement)</label><input id="trans-authorized-school" value="'+esc(t.authorized_school_name||'')+'" placeholder="Submitting AO II school"'+(transmittalLocked?' disabled':'')+'></div><button class="btn tiny alt" data-a="transmittal-save-signer"'+(transmittalLocked?' disabled':'')+'>Save Authorized School</button><div class="field"><label>Choose forms to print</label><select id="division-print-kind"><option value="endorsement">Endorsement</option><option value="transmittal">Transmittal</option><option value="both" selected>Both</option></select></div><div class="toolbar"><button class="btn" data-a="division-print">Print / Save PDF</button><button class="btn alt" data-a="division-word">Editable Word</button></div></div><div class="toolbar">'+
- (t.assigned_submitter===state.profile.id&&!t.assignment_accepted_at?'<button class="btn" data-a="division-act" data-act="accept">Accept Assignment</button>':'')+
- (canEditDraft&&t.prepared_by===state.profile.id?'<select id="division-reassign">'+opts+'</select><button class="btn alt" data-a="division-act" data-act="reassign">Reassign</button>':'')+'</div>'+
- table(['Tracking #','Document','Physical Status','Action'],rows)+removedHistory:'<p class="note">No transmittal created yet.</p>')+'</div>';
+ const creating=state.divisionNew||!ts.length;
+ const itemCount=id=>items.filter(i=>i.transmittal_id===id&&i.division_status!=='cancelled'&&!i.admin_removed).length;
+ const lockedOf=x=>!!x.dispatched_at||x.status!=='draft'||items.some(i=>i.transmittal_id===x.id&&(i.submitted_at||(i.division_status!=='in_transmittal'&&i.division_status!=='cancelled')));
+ const stateOf=x=>lockedOf(x)?['Submitted to Division','info']:x.assignment_accepted_at?['Ready to submit','warn']:['Draft','warn'];
+ const listRows=ts.map(x=>{const [text,kind]=stateOf(x);const n=itemCount(x.id);
+  return '<button type="button" class="rt-item rt-pick'+(!creating&&x.id===activeId?' is-current':'')+'" data-a="division-open" data-id="'+esc(x.id)+'">'+
+   '<span class="rt-item-main"><strong>'+esc(x.transmittal_number)+'</strong><small>'+n+' document'+(n===1?'':'s')+' · Prepared '+esc(date(x.created_at))+'</small></span>'+
+   '<span class="tag" data-tone="'+kind+'">'+text+'</span><span class="compact-doc-arrow" aria-hidden="true">'+ico('chevronRight')+'</span></button>';}).join('');
+ const myList='<section class="panel rt-panel"><div class="panel-head"><h3>My transmittals</h3>'+
+  '<button class="btn'+(creating?' alt':'')+'" data-a="division-new">+ New Transmittal</button></div>'+
+  (ts.length?'<div class="rt-list">'+listRows+'</div>':'<p class="empty">No transmittal yet. Start with step 1 below.</p>')+'</section>';
+ const step=(no,title,hint,body,open,done)=>'<details class="panel rt-panel rt-stepcard'+(done?' is-done':'')+'"'+(open?' open':'')+'>'+
+  '<summary><span class="rt-step-no">'+(done?ico('check'):no)+'</span><span class="rt-step-title"><strong>'+title+'</strong><small>'+hint+'</small></span></summary>'+
+  '<div class="rt-step-body">'+body+'</div></details>';
+ const createForm='<p class="note">Tick the documents going to Division. <strong>Check the rightful owner of each one</strong>: that person receives the document when it comes back. The original uploader is preselected.</p>'+
+  '<h4>Division Documents</h4><div class="division-eligible-list">'+(eligible||'<p class="note">No eligible documents.</p>')+'</div>'+
+  '<h4>Verified School Submissions</h4><div class="division-eligible-list">'+(compEligible||'<p class="note">No verified submissions.</p>')+'</div>'+
+  '<div class="field"><label for="division-submitter">Who will bring them to Division?</label><select id="division-submitter">'+opts+'</select></div>'+
+  '<div class="rt-confirm"><button class="btn" data-a="division-create">Create Transmittal</button></div>';
+ let body;
+ if(creating){
+  body=step(1,'Choose documents','Pick what goes to Division and who will submit it',createForm,true,false)+
+   step(2,'Review and print','Available after the transmittal is created','<p class="note">Create the transmittal first.</p>',false,false)+
+   step(3,'Mark submitted to Division','Available after the transmittal is created','<p class="note">Create the transmittal first.</p>',false,false);
+ }else{
+  const has=activeItems.length>0;
+  const signer=people.find(p=>p.id===t.assigned_submitter);
+  const step1=(has?'<div class="rt-rows">'+activeItems.map(i=>'<div class="rt-row"><div class="rt-item-main"><strong>'+esc(i.document_label)+'</strong><small>'+esc(i.tracking_number||'')+' · '+esc(i.document_type||'Document')+'</small></div></div>').join('')+'</div>':
+   '<p class="empty">No documents in this transmittal yet.</p>')+draftControls+removedHistory;
+  const step2='<p class="note">Prints the endorsement and the transmittal together. You can print again at any time; printing never changes a document\'s status.</p>'+
+   '<div class="rt-facts"><div><small>Transmittal signed by (assigned AO)</small><strong>'+esc(signer?.name||activeItems.find(i=>i.ao_sender_is_submitted)?.ao_sender_name||'Name unavailable')+'</strong><span>'+esc(signer?.position||activeItems.find(i=>i.ao_sender_is_submitted)?.ao_sender_position||'Administrative Officer II')+'</span></div>'+
+   '<div><small>Endorsement signed by (fixed)</small><strong>SHERILL E. CORTEJO, PhD</strong><span>School Principal II · OIC, Office of the Public Schools District Supervisor</span></div></div>'+
+   '<div class="field"><label for="trans-authorized-school">Authorized School (Endorsement)</label><input id="trans-authorized-school" value="'+esc(t.authorized_school_name||'')+'" placeholder="Submitting AO II school"'+(transmittalLocked?' disabled':'')+'>'+
+   '<p class="small muted">Saved automatically when you print.</p></div>'+
+   '<div class="rt-confirm rt-confirm-start"><button class="btn" data-a="division-print"'+(!has?' disabled':'')+'>'+ico('file')+'Print Endorsement and Transmittal</button></div>'+
+   '<details class="rt-more rt-more-block"><summary>More options</summary>'+
+   '<div class="field"><label for="division-print-kind">Print only one form</label><select id="division-print-kind"><option value="both" selected>Both (default)</option><option value="endorsement">Endorsement only</option><option value="transmittal">Transmittal only</option></select></div>'+
+   '<div class="toolbar"><button class="btn alt" data-a="division-word"'+(!has?' disabled':'')+'>Editable Word</button>'+
+   '<button class="btn alt" data-a="transmittal-save-signer"'+(transmittalLocked?' disabled':'')+'>Save Authorized School</button></div>'+
+   (canEditDraft&&t.prepared_by===mineId?'<div class="field rt-reassign"><label for="division-reassign">Give the submission to someone else</label><div class="toolbar"><select id="division-reassign">'+opts+'</select><button class="btn alt" data-a="division-act" data-act="reassign">Reassign</button></div></div>':'')+
+   '</details>';
+  const allOut=has&&activeItems.every(i=>i.division_status!=='in_transmittal');
+  const step3=(allOut?'<div class="notice">All documents on this transmittal have left your hands. Pick them up later under <button type="button" class="btn tiny alt" data-a="nav" data-page="retrieval">Division Retrieval</button>.</div>':
+    iAmSubmitter&&!t.assignment_accepted_at?'<div class="notice warn"><strong>You are assigned to bring these to Division.</strong> Accept the assignment, then mark each document as it is physically handed over. <button class="btn tiny" data-a="division-act" data-act="accept">Accept Assignment</button></div>':
+    iAmSubmitter?'<p class="note">Mark each document only when it is physically handed to Division. The first one locks this transmittal.</p>':
+    '<p class="note">Only <strong>'+esc(submitterName)+'</strong>, the assigned submitter, can mark these as submitted.</p>')+
+   (has?'<div class="rt-rows">'+rows.join('')+'</div>':'<p class="empty">Add documents in step 1 first.</p>');
+  const [text,kind]=stateOf(t);
+  body='<div class="rt-current"><div><span class="small muted">Selected transmittal</span><strong>'+esc(t.transmittal_number)+'</strong></div><span class="tag" data-tone="'+kind+'">'+text+'</span></div>'+
+   step(1,'Choose documents',has?activeItems.length+' document'+(activeItems.length===1?'':'s')+(transmittalLocked?' · locked':' · can still be edited'):'Nothing added yet',step1,!has||!!state.transmittalEditing,has)+
+   step(2,'Review and print','Endorsement and transmittal in one print',step2,has,transmittalLocked)+
+   step(3,'Mark submitted to Division',allOut?'All submitted':'Record the physical handover',step3,has,allOut);
+ }
+ const adminTools=yesAdmin()?'<details class="panel rt-panel"><summary><strong>Administrator: search and resolve any document</strong></summary>'+
+  '<p class="note">Search any tracking number or document title. A written reason is required for manual changes.</p><div class="toolbar"><input id="division-admin-query" placeholder="Tracking number or document name" value="'+esc(state.divisionQuery||'')+'"><button class="btn alt" data-a="division-admin-search">Search</button></div>'+
+  table(['Tracking #','Document','Status','Resolution'],(state.divisionSearchResults||[]).map(d=>'<tr><td>'+esc(d.tracking_number)+'</td><td>'+esc(d.subject)+'</td><td>'+esc(d.resolution||d.status)+'</td><td>'+(['received','lost','not_for_return','recovered','corrected'].map(a=>'<button class="btn tiny alt" data-a="division-admin-resolve" data-id="'+esc(d.id)+'" data-act="'+a+'">'+esc(label(a))+'</button>').join(' '))+'</td></tr>'))+'</details>':'';
+ return '<div class="sectionhead"><div><div class="eyebrow">Physical document custody</div><h1>Division Transmittals</h1><p class="sub">Three steps: choose the documents, print the forms, then mark them submitted. Picking documents up again is done in Division Retrieval.</p></div></div>'+
+  myList+body+adminTools;
 }
 function divisionPrintHtml(t,items,qrImage=''){
  const sorted=[...items].sort((a,b)=>String(a.document_type||'').localeCompare(String(b.document_type||''))||String(state.schools.find(s=>s.id===a.school_id)?.name||'').localeCompare(String(state.schools.find(s=>s.id===b.school_id)?.name||''))||String(a.tracking_number).localeCompare(String(b.tracking_number)));let heading='';const rows=sorted.map((i,n)=>{const section=(i.document_type||'Document')+' — '+(state.schools.find(s=>s.id===i.school_id)?.name||'School');const head=section===heading?'':'<tr><th colspan="4" style="background:#eee;text-align:left">'+esc(section)+'</th></tr>';heading=section;return head+'<tr><td>'+(n+1)+'</td><td>'+esc(i.tracking_number)+'</td><td>'+esc(i.document_label)+'</td><td>'+esc(i.division_status)+'</td></tr>';}).join('');
@@ -2507,7 +2559,7 @@ async function click(e){
     state.reviewSelectedId=item.announcementId;
     rememberAnnouncement(item.announcementId,true);
    }
-   if(item.transmittalId)state.divisionSelected=item.transmittalId;
+   if(item.transmittalId){state.divisionSelected=item.transmittalId;state.divisionNew=false;}
    if(item.filter)state.connectedFilter=item.filter;
    if(item.page==='retrieval'&&item.section)state.retrievalTab='receive';
    rememberView(item.page);
@@ -2970,6 +3022,11 @@ async function click(e){
    }finally{state.busy=false;}
    await load();pop(added+' item(s) added to the draft.');return;
   }
+  if(a==='division-open'){
+   if(!state.divisionData.transmittals?.some(x=>x.id===t.dataset.id))throw Error('Transmittal not found. Reopen Division Transmittals.');
+   state.divisionSelected=t.dataset.id;state.divisionNew=false;state.transmittalEditing=false;show();return;
+  }
+  if(a==='division-new'){state.divisionNew=true;state.transmittalEditing=false;show();return;}
   if(a==='division-create'){
    const selected=[...document.querySelectorAll('.division-pick:checked,.division-compliance-pick:checked')];
    const docs=selected.filter(c=>c.classList.contains('division-pick')).map(c=>c.value);
@@ -2986,7 +3043,7 @@ async function click(e){
    state.busy=true;try{
     const {data,error}=await db.rpc('i_track_create_mixed_transmittal_with_owners',
      {p_documents:docs,p_compliances:compliances,p_submitter:submitter,p_owners:owners});
-    if(error)throw error;state.divisionSelected=data.id;state.transmittalEditing=false;
+    if(error)throw error;state.divisionSelected=data.id;state.divisionNew=false;state.transmittalEditing=false;
     await load();pop('Transmittal created with rightful owners recorded.');
    }finally{state.busy=false;}return;
   }
