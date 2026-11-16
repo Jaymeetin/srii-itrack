@@ -16,7 +16,7 @@ window.ITRACK_TYPES_VIEW=function(state,{esc,date}){
   '<p class="note">No document types exist.</p>';
  return '<div class="sectionhead"><div><div class="eyebrow">District Administration</div><h1>Document Types</h1>'+
   '<p class="sub">Approve suggestions, add types directly and deactivate old types without deleting historical documents.</p></div>'+
-  '<button class="btn alt" data-a="types-refresh">'+(window.ITRACK_ICON?.('refresh')||'')+'Refresh</button></div>'+
+  '</div>'+
   '<div class="panel"><h3>Pending Requests ('+pending.length+')</h3>'+pendingRows+'</div>'+
   '<div class="panel"><h3>Add Approved Document Type</h3>'+
   '<p class="note">Administrators can add a type immediately. It becomes available in the document creation dropdown after refresh.</p>'+
