@@ -2806,6 +2806,11 @@ async function click(e){
     if(error)throw error;await load();pop('Document type '+(action==='add'?'added':action==='deactivate'?'deactivated':'reactivated')+'.');
    }finally{state.busy=false;}return;
   }
+  if(a==='district-open'){
+   if(!state.districtData.transmittals?.some(x=>x.id===t.dataset.id))throw Error('Transmittal not found. Reopen District Transmittals.');
+   state.districtSelected=t.dataset.id;state.districtNew=false;state.districtSubmitPicked.clear();show();return;
+  }
+  if(a==='district-new'){state.districtNew=true;show();return;}
   if(a==='district-create'){
    const school=state.schools.find(x=>x.id===state.districtSchoolId);
    if(!school||!school.is_active)throw Error('Choose an active school.');
@@ -2818,7 +2823,7 @@ async function click(e){
     const {data,error}=await db.rpc('i_track_district_action',{p_action:'create',p_school:school.id,
      p_address:addr,p_document_ids:checked});
     if(error)throw error;
-    state.districtPicked.clear();state.districtSelected=data.id;
+    state.districtPicked.clear();state.districtSelected=data.id;state.districtNew=false;
     await load();pop('District transmittal '+data.number+' created. Print the slip before submission.');
    }finally{state.busy=false;}return;
   }
