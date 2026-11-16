@@ -2509,6 +2509,7 @@ async function click(e){
    }
    if(item.transmittalId)state.divisionSelected=item.transmittalId;
    if(item.filter)state.connectedFilter=item.filter;
+   if(item.page==='retrieval'&&item.section)state.retrievalTab='receive';
    rememberView(item.page);
    await load();
    if(item.page==='documents'&&item.documentId&&state.docs.some(d=>d.id===item.documentId))
@@ -2604,13 +2605,18 @@ async function click(e){
   if(a==='maintenance-toggle'){if(!yesAdmin())throw Error('Admin only');const next=!state.maintenance.enabled;if(!confirm(next?'Turn ON Maintenance Mode? Regular users will see a maintenance notice.':'Turn OFF Maintenance Mode and reopen the app for regular users?'))return;const {error}=await db.rpc('i_track_set_maintenance',{p_enabled:next});if(error)throw error;await readMaintenance();show();pop(next?'Maintenance Mode enabled.':'Maintenance Mode disabled.');return;}
   if(state.maintenance.enabled&&!yesAdmin()&&a!=='logout'){await readMaintenance();show();return;}
   if(a==='retrieval-refresh'){await load();return;}
+  if(a==='retrieval-tab'){
+   if(!['division','mine','receive'].includes(t.dataset.tab))return;
+   state.retrievalTab=t.dataset.tab;show();return;
+  }
+  if(a==='retrieval-dismiss-recent'){state.retrievalRecent=[];show();return;}
   if(a==='retrieval-clear'){
    state.retrievalPicked.clear();state.retrievalSearch='';
    show();return;
   }
   if(a==='retrieval-check-visible'){
    document.querySelectorAll('#retrieval-available-list .retrieval-pick:not(:disabled)').forEach(c=>{
-    if(!c.closest('tr')?.hidden){c.checked=true;state.retrievalPicked.add(c.value);}
+    if(!c.closest('[data-retrieval-search]')?.hidden){c.checked=true;state.retrievalPicked.add(c.value);}
    });
    refreshRetrievalCheckboxCounters();return;
   }
@@ -2626,7 +2632,9 @@ async function click(e){
   }
   if(a==='retrieval-print-pickup'){
    const eligible=state.retrievalData.my_batch_items||[];
-   const chosen=eligible.filter(i=>state.retrievalSlipPicked.has(i.item_id));
+   // The slip offered right after a pickup covers exactly the documents just retrieved.
+   const wanted=t.dataset.recent?new Set(state.retrievalRecent||[]):state.retrievalSlipPicked;
+   const chosen=eligible.filter(i=>wanted.has(i.item_id));
    if(!chosen.length)throw Error('Select at least one previously retrieved document.');
    if(!window.ITRACK_PRINT?.renderPickupSlip)throw Error('Refresh: the optional retrieval slip template was not loaded.');
    const html=window.ITRACK_PRINT.renderPickupSlip({name:state.profile.display_name,position:state.profile.position_title},chosen);
@@ -2643,13 +2651,14 @@ async function click(e){
    if(!checked.length)throw Error('Check at least one document currently submitted to Division.');
    if(!confirm('Confirm you physically collected '+checked.length+' document(s) from the Division Office? This cannot be undone by clicking Back.'))return;
    state.retrievalPicked.clear();
-   await executeRetrievalAction('pickup',{p_item_ids:checked},result=>{
+   state.retrievalRecent=checked;
+   try{await executeRetrievalAction('pickup',{p_item_ids:checked},result=>{
      const completed=Number(result?.auto_completed||0);
      return 'Retrieved '+checked.length+' document(s). '+
        (completed?completed+' document(s) personally retrieved by their rightful owner were automatically completed. ':
        'Documents collected for others remain in the retriever\'s custody. ')+
-       'A numbered retrieval batch was created.';
-    });
+       'You can print a retrieval slip now.';
+    });}catch(error){state.retrievalRecent=[];throw error;}
    return;
   }
   if(a==='retrieval-prepare'){
