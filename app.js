@@ -2327,8 +2327,8 @@ function modalHtml(){
     '<div class="field route-instructions-field"><label for="doc-notes">Instructions / Remarks <span class="route-optional">(optional)</span></label>'+
      '<textarea name="notes" id="doc-notes" rows="3" placeholder="Type your instructions or other details here…"></textarea></div>'+
     '<div class="field route-attachment-field"><label for="doc-attachments">Attachments <span class="route-optional">(optional)</span></label>'+
-     '<div class="route-attachment-picker"><input id="doc-attachments" type="file" multiple accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp">'+
-      '<div id="doc-attachment-selection" class="route-field-note">PDF, Word and images · Any number of files, 30 MB combined</div>'+'<p id="doc-attachment-alert" class="route-attachment-alert" role="alert" hidden></p>'+'<a id="doc-pdf-compression" href="https://www.ilovepdf.com/compress_pdf" target="_blank" rel="noopener noreferrer" hidden>Compress PDFs at iLovePDF '+ico('external')+'</a>'+'<p class="route-field-note">Images compress automatically on your device. Avoid sending confidential PDFs to external services unless permitted.</p></div></div>'+
+     '<div class="route-attachment-picker"><input id="doc-attachments" type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.webp">'+
+      '<div id="doc-attachment-selection" class="route-field-note">PDF, Word, Excel, PowerPoint and images · Any number of files, 30 MB combined</div>'+'<p id="doc-attachment-alert" class="route-attachment-alert" role="alert" hidden></p>'+'<a id="doc-pdf-compression" href="https://www.ilovepdf.com/compress_pdf" target="_blank" rel="noopener noreferrer" hidden>Compress PDFs at iLovePDF '+ico('external')+'</a>'+'<p class="route-field-note">Images compress automatically on your device. Avoid sending confidential PDFs to external services unless permitted.</p></div></div>'+
     '<p id="doc-save-message" class="route-save-message" role="status" aria-live="polite"></p>'+
    '</form>'+
    '<details class="route-type-suggestion"><summary>Missing a document type?</summary>'+
@@ -3763,7 +3763,7 @@ async function submit(e){
     const files=picker?._preparedFiles||await helper.prepare(originals);
     const warning=helper.sizeError(files);
     if(warning)throw Error(warning);
-    if(files.some(f=>!helper.mimeFor(f)||f.size<1))throw Error('Select nonempty PDF, Word or image files only.');
+    if(files.some(f=>!helper.mimeFor(f)||f.size<1))throw Error('Select nonempty PDF, Word, Excel, PowerPoint or image files only.');
     const copyTypes=files.map((f,i)=>form.querySelector('.doc-copy-type[data-index="'+i+'"]')?.value||'');
     if(copyTypes.some(x=>!x))throw Error('Choose a copy type (Scanned copy, Soft copy or Proof) for every attachment.');
     let tracking=form.dataset.savedTracking||'';

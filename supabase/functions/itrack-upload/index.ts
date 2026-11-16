@@ -13,7 +13,21 @@ const ACCEPTED_MIME = new Set([
   "image/jpeg", "image/png", "image/webp", "application/pdf",
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
 ]);
+// Office formats by container: legacy binary files (OLE) and current zip-based files.
+const OLE_OFFICE = new Set(["application/msword", "application/vnd.ms-excel", "application/vnd.ms-powerpoint"]);
+const ZIP_OFFICE = new Set([
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+]);
+// Markers of an embedded VBA macro project. Zip-based files name the part
+// "vbaProject.bin"; Word and Excel binary files hold a "_VBA_PROJECT" stream.
+const MACRO_MARKERS = [Buffer.from("vbaProject.bin", "latin1"), Buffer.from("_VBA_PROJECT", "utf16le")];
 
 function response(body: Record<string, unknown>, status=200) {
   return new Response(JSON.stringify(body), {
@@ -44,8 +58,8 @@ function validFileMagic(b: Uint8Array, mime: string): boolean {
   if (mime === "image/png") return b.length>=8 && b[0]===137 && b[1]===80 && b[2]===78 && b[3]===71;
   if (mime === "image/jpeg") return b.length>=3 && b[0]===255 && b[1]===216 && b[2]===255;
   if (mime === "image/webp") return b.length>=12 && String.fromCharCode(...b.slice(0,4))==="RIFF" && String.fromCharCode(...b.slice(8,12))==="WEBP";
-  if (mime === "application/msword") return b.length>=8 && [208,207,17,224,161,177,26,225].every((x,i)=>b[i]===x);
-  if (mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") return b.length>=4 && b[0]===80 && b[1]===75 && [3,5,7].includes(b[2]) && [4,6,8].includes(b[3]);
+  if (OLE_OFFICE.has(mime)) return b.length>=8 && [208,207,17,224,161,177,26,225].every((x,i)=>b[i]===x);
+  if (ZIP_OFFICE.has(mime)) return b.length>=4 && b[0]===80 && b[1]===75 && [3,5,7].includes(b[2]) && [4,6,8].includes(b[3]);
   return false;
 }
 
@@ -57,6 +71,8 @@ function inspectBase64File(b64: string) {
   const CHUNK_CHARS = 65536;
   let headLength = 0;
   let totalBytes = 0;
+  let macroFound = false;
+  let tail = Buffer.alloc(0);             // overlap so a marker split across chunks is still found
   for (let offset = 0; offset < b64.length; offset += CHUNK_CHARS) {
     const chunk = Buffer.from(b64.slice(offset, offset + CHUNK_CHARS), "base64");
     if (headLength < head.length) {
@@ -67,8 +83,13 @@ function inspectBase64File(b64: string) {
     totalBytes += chunk.length;
     if (totalBytes > FILE_LIMIT) throw new Error("File exceeds the 30 MB upload limit");
     digest.update(chunk);
+    if (!macroFound) {
+      const view = tail.length ? Buffer.concat([tail, chunk]) : chunk;
+      macroFound = MACRO_MARKERS.some(marker => view.indexOf(marker) !== -1);
+      tail = view.subarray(Math.max(0, view.length - 32));
+    }
   }
-  return {byteLength: totalBytes, magic: head.subarray(0, headLength), sha: digest.digest("base64url")};
+  return {byteLength: totalBytes, magic: head.subarray(0, headLength), sha: digest.digest("base64url"), macroFound};
 }
 
 Deno.serve(async (req: Request) => {
@@ -163,7 +184,11 @@ Deno.serve(async (req: Request) => {
       "image/webp":/\.webp$/i,
       "application/pdf":/\.pdf$/i,
       "application/msword":/\.doc$/i,
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document":/\.docx$/i
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document":/\.docx$/i,
+      "application/vnd.ms-excel":/\.xls$/i,
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":/\.xlsx$/i,
+      "application/vnd.ms-powerpoint":/\.ppt$/i,
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation":/\.pptx$/i
     };
     if (!extensionRules[mime]?.test(name)||/[/\\\x00-\x1f]/.test(name)||/^\.+$/.test(name))
       return response({error:"File name or extension does not match the file type"},400);
@@ -216,11 +241,13 @@ Deno.serve(async (req: Request) => {
       schoolName=school.name;
     }
 
-    const {byteLength,magic,sha}=inspectBase64File(b64);
+    const {byteLength,magic,sha,macroFound}=inspectBase64File(b64);
     if (byteLength<1 || byteLength>FILE_LIMIT)
       return response({error:"Each file must be no larger than 30 MB"},413);
     if (!validFileMagic(magic,mime))
       return response({error:"File does not match its declared type"},400);
+    if ((OLE_OFFICE.has(mime)||ZIP_OFFICE.has(mime)) && macroFound)
+      return response({error:"Office files containing macros are not accepted. Save the file without macros (for example as .xlsx or .docx) and upload it again."},400);
 
     // Each routed document has a total of 30 MiB across all attachments.
     // Existing and in-flight uploads are counted; the UI alone is not trusted.

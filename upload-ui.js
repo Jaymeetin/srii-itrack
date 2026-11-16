@@ -54,7 +54,11 @@ function retryAccountCheck(node,kind){
 const TYPES={
  ".jpg":"image/jpeg",".jpeg":"image/jpeg",".png":"image/png",
  ".webp":"image/webp",".pdf":"application/pdf",".doc":"application/msword",
- ".docx":"application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+ ".docx":"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+ ".xls":"application/vnd.ms-excel",
+ ".xlsx":"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+ ".ppt":"application/vnd.ms-powerpoint",
+ ".pptx":"application/vnd.openxmlformats-officedocument.presentationml.presentation"
 };
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const displayTime=x=>x?new Date(x).toLocaleString("en-PH",{dateStyle:"medium",timeStyle:"short",timeZone:"Asia/Manila"}):"—";
@@ -109,14 +113,14 @@ function markPanel(){
    (kind==="announcement"?'<div class="iu-announcement-review" aria-live="polite">Choose an announcement to view its school and title before uploading.</div>'+
      '<label class="iu-confirm-row"><input type="checkbox" class="iu-confirm-input" disabled> <span>I checked the <strong>school and announcement</strong> above. This is the correct destination for my file.</span></label>':'')+
    '<div class="iu-date" aria-live="polite"></div>'+
-   '<div class="iu-file"><span class="iu-file-icon" aria-hidden="true">'+(window.ITRACK_ICON?.('upload')||'↥')+'</span><div class="iu-file-inner"><label for="iu-file-'+kind+'">Choose PDF, Word or image files</label>'+
-    '<input id="iu-file-'+kind+'" class="iu-input" type="file" multiple accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp" aria-label="Select one or more files to upload">'+
+   '<div class="iu-file"><span class="iu-file-icon" aria-hidden="true">'+(window.ITRACK_ICON?.('upload')||'↥')+'</span><div class="iu-file-inner"><label for="iu-file-'+kind+'">Choose PDF, Word, Excel, PowerPoint or image files</label>'+
+    '<input id="iu-file-'+kind+'" class="iu-input" type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.webp" aria-label="Select one or more files to upload">'+
     '<p class="iu-muted">You can pick several files at once. Together they must not be more than 30 MB.</p></div></div>'+
    '<div class="iu-selection">No files selected</div>'+
    '<img class="iu-image" alt="Preview of the selected picture" hidden>'+
    '<div class="iu-actions"><button type="button" class="btn alt iu-compress" disabled>Compress Pictures</button>'+
     '<button type="button" class="btn iu-upload" disabled>Upload to Google Drive</button></div><div class="iu-progress" hidden role="status" aria-live="polite"><span class="iu-progress-label">Preparing upload…</span><progress class="iu-progress-bar" max="100"></progress></div>'+
-   '<p class="iu-limits">30 MB in total for the files you upload together; a routed document also shares one 30 MB total across all its attachments. No fixed file-count limit. Images compress automatically on your device. PDF and Word files retain their format. For oversized PDFs, <a href="https://www.ilovepdf.com/compress_pdf" target="_blank" rel="noopener noreferrer">use iLovePDF Compress PDF ↗</a> only where document privacy permits.</p>'+
+   '<p class="iu-limits">30 MB in total for the files you upload together; a routed document also shares one 30 MB total across all its attachments. No fixed file-count limit. Images compress automatically on your device. PDF and Office files keep their format; Office files with macros are refused. For oversized PDFs, <a href="https://www.ilovepdf.com/compress_pdf" target="_blank" rel="noopener noreferrer">use iLovePDF Compress PDF ↗</a> only where document privacy permits.</p>'+
    '<div class="iu-history" aria-live="polite"><h4>Submission history</h4><div class="iu-history-list">Select a requirement to view its records.</div></div>'+
   '</div>'+
   '<div class="iu-message" hidden aria-live="polite"></div>';
@@ -316,7 +320,7 @@ async function initialize(node,kind){
    const known=new Set((node._iuFiles||[]).map(x=>x.original.name+":"+x.original.size));
    node._iuFiles=[...(node._iuFiles||[]),...added.filter(x=>!known.has(x.original.name+":"+x.original.size))];
    node._iuPreparing=false;
-   if(unsupported.length)notify(node,"Skipped "+unsupported.length+" unsupported or empty file(s). Choose PDF, Word, JPG, PNG or WebP.","error");
+   if(unsupported.length)notify(node,"Skipped "+unsupported.length+" unsupported or empty file(s). Choose PDF, Word, Excel, PowerPoint, JPG, PNG or WebP.","error");
    else node.querySelector(".iu-message").hidden=true;
    updateFile(node);
   });
@@ -401,7 +405,7 @@ async function refreshHistory(node,kind){
 }
 async function compress(node){
  const pictures=(node._iuFiles||[]).filter(x=>/^image\//.test(mimeFor(x.original)));
- if(!pictures.length){notify(node,"Choose a picture first. PDF and Word files are preserved without compression.","error");return;}
+ if(!pictures.length){notify(node,"Choose a picture first. PDF and Office files are kept as they are, without compression.","error");return;}
  let saved=0;
  try{
   for(const item of pictures){

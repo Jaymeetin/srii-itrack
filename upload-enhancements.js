@@ -3,7 +3,7 @@
 "use strict";
 const LIMIT = 30 * 1024 * 1024;
 const fmt = bytes => bytes >= 1024 * 1024 ? (bytes / 1048576).toFixed(2) + " MB" : (bytes / 1024).toFixed(1) + " KB";
-const TYPES = {pdf:"application/pdf",doc:"application/msword",docx:"application/vnd.openxmlformats-officedocument.wordprocessingml.document",jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",webp:"image/webp"};
+const TYPES = {pdf:"application/pdf",doc:"application/msword",docx:"application/vnd.openxmlformats-officedocument.wordprocessingml.document",xls:"application/vnd.ms-excel",xlsx:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",ppt:"application/vnd.ms-powerpoint",pptx:"application/vnd.openxmlformats-officedocument.presentationml.presentation",jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",webp:"image/webp"};
 const mimeFor = file => TYPES[(file.name.split(".").pop() || "").toLowerCase()] || "";
 const PDF_URL = "https://www.ilovepdf.com/compress_pdf";
 function sizeError(files, existingBytes = 0) {
