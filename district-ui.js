@@ -6,7 +6,7 @@
 (()=>{
 'use strict';
 const icon=(name)=>typeof window.ITRACK_ICON==='function'?window.ITRACK_ICON(name):'';
-window.ITRACK_DISTRICT_VIEW=function(state,{esc,date,label}){
+window.ITRACK_DISTRICT_VIEW=function(state,{esc,date,label,proofBox}){
  const data=state.districtData||{},schools=(state.schools||[]).filter(x=>x.is_active);
  const mine=state.profile?.id;
  const admin=['main_admin','backup_admin'].includes(state.profile?.role);
@@ -28,6 +28,8 @@ window.ITRACK_DISTRICT_VIEW=function(state,{esc,date,label}){
  const pending=current.filter(i=>i.item_status==='submitted_for_return');
  const plural=(n,word)=>n+' '+word+(n===1?'':'s');
  const today=new Date(Date.now()+8*60*60*1000).toISOString().slice(0,10);
+ // Proof-of-handover photo box for the open transmittal (app.js loads the photos).
+ const proof=()=>typeof proofBox==='function'&&chosen?proofBox('district',chosen):'';
  const stageLabel={in_transmittal:'Not yet handed over',submitted_for_return:'At District · For Return',
   ready_for_owner:'Back from District · Ready for Owner',filed_at_district:'Completed · Filed at District',
   received_by_owner:'Completed · Returned to Owner'};
@@ -130,10 +132,10 @@ window.ITRACK_DISTRICT_VIEW=function(state,{esc,date,label}){
    if(!draft.length){
     body=(current.length?'<div class="guide-success">'+icon('checkCircle')+'<div><strong>All '+plural(current.length,'document')+' were handed to the District Office.</strong>'+
      '<span>No Return documents are complete. For Return documents come back to their owners.</span></div></div>':'<p class="empty">No active documents in this transmittal.</p>')+
-     comingBack+(others.length?'<div class="rt-rows">'+others.map(i=>docRow(i,'')).join('')+'</div>':'');
+     (current.length?proof():'')+comingBack+(others.length?'<div class="rt-rows">'+others.map(i=>docRow(i,'')).join('')+'</div>':'');
    }else if(chosen.prepared_by!==mine){
     body='<div class="notice guide-notice"><span>Only <strong>'+esc(chosen.signer_name||'the preparer')+'</strong>, who prepared this transmittal, records the handover.</span></div>'+
-     '<div class="rt-rows">'+current.map(i=>docRow(i,'')).join('')+'</div>'+comingBack;
+     '<div class="rt-rows">'+current.map(i=>docRow(i,'')).join('')+'</div>'+proof()+comingBack;
    }else{
     const on=draft.filter(d=>state.districtSubmitPicked.has(d.id)).length;
     body='<p class="guide-lead">After you hand the documents to the District Office, record it here. '+
@@ -143,7 +145,7 @@ window.ITRACK_DISTRICT_VIEW=function(state,{esc,date,label}){
       draft.map(d=>pickCard(d,'district-submit-pick',state.districtSubmitPicked)).join('')+'</div>'+
      foot('<label class="guide-date">Date handed over<input id="district-actual-date" type="date" value="'+today+'" max="'+today+'"></label>',
       '<button class="btn" data-a="district-submit" id="district-submit-btn"'+(!on?' disabled':'')+'>'+icon('check')+'Record handover <span class="pick-n">('+on+')</span></button>')+
-     comingBack+(others.length?'<h4 class="pick-group">Already handed over</h4><div class="rt-rows">'+others.map(i=>docRow(i,'')).join('')+'</div>':'');
+     proof()+comingBack+(others.length?'<h4 class="pick-group">Already handed over</h4><div class="rt-rows">'+others.map(i=>docRow(i,'')).join('')+'</div>':'');
    }
   }
  }

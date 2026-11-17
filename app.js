@@ -48,6 +48,7 @@ const firstView=knownViews.has(urlView)?urlView:'dashboard';
 localStorage.removeItem('srii-current-view');
 const state={session:null,profile:null,schools:[],announcements:[],profiles:[],docs:[],docTypes:[],docTypeRequests:[],recipients:[],monitor:[],monitorSchool:null,monitorSchoolFiles:[],monitorSchoolDetails:null,oversightUploads:[],oversightShowAllUploads:false,connectedFilter:'',monitorStatusFilter:'',reportFilter:'',navTrail:[],monitorDetail:null,monitorFiles:[],selectedId:sessionStorage.getItem('srii-last-announcement')||'',view:firstView,authMode:arrivedFromExpiredEmailLink?'resend':importedQueueTicket?'queue':'login',emailHelpReason:arrivedFromExpiredEmailLink?'expired':'',queueTicket:importedQueueTicket||localStorage.getItem('srii-registration-queue-ticket')||'',queueInfo:null,adminRegistrationQueue:[],lastSignupEmail:'',emailRetryAt:Number(localStorage.getItem('srii-email-retry-after')||0),recoveryReady:false,accountEmails:[],showRemovedAccounts:false,modal:null,detail:null,routes:[],approvals:[],divisionHistory:[],districtHistory:[],documentDistrictStatuses:[],routeHistory:[],theme:localStorage.getItem('srii-theme')||'light',busy:false,file:null,compressed:null,fileNote:'',counts:null,schoolSubmissions:[],schoolAssignments:[],docAttachments:[],schoolSubmissionDocs:[],compliances:[],selectedSchoolSubmission:null,docAttachmentError:'',reviewSelectedId:sessionStorage.getItem('srii-review-announcement')||'',reviewRows:[],reviewCompliances:[],reviewAllCompliances:[],reviewVersions:[],reviewRequired:0,schoolFiles:[],schoolFilesSchool:'',schoolFilesAnnouncement:'',schoolFilesVersions:'all',districtReport:[],divisionData:{transmittals:[],items:[],eligible:[],people:[]},divisionSelected:'',divisionNotices:[],documentNotices:[],notificationLimit:50,notificationHasMore:false,divisionRetrievable:[],divisionSearchResults:[],divisionQuery:'',districtData:{eligible:[],transmittals:[],items:[],claimable:[],people:[]},districtPicked:new Set(),districtSubmitPicked:new Set(),districtSelected:'',districtSchoolId:'',adminDocumentTypes:{types:[],requests:[]},documentDivisionStatuses:[],approverAssignments:[],announcementApproverEditing:null,announcementEditId:null,announcementEditorData:null,announcementCancelId:null,transmittalEditing:false,retrievalData:{},retrievalPicked:new Set(),retrievalSlipPicked:new Set(),retrievalScope:'all',retrievalOrder:'recent',retrievalTransmittal:'',retrievalTurnoverPicked:new Set(),retrievalDistrictPicked:new Set(),retrievalSearch:'',privateDetails:null,profileRequests:[],userFeedback:[],feedbackInbox:[],adminFeedbackEntries:[],feedbackAuthors:[],feedbackFilter:'all',feedbackType:'all',versionHistoryLatestFirst:false,versionHistoryDocumentedOnly:false,issue:null,maintenance:{enabled:false,message:''},systemUpdates:[],recoveryScan:null,misfiledReview:null,recoveryChecking:false,actionItems:[],actionPopupOpen:false,actionError:false,docAdminData:{documents:[],total_matching:0},docAdminScope:'active',docAdminSearch:'',docAdminTarget:null,docAdminStage:0,docAdminSampleMode:false,docAdminSampleStage:0,docAdminSampleIds:[]};
 document.documentElement.dataset.theme=state.theme;
+state.proofs={};state.proofArgs={};state.detailProofs=[];
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 // Presentation helpers (icons.js). They only return markup or a colour family; a missing
 // icons.js leaves the text labels intact instead of breaking the page.
@@ -2172,7 +2173,7 @@ function documentPage(){
   '<div class="compact-doc-list">'+(rows.join('')||'<p class="empty">No documents or school submissions found.</p>')+'</div></div>';
 }
 
-function districtPage(){return window.ITRACK_DISTRICT_VIEW?.(state,{esc,date,label})||'<p class="note">District transmittal module could not load. Refresh.</p>';}
+function districtPage(){return window.ITRACK_DISTRICT_VIEW?.(state,{esc,date,label,proofBox})||'<p class="note">District transmittal module could not load. Refresh.</p>';}
 function documentTypesAdminPage(){return window.ITRACK_TYPES_VIEW?.(state,{esc,date})||'<p class="note">Document Types module could not load. Refresh.</p>';}
 function retrievalPage(){return window.ITRACK_RETRIEVAL_VIEW?.(state,{esc,date,label,divisionStageLabel})||'<p class="note">Retrieval module did not load. Refresh the application.</p>';}
 function updatePickList(list){
@@ -2183,6 +2184,37 @@ function updatePickList(list){
  if(count)count.textContent=on+' of '+boxes.length+' included';
  const btn=list.dataset.button&&document.getElementById(list.dataset.button);
  if(btn){btn.disabled=!on;const n=btn.querySelector('.pick-n');if(n)n.textContent='('+on+')';}
+}
+/* ---- proof of handover photos (proof.js draws them; this loads and saves) ---- */
+const PROOF_BUCKET='proof-photos';
+async function signProofs(list){
+ if(!list.length)return list;
+ const {data}=await db.storage.from(PROOF_BUCKET).createSignedUrls(list.map(p=>p.file_path),3600);
+ const byPath=new Map((data||[]).map(u=>[u.path,u.signedUrl]));
+ list.forEach(p=>{p.url=byPath.get(p.file_path)||'';});
+ return list;
+}
+function proofBox(kind,t){
+ if(!t?.id||!window.ITRACK_PROOF)return '';
+ const key=kind+':'+t.id,me=state.profile?.id,st=state.proofs[key];
+ const canAdd=kind==='division'?t.status!=='cancelled'&&(t.prepared_by===me||t.assigned_submitter===me||yesAdmin()):
+  (t.prepared_by===me||yesAdmin());
+ state.proofArgs[key]={key,kind,id:t.id,number:t.transmittal_number||t.number||'',canAdd};
+ if(!st||(!st.loading&&Date.now()-(st.loadedAt||0)>45*60*1000)){
+  state.proofs[key]={...(st||{}),loading:true};setTimeout(()=>loadProofs(kind,t.id),0);
+ }
+ return window.ITRACK_PROOF.panel({...state.proofArgs[key],st:state.proofs[key]});
+}
+async function loadProofs(kind,id){
+ const key=kind+':'+id;let next;
+ try{
+  const {data,error}=await db.rpc('i_track_proof_photos',{p_kind:kind,p_transmittal:id});
+  if(error)throw error;
+  next={list:await signProofs(data||[]),loadedAt:Date.now()};
+ }catch(e){next={list:[],loadedAt:Date.now(),error:e?.code==='PGRST202'?'unavailable':(e?.message||String(e))};}
+ state.proofs[key]=next;
+ const box=document.querySelector('[data-proof-box="'+CSS.escape(key)+'"]'),args=state.proofArgs[key];
+ if(box&&args){const html=window.ITRACK_PROOF.panel({...args,st:next});if(html)box.outerHTML=html;else box.remove();}
 }
 function divisionPage(){
  const data=state.divisionData||{},ts=data.transmittals||[],items=data.items||[],people=data.people||[];
@@ -2343,7 +2375,7 @@ function divisionPage(){
     body='<div class="guide-success">'+ico('checkCircle')+'<div><strong>All '+plural(activeItems.length,'document')+' were handed to Division.</strong>'+
      '<span>When Division returns them, pick them up in Division Retrieval. No Return documents are already complete.</span></div>'+
      '<button class="btn alt" data-a="nav" data-page="retrieval">Open Division Retrieval</button></div>'+
-     '<div class="rt-rows">'+activeItems.map(statusRow).join('')+'</div>'+adminRows;
+     '<div class="rt-rows">'+activeItems.map(statusRow).join('')+'</div>'+proofBox('division',t)+adminRows;
    }else if(iAmSubmitter){
     body=(!t.assignment_accepted_at&&t.prepared_by!==mineId?'<div class="notice warn guide-notice"><span><strong>You were asked to bring these to Division.</strong> Let the preparer know you will.</span>'+
       '<button class="btn tiny" data-a="division-act" data-act="accept">I will bring them</button></div>':'')+
@@ -2354,10 +2386,11 @@ function divisionPage(){
       pendingItems.map(i=>pickCard('division-handover-pick',i.id,i.document_label,esc(i.tracking_number)+' · '+(i.effective_return_required?'For Return':'No Return, completes once handed over'))).join('')+'</div>'+
      foot('<label class="guide-date">Date handed over<input type="date" id="division-handover-date" value="'+today+'" max="'+today+'"></label>',
       '<button class="btn" id="division-handover-btn" data-a="division-handover">'+ico('check')+'Record handover <span class="pick-n">('+pendingItems.length+')</span></button>')+
+     proofBox('division',t)+
      (handed.length?'<h4 class="pick-group">Already handed over</h4><div class="rt-rows">'+handed.map(statusRow).join('')+'</div>':'')+adminRows;
    }else{
     body='<div class="notice guide-notice"><span><strong>'+esc(submitterName)+'</strong> will bring these to Division and records the handover on their own account.</span></div>'+
-     '<div class="rt-rows">'+activeItems.map(statusRow).join('')+'</div>'+adminRows;
+     '<div class="rt-rows">'+activeItems.map(statusRow).join('')+'</div>'+proofBox('division',t)+adminRows;
    }
   }
  }
@@ -2699,6 +2732,7 @@ function modalHtml(){
   body='<h3>'+esc(d.subject)+'</h3><p class="sub">'+esc(d.document_type)+' · Created '+esc(date(d.created_at))+'</p>'+
    '<section class="routing-current-panel"><h3>Current Whereabouts / Responsible Handler</h3>'+routingOverview(d)+'</section>'+
    '<section class="doc-detail-attachments"><h3>Attached Files</h3><div data-doc-files="'+esc(d.id)+'">'+attachmentListHtml(d.id)+'</div></section>'+
+   (state.detailProofs?.length&&window.ITRACK_PROOF?'<section class="doc-detail-proof"><h3>Proof of handover</h3>'+window.ITRACK_PROOF.thumbs(state.detailProofs,'detail')+'</section>':'')+
    '<details class="routing-history-collapse" open><summary><strong>Routing History</strong><span class="small muted"> Routing, approval and Division events · Tap to view complete journey</span></summary>'+routingTimeline(routes,state.approvals,state.divisionHistory,state.districtHistory)+'</details>';
   const editablePersonal=d.destination==='personal'&&d.completion_kind==='personal_record'&&
    d.status==='completed'&&d.created_by===state.session.user.id;
@@ -2753,16 +2787,18 @@ function modalHtml(){
 }
 async function openDetail(id){
  const d=state.docs.find(x=>x.id===id);if(!d)return;
- const [routes,approvals,division,district]=await Promise.all([
+ const [routes,approvals,division,district,proofs]=await Promise.all([
   db.rpc('i_track_document_route_history',{p_document_id:id}),
   db.rpc('i_track_document_approvals',{p_document_id:id}),
   db.rpc('i_track_document_division_events',{p_document_id:id}),
-  db.rpc('i_track_document_district_events',{p_document_id:id})
+  db.rpc('i_track_document_district_events',{p_document_id:id}),
+  db.rpc('i_track_document_proof_photos',{p_document:id}).then(r=>r,()=>({data:[]}))
  ]);
  if(routes.error)throw routes.error;
  if(approvals.error)throw approvals.error;
  if(division.error)throw division.error;
  if(district.error)throw district.error;
+ state.detailProofs=proofs?.error?[]:await signProofs(proofs?.data||[]).catch(()=>[]);
  state.detail=d;state.routes=routes.data||[];state.approvals=approvals.data||[];state.divisionHistory=division.data||[];state.districtHistory=district.data||[];
  await loadRecipients();state.modal='detail';show();
 }
@@ -3351,6 +3387,48 @@ async function click(e){
     if(error)throw error;
    }finally{state.busy=false;}
    await load();pop('Added to '+trans.transmittal_number+'.');return;
+  }
+  if(a==='proof-take'){
+   const kind=t.dataset.kind,id=t.dataset.id,number=t.dataset.number||'';
+   if(!window.ITRACK_PROOF)throw Error('Refresh the page, then try again.');
+   window.ITRACK_PROOF.open({number,taker:state.profile?.display_name||'',
+    save:async(blob,f)=>{
+     const path=kind+'/'+id+'/'+crypto.randomUUID()+'.jpg';
+     const put=await db.storage.from(PROOF_BUCKET).upload(path,blob,{contentType:'image/jpeg',upsert:false});
+     if(put.error)throw put.error;
+     const {error}=await db.rpc('i_track_add_proof_photo',{p_kind:kind,p_transmittal:id,p_file_path:path,
+      p_receiver_name:f.receiver,p_receiver_position:f.position||null,p_receiver_agreed:true,p_file_size:blob.size});
+     if(error)throw error;
+    },
+    onSaved:async()=>{await loadProofs(kind,id);pop('Proof photo saved. Thank you!');}});
+   return;
+  }
+  if(a==='proof-view'){
+   const key=t.dataset.key;
+   const list=key==='detail'?(state.detailProofs||[]):(state.proofs[key]?.list||[]);
+   const p=list.find(x=>x.id===t.dataset.id);
+   if(!p||!window.ITRACK_PROOF)throw Error('Photo not found. Refresh the page.');
+   const recent=!!p.mine&&Date.now()-new Date(p.taken_at).getTime()<14*60*1000;
+   window.ITRACK_PROOF.view({...p,transmittal_number:p.transmittal_number||state.proofArgs[key]?.number||''},{canRemove:yesAdmin()||recent,
+    onDownload:async()=>{
+     const {data,error}=await db.storage.from(PROOF_BUCKET).download(p.file_path);
+     if(error)throw error;
+     const url=URL.createObjectURL(data),link=document.createElement('a');
+     const day=new Date(new Date(p.taken_at).getTime()+8*60*60*1000).toISOString().slice(0,10);
+     link.href=url;link.download='Proof_'+String(p.transmittal_number||state.proofArgs[key]?.number||'handover').replace(/[^A-Za-z0-9-]+/g,'_')+'_'+day+'.jpg';
+     document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
+    },
+    onRemove:async()=>{
+     let reason=null;
+     if(recent){if(!confirm('Remove this proof photo? You can take a new one.'))return false;}
+     else{reason=prompt('Why remove this proof photo? (required)');if(!reason?.trim())return false;}
+     const {error}=await db.rpc('i_track_hide_proof_photo',{p_photo:p.id,p_reason:reason});
+     if(error)throw error;
+     if(key==='detail'){state.detailProofs=state.detailProofs.filter(x=>x.id!==p.id);show();}
+     else{const [kind,id]=key.split(':');await loadProofs(kind,id);}
+     pop('Proof photo removed.');return true;
+    }});
+   return;
   }
   if(a==='division-handover'){
    const trans=state.divisionData.transmittals.find(x=>x.id===state.divisionSelected)||state.divisionData.transmittals[0];
