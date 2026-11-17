@@ -110,24 +110,18 @@ function openMore(){
  const row=(name,title)=>'<span class="mobile-menu-label">'+icon(name)+'<span>'+title+'</span></span><small aria-hidden="true">'+icon('chevron')+'</small>';
  const link=(page,title)=>available(page)?
   '<button type="button" class="mobile-menu-button" data-mobile="navigate" data-page="'+page+'">'+row(navIcons[page]||'file',title)+'</button>':"";
- const workplace=[
-  link('division','Division Transmittals'),
-  link('district','District Transmittals'),
-  link('retrieval','Division Retrieval')
- ].join("");
- const administrative=[
-  link('document-types','Document Types'),
-  link('document-control','Document Control / Trash'),
-  link('school-files','All School Attachments'),
-  link('verification','Submission Verification'),
-  link('reports','District Reports'),
-  link('feedback-admin','Reports & Suggestions'),
-  link('system-recovery','Check Missing Records'),
-  link('approvals','Account Management'),
-  link('archive','Document Archiving')
- ].join("");
- const workplaceSection=workplace?'<span class="mobile-sheet-label">DOCUMENT ROUTING</span>'+workplace:"";
- const administrationSection=administrative?'<span class="mobile-sheet-label">DISTRICT ADMINISTRATION</span>'+administrative:"";
+ // Same groups as the desktop menu. Bottom tabs already cover Home, Notices,
+ // Status and Documents, so they are not repeated here.
+ const section=(label,items)=>{const html=items.join("");return html?'<span class="mobile-sheet-label">'+label+'</span>'+html:"";};
+ const groups=
+  section("DAILY",[
+   '<button type="button" class="mobile-menu-button" data-mobile="navigate" data-page="notifications">'+row('bell','Notifications')+'</button>',
+   link('verification','Submission Verification')
+  ])+
+  section("DOCUMENTS",[link('division','Division Transmittals'),link('district','District Transmittals'),link('retrieval','Division Retrieval')])+
+  section("DISTRICT",[link('reports','District Reports'),link('school-files','School Attachments'),link('approvals','Account Approvals'),link('feedback-admin','Reports & Suggestions')])+
+  section("ACCOUNT",[link('settings','Personal Settings'),link('feedback','Report a Problem / Suggestion')])+
+  section("MORE TOOLS",[link('document-types','Document Types'),link('document-control','Document Control / Trash'),link('system-recovery','Record Recovery'),link('archive','Archive Documents'),link('system-updates','System Updates')]);
  const sheet=document.createElement("div");
  sheet.className="mobile-more-overlay";
  sheet.setAttribute("role","presentation");
@@ -136,15 +130,9 @@ function openMore(){
   '<div class="mobile-sheet-handle" aria-hidden="true"></div>'+
   '<div class="mobile-more-top"><strong>More options</strong><button type="button" class="mobile-close" data-mobile="close" aria-label="Close menu">'+(icon('x')||'×')+'</button></div>'+
   '<div class="mobile-identity"><span class="mobile-avatar" aria-hidden="true">'+safe(user.initials)+'</span><div><strong>'+safe(user.name)+'</strong><small>'+safe(user.detail)+'</small></div></div>'+
-  '<span class="mobile-sheet-label">WORKSPACE</span>'+
-  link('feedback','Report a Problem / Suggestion')+
-  '<button type="button" class="mobile-menu-button" data-mobile="navigate" data-page="notifications">'+row('bell','Notifications')+'</button>'+
-  workplaceSection+administrationSection+
+  groups+
   '<span class="mobile-sheet-label">PREFERENCES</span>'+
-  (app.querySelector('.sidebar nav button[data-page="settings"]')?
-   '<button type="button" class="mobile-menu-button" data-mobile="navigate" data-page="settings">'+row('sliders','Personal Settings')+'</button>':'')+
   '<button type="button" class="mobile-menu-button" data-mobile="theme">'+row('contrast','Switch Light / Dark Mode')+'</button>'+
-  link('system-updates','System Updates')+
   '<button type="button" class="mobile-menu-button danger" data-mobile="logout">'+row('logout','Sign Out')+'</button>'+
  '</div>';
  sheet.addEventListener("click",e=>{if(e.target===sheet)closeMore();});

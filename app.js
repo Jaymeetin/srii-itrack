@@ -1108,7 +1108,26 @@ function pendingPage(){
 const navIcons=window.ITRACK_NAV_ICONS||{};
 const menu=[['dashboard','Home'],['announcements','Announcements'],['notifications','Notifications'],['monitoring','Submission Status']];
 function appPage(){
- const nav=[...menu,...(!isOic()?[['documents','My Documents'],['division','Division Transmittals'],['district','District Transmittals'],['retrieval','Division Retrieval']]:[]),...(districtOversight()?[['reports','District Reports'],['system-recovery','Record Recovery']]:[]),...(yesAdmin()?[['feedback-admin','Reports & Suggestions']]:[['feedback','Report / Suggest']]),...(!yesAdmin()?[['settings','Personal Settings']]:[]),...((yesAdmin()||state.approverAssignments.some(x=>x.user_id===state.session.user.id))?[['verification','Submission Verification']]:[]),...(yesAdmin()?[['school-files','School Attachments'],['approvals','Account Approvals'],['document-types','Document Types'],['archive','Archive Documents']]:[]),...(isMain()?[['document-control','Document Control / Trash']]:[]),['system-updates','System Updates']].map(([id,title])=>`<button class="${state.view===id?'active':''}" data-a="nav" data-page="${id}"${state.view===id?' aria-current="page"':''}>${ico(navIcons[id]||'file')}<span>${title}</span></button>`).join('');
+ // The same permission-checked page list as before, now shown in short headed groups.
+ const navItems=[...menu,...(!isOic()?[['documents','My Documents'],['division','Division Transmittals'],['district','District Transmittals'],['retrieval','Division Retrieval']]:[]),...(districtOversight()?[['reports','District Reports'],['system-recovery','Record Recovery']]:[]),...(yesAdmin()?[['feedback-admin','Reports & Suggestions']]:[['feedback','Report / Suggest']]),...(!yesAdmin()?[['settings','Personal Settings']]:[]),...((yesAdmin()||state.approverAssignments.some(x=>x.user_id===state.session.user.id))?[['verification','Submission Verification']]:[]),...(yesAdmin()?[['school-files','School Attachments'],['approvals','Account Approvals'],['document-types','Document Types'],['archive','Archive Documents']]:[]),...(isMain()?[['document-control','Document Control / Trash']]:[]),['system-updates','System Updates']];
+ const navButton=([id,title])=>`<button class="${state.view===id?'active':''}" data-a="nav" data-page="${id}"${state.view===id?' aria-current="page"':''}>${ico(navIcons[id]||'file')}<span>${title}</span></button>`;
+ const navGroups=[
+  ['',['dashboard','notifications']],
+  ['Submissions',['announcements','monitoring','verification']],
+  ['Documents',['documents','division','district','retrieval']],
+  ['District',['reports','school-files','approvals','feedback-admin']],
+  ['Account',['settings','feedback']],
+  ['More tools',['document-types','document-control','system-recovery','archive','system-updates'],true]
+ ];
+ const placed=new Set();
+ const nav=navGroups.map(([heading,ids,collapsible])=>{
+  const items=navItems.filter(([id])=>ids.includes(id));
+  items.forEach(([id])=>placed.add(id));
+  if(!items.length)return '';
+  const buttons=items.map(navButton).join('');
+  if(collapsible&&items.length>2)return '<details class="nav-group nav-more"'+(items.some(([id])=>id===state.view)?' open':'')+'><summary>'+esc(heading)+'</summary>'+buttons+'</details>';
+  return '<div class="nav-group">'+(heading?'<div class="nav-heading">'+esc(heading)+'</div>':'')+buttons+'</div>';
+ }).join('')+navItems.filter(([id])=>!placed.has(id)).map(navButton).join('');
  const title={dashboard:'Home',announcements:'Announcements',notifications:'Notifications',monitoring:'Submission Monitoring',documents:'My Documents',division:'Division Transmittals',district:'District Transmittals','document-types':'Document Types',retrieval:'Division Retrieval',settings:'Personal Settings',reports:'District Reports','system-recovery':'Record Recovery','system-updates':'System Updates',feedback:'Report / Suggest','feedback-admin':'Reports & Suggestions','school-files':'School Attachments',verification:'Submission Verification',approvals:'Account Management',archive:'Document Archiving','document-control':'Document Control / Trash'}[state.view]||'Overview';
  const school=state.schools.find(x=>x.id===state.profile.school_id)?.name||'District Office';
  const name=state.profile.display_name||(isOic()?'OIC-PSDS':yesAdmin()?'District Administrator':'School Personnel');
@@ -1130,6 +1149,8 @@ function appPage(){
  const actionTotal=state.actionItems.reduce((n,item)=>n+(item.count||1),0);
  $.innerHTML=`<div class="app"><aside class="sidebar">${brand()}<nav>${nav}</nav><div class="sidebar-footer"><button data-a="theme">${ico('contrast')}<span>Light / Dark Mode</span></button><button data-a="logout">${ico('logout')}<span>Sign Out</span></button><div class="user-mini">${esc(name)}<br>${esc(label(state.profile.role))} · ${esc(school)}</div></div></aside>
  <div class="main"><header class="topbar"><div class="topbar-title"><div class="note">One District. One Direction.</div></div><div class="topbar-actions">${pTag('active')}<button type="button" class="action-inbox-trigger" data-a="action-open" data-count="${actionTotal}" aria-label="Open items requiring your action${actionTotal?' ('+actionTotal+')':''}">${ico('listChecks')}<span>Actions</span>${actionTotal?'<span class="action-count">'+actionTotal+'</span>':''}</button><button class="desktop-signout" type="button" data-a="logout" title="Sign out of SRII i-TRACK">${ico('logout')}<span>Sign Out</span></button></div></header><div class="content">${breadcrumb}${body}</div></div></div>${state.modal?modalHtml():''}${state.actionPopupOpen&&!state.modal?actionPopupHtml():''}`;
+ // Keep the highlighted page visible inside a long or folded menu.
+ $.querySelector('.sidebar nav button.active')?.scrollIntoView({block:'nearest'});
 }
 
 function feedbackPage(){

@@ -402,6 +402,22 @@ details[open]:not(.itrack-compact-entry):not(.routing-history-collapse)>summary:
     border-radius:0 4px 4px 0;background:var(--gold);
   }
   .sidebar nav button:focus-visible,.sidebar-footer button:focus-visible{outline:2px solid var(--gold);outline-offset:-2px}
+  .sidebar nav{display:flex!important;flex-direction:column;gap:14px!important}
+  .nav-group{display:grid;gap:1px}
+  .nav-heading,.nav-more>summary{
+    padding:0 12px 4px;font-size:10.5px;font-weight:650;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.45);
+  }
+  .nav-more>summary{display:flex;align-items:center;justify-content:space-between;padding:6px 12px;border-radius:8px;cursor:pointer;list-style:none}
+  .nav-more>summary::-webkit-details-marker{display:none}
+  .nav-more>summary::before{display:none!important}
+  .nav-more>summary::after{
+    content:"";width:6px;height:6px;margin-right:2px;
+    border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(45deg) translateY(-2px);transition:transform .15s ease;
+  }
+  .nav-more[open]>summary::after{transform:rotate(-135deg) translateY(-1px)}
+  .nav-more>summary:hover{color:#fff;background:rgba(255,255,255,.06)}
+  .nav-more>summary:focus-visible{outline:2px solid var(--gold);outline-offset:-2px}
+  .nav-more[open]>summary{margin-bottom:2px}
   .sidebar-footer{flex:none;margin-top:0;border-top:1px solid var(--side-line);padding-top:10px;display:grid;gap:2px}
   .user-mini{
     margin-top:8px;padding:11px 12px;border-radius:var(--r-md);
