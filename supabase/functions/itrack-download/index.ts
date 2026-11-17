@@ -1,6 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { decodeBase64 } from "jsr:@std/encoding@1/base64";
 
 const SITE_ORIGIN="https://jaymeetin.github.io";
 // Same ceiling as uploads, so every stored file can be opened again.
@@ -35,6 +34,43 @@ function toB64url(data:Uint8Array){
   let out="";
   for(let i=0;i<data.length;i++)out+=String.fromCharCode(data[i]);
   return btoa(out).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+}
+// The Apps Script reply is JSON with the file as one base64 field. It is read
+// as raw bytes and that field is decoded in place, so a 30 MB file never
+// becomes two 40 MB JavaScript strings (peak memory stays near 160 MB).
+const B64=new Int16Array(256).fill(-1);
+"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/".split("").forEach((c,i)=>{B64[c.charCodeAt(0)]=i;});
+B64[45]=62;B64[95]=63; // also accept the URL-safe alphabet (- and _)
+const FIELD=new TextEncoder().encode('"contentBase64":"');
+function findField(raw:Uint8Array):number{
+  outer:for(let i=0;i+FIELD.length<=raw.length;i++){
+    for(let j=0;j<FIELD.length;j++)if(raw[i+j]!==FIELD[j])continue outer;
+    return i+FIELD.length;
+  }
+  return -1;
+}
+function decodeBase64Bytes(src:Uint8Array):Uint8Array{
+  const out=new Uint8Array(Math.floor(src.length*3/4)+3);
+  let buf=0,bits=0,o=0;
+  for(let i=0;i<src.length;i++){
+    const c=src[i];
+    if(c===61)break;          // "=" padding ends the data
+    if(c===92)continue;       // a JSON "\/" escape is just "/"
+    const v=B64[c];
+    if(v<0)throw Error("Invalid base64 character");
+    buf=(buf<<6)|v;bits+=6;
+    if(bits>=8){bits-=8;out[o++]=(buf>>bits)&255;buf&=(1<<bits)-1;}
+  }
+  return out.subarray(0,o);
+}
+function readBridgeReply(raw:Uint8Array):{meta:Record<string,unknown>,bytes:Uint8Array|null}{
+  const start=findField(raw);
+  const text=new TextDecoder();
+  if(start<0)return {meta:JSON.parse(text.decode(raw)),bytes:null};   // error replies are tiny
+  const end=raw.indexOf(34,start);                                     // closing quote
+  if(end<0)throw Error("Invalid Drive response");
+  const meta=JSON.parse(text.decode(raw.subarray(0,start))+text.decode(raw.subarray(end)));
+  return {meta,bytes:decodeBase64Bytes(raw.subarray(start,end))};
 }
 function getFileName(name:string){
   // Avoid quoting, control characters, traversal, or header injection.
@@ -154,22 +190,18 @@ Deno.serve(async (req:Request)=>{
       signal:AbortSignal.timeout(120000)
     });
     if(!bridge.ok)throw Error("Google Drive bridge unavailable");
-    let dataText:string|null=await bridge.text();
-    if(dataText.length>MAX_BASE64+4096)throw Error("Google Drive response exceeds allowed size");
-    let data:Record<string,unknown>;
-    try{data=JSON.parse(dataText);}catch{throw Error("Invalid Drive response");}
-    dataText=null; // release the raw response before decoding
-    if(data.success!==true||typeof data.contentBase64!=="string"||
+    if(Number(bridge.headers.get("content-length")||"0")>MAX_BASE64+4096)
+      throw Error("Google Drive response exceeds allowed size");
+    const raw=new Uint8Array(await bridge.arrayBuffer());
+    if(raw.length>MAX_BASE64+4096)throw Error("Google Drive response exceeds allowed size");
+    let reply:{meta:Record<string,unknown>,bytes:Uint8Array|null};
+    try{reply=readBridgeReply(raw);}catch{throw Error("Invalid Drive response");}
+    const data=reply.meta;
+    if(data.success!==true||!reply.bytes||
        data.mimeType!==file.content_type||
-       data.byteLength!==Number(file.file_size_bytes)||
-       data.contentBase64.length>MAX_BASE64)
+       data.byteLength!==Number(file.file_size_bytes))
       throw Error("File not available through secure bridge");
-    let bytes:Uint8Array;
-    try{
-      // Decodes straight into bytes; avoids a second 30 MB string copy.
-      bytes=decodeBase64(data.contentBase64);
-      data.contentBase64="";
-    }catch{throw Error("Invalid file encoding");}
+    const bytes=reply.bytes;
     if(bytes.byteLength!==Number(file.file_size_bytes))throw Error("File size check failed");
     const digest=toB64url(new Uint8Array(await crypto.subtle.digest("SHA-256",bytes)));
     if(digest!==receipt.sha256)throw Error("File integrity check failed");
