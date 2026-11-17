@@ -446,7 +446,7 @@ async function load(){
   if(state.view==='reports'&&districtOversight())tasks.push((async()=>{
    const [report,uploads]=await Promise.all([
     db.rpc('i_track_district_report'),
-    db.rpc('i_track_oversight_announcement_uploads',{p_announcement_id:null})
+    oversightUploadList(null)
    ]);
    if(report.error)throw report.error;
    if(uploads.error)throw uploads.error;
@@ -598,12 +598,21 @@ async function openAnnouncementEditor(id){
  state.modal='edit-announcement';
  show();
 }
+// Upload list for administrators and the OIC-PSDS. The v92 list adds file ids
+// (for View / Download); until it is installed, the older list is used.
+async function oversightUploadList(announcementId){
+ const args={p_announcement_id:announcementId};
+ const result=await db.rpc('i_track_oversight_announcement_files',args);
+ if(result.error&&(result.error.code==='PGRST202'||/could not find the function|does not exist/i.test(result.error.message||'')))
+  return db.rpc('i_track_oversight_announcement_uploads',args);
+ return result;
+}
 async function loadMonitor(){
  if(!state.selectedId){state.monitor=[];state.oversightUploads=[];return;}
  const selected=state.selectedId;
  const [monitor,uploads]=await Promise.all([
   db.rpc('i_track_monitor',{p_announcement_id:selected}),
-  districtOversight()?db.rpc('i_track_oversight_announcement_uploads',{p_announcement_id:selected}):Promise.resolve({data:[],error:null})
+  districtOversight()?oversightUploadList(selected):Promise.resolve({data:[],error:null})
  ]);
  if(monitor.error)throw monitor.error;
  if(uploads.error)throw uploads.error;

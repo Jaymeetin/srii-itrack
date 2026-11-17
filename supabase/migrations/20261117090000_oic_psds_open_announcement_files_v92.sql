@@ -1,10 +1,10 @@
 -- v92: the OIC-PSDS may open (read only) every announcement submission file.
--- One SELECT policy is added; no insert, update or delete rights are given.
--- The oversight list now also returns the submission id, file type, size and
--- copy type so the app can show an Open button next to each upload.
--- No existing row is changed.
+-- Additive only: one new SELECT policy and one new list function. Nothing is
+-- dropped or replaced (i_track_oversight_announcement_uploads stays as it is),
+-- no insert, update or delete rights are given, and no existing row changes.
+-- The new list adds the submission id, file type, size and copy type so the
+-- app can show View / Download next to each upload.
 
-DROP POLICY IF EXISTS oic_psds_may_read_announcement_files ON public.submissions;
 CREATE POLICY oic_psds_may_read_announcement_files ON public.submissions
  FOR SELECT TO authenticated
  USING (
@@ -12,8 +12,7 @@ CREATE POLICY oic_psds_may_read_announcement_files ON public.submissions
   AND (SELECT private.i_track_current_user_email_confirmed())
  );
 
-DROP FUNCTION IF EXISTS public.i_track_oversight_announcement_uploads(uuid);
-CREATE FUNCTION public.i_track_oversight_announcement_uploads(
+CREATE FUNCTION public.i_track_oversight_announcement_files(
  p_announcement_id uuid DEFAULT NULL
 )
 RETURNS TABLE(
@@ -59,5 +58,5 @@ AS $function$
  ORDER BY coalesce(sub.first_received_at, sub.created_at) DESC, sub.id DESC
  LIMIT 2000
 $function$;
-REVOKE ALL ON FUNCTION public.i_track_oversight_announcement_uploads(uuid) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.i_track_oversight_announcement_uploads(uuid) TO authenticated, service_role;
+REVOKE ALL ON FUNCTION public.i_track_oversight_announcement_files(uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.i_track_oversight_announcement_files(uuid) TO authenticated, service_role;

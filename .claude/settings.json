@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash",
+      "mcp__Supabase",
+      "mcp__Google_Drive",
+      "WebFetch",
+      "WebSearch"
+    ]
+  }
+}
