@@ -578,6 +578,65 @@ details[open]:not(.itrack-compact-entry):not(.routing-history-collapse)>summary:
 .system-event p{font-size:13.5px;line-height:1.55;margin:6px 0 0}
 .itrack-system-update>.btn{margin-top:14px}
 
+/* Home v90: four calm sections, one list style */
+.home-hello{display:flex;align-items:flex-end;justify-content:space-between;gap:16px 24px;flex-wrap:wrap;margin:0 0 20px}
+.home-hello h1{font-size:clamp(24px,2.2vw,30px);line-height:1.2;margin:0 0 10px}
+.home-hello .eyebrow{margin-bottom:6px}
+.home-hello>.btn{flex:none}
+.home-grid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(280px,1fr);gap:20px;align-items:start}
+.home-grid:has(>.home-main:only-child){grid-template-columns:minmax(0,1fr)}
+.home-main,.home-side{display:flex;flex-direction:column;gap:20px;min-width:0}
+.home-side .itrack-preview{margin:0!important}
+.home-panel{margin:0;padding:18px 20px}
+.home-panel .panel-head{margin-bottom:10px}
+.home-panel .panel-head h3{display:flex;align-items:center;gap:8px;margin:0}
+.home-badge{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 7px;border-radius:999px;background:var(--bad-solid);color:#fff;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums}
+.home-list{display:flex;flex-direction:column;margin:0 -8px}
+.home-row{
+  display:flex;align-items:center;gap:12px;width:100%;min-height:56px;padding:10px 8px;
+  border:0;border-radius:var(--r-md);background:transparent;color:var(--text);font:inherit;text-align:left;cursor:pointer;
+  transition:background-color .12s ease;
+}
+.home-row+.home-row{box-shadow:0 -1px 0 var(--line)}
+.home-row:hover,.home-row:focus-visible{background:var(--hover);box-shadow:none}
+.home-row:hover+.home-row{box-shadow:none}
+.home-row-main{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:2px}
+.home-row-main strong{font-size:14px;font-weight:600;line-height:1.4;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2}
+.home-row-main small{font-size:12.5px;line-height:1.4;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.home-row-arrow{display:grid;flex:none;color:var(--faint)}
+.home-row-arrow .ico{width:16px;height:16px}
+.home-row:hover .home-row-arrow{color:var(--text)}
+.home-row .tag{flex:none}
+.home-task-icon{display:grid;place-items:center;flex:none;width:36px;height:36px;border-radius:10px;background:var(--note-bg);color:var(--note)}
+.home-task-icon .ico{width:18px;height:18px}
+.home-count{flex:none;min-width:24px;padding:2px 8px;border-radius:999px;background:var(--neutral-bg);color:var(--text);font-size:12px;font-weight:700;text-align:center;font-variant-numeric:tabular-nums}
+.home-due{flex:none;font-size:12.5px;font-weight:600;color:var(--muted);white-space:nowrap}
+.home-due.is-soon{color:var(--caution)}
+.home-due.is-overdue{color:var(--bad)}
+.home-more{display:block;margin:10px 0 0;font-size:13.5px}
+.home-clear{display:flex;align-items:center;gap:12px;padding:14px 4px 6px;color:var(--ok)}
+.home-clear>.ico{width:28px;height:28px;flex:none}
+.home-clear strong{display:block;color:var(--text);font-size:14.5px}
+.home-clear span{display:block;color:var(--muted);font-size:13px}
+.home-footer{display:flex;flex-wrap:wrap;align-items:center;gap:6px 22px;margin:22px 2px 0;padding-top:16px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
+.home-footer .link-button{display:inline-flex;align-items:center;gap:6px;padding:4px 2px;font-size:13px}
+.home-footer .ico{width:15px;height:15px}
+.home-maint{display:inline-flex;align-items:center;gap:6px;margin-left:auto}
+.home-maint .link-button{padding:2px}
+.home-maint-on{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 0 20px}
+@media(max-width:1100px){.home-grid{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:820px){
+  .home-hello{align-items:stretch;margin-bottom:16px}
+  .home-hello>.btn{width:100%}
+  .home-grid,.home-main,.home-side{gap:16px}
+  .home-panel{padding:16px}
+  .home-row{min-height:60px}
+  .home-row .tag{display:none}
+  .v2-metric .connected-card-arrow{display:none}
+  .v2-metric{padding-right:12px}
+  .home-maint{margin-left:0}
+}
+
 /* ---------------------------------------------------------------------
    9  Lists and rows
    --------------------------------------------------------------------- */

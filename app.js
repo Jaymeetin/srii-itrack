@@ -257,7 +257,7 @@ async function loadActionInbox(){
  let seen=[];
  try{seen=JSON.parse(sessionStorage.getItem(key)||'[]');if(!Array.isArray(seen))seen=[];}catch(_){seen=[];}
  if(!state.modal&&items.some(item=>(item.sourceIds||[item.key]).some(id=>!seen.includes(id)))){
-  state.actionPopupOpen=true;
+  state.actionPopupOpen=state.view!=='dashboard';
   const viewed=items.flatMap(item=>item.sourceIds||[item.key]);
   try{sessionStorage.setItem(key,JSON.stringify([...new Set([...seen,...viewed])].slice(-800)));}catch(_){}
  }
@@ -287,7 +287,7 @@ async function load(){
  if(!active()){show();return;}
  try{
   const tasks=[];
-  if(['dashboard','system-updates','system-recovery'].includes(state.view)){
+  if(['system-updates','system-recovery'].includes(state.view)){
    tasks.push((async()=>{
     const {data,error}=await db.rpc('i_track_system_updates');
     if(error)throw error;
@@ -1113,8 +1113,6 @@ function appPage(){
  const school=state.schools.find(x=>x.id===state.profile.school_id)?.name||'District Office';
  const name=state.profile.display_name||(isOic()?'OIC-PSDS':yesAdmin()?'District Administrator':'School Personnel');
  let body={dashboard:dashboardPage,announcements:announcementPage,notifications:notificationsPage,monitoring:monitorPage,documents:documentPage,division:divisionPage,district:districtPage,'document-types':documentTypesAdminPage,retrieval:retrievalPage,settings:settingsPage,reports:districtReportPage,'system-updates':systemUpdatesPage,'system-recovery':systemRecoveryPage,feedback:feedbackPage,'feedback-admin':feedbackAdminPage,'school-files':schoolAttachmentsPage,verification:verificationPage,approvals:approvalPage,archive:archivePage,'document-control':documentControlPage}[state.view]?.()||dashboardPage();
- if(state.view==='dashboard')body=body+systemUpdatePanel();
- if(state.view==='dashboard'&&yesAdmin())body='<section class="panel maintenance-panel"><h3>'+ico('wrench')+'System Maintenance</h3><p class="note">Pause access for regular users while admins continue working.</p><p><strong>Status: '+(state.maintenance.enabled?'MAINTENANCE ON':'Running normally')+'</strong></p><button class="btn" data-a="maintenance-toggle">'+(state.maintenance.enabled?'Turn OFF Maintenance — Reopen App':'Turn ON Maintenance — Pause Users')+'</button></section>'+body;
  // Read-only presentation context for the upload panel. Not an authorization
  // mechanism: Supabase RLS and the Edge Function enforce permissions.
  window.ITRACK_CONTEXT={
@@ -1287,17 +1285,6 @@ function notificationsPage(){
   (state.notificationHasMore?'<button class="btn alt block itrack-more-notices" data-a="notifications-more">Load Older Notifications</button>':'')+
   '</section>';
 }
-function systemUpdatePanel(){
- const recent=(state.systemUpdates||[])[0];
- const catalog=window.ITRACK_VERSION_CATALOG;
- const current=catalog?.currentVersion||66;
- return '<section class="panel itrack-system-update"><div class="sectionhead"><div><h3>System Updates</h3>'+
- '<p class="note">Current version: '+esc(current)+' · Official live start: '+esc(catalog?.officialGoLive||'12 October 2026')+'.</p></div>'+
- (districtOversight()?'<button type="button" class="btn alt" data-a="nav" data-page="system-recovery">Check Missing Records</button>':'')+'</div>'+
- (recent?'<div class="system-event"><strong>'+esc(recent.title)+'</strong><span>'+esc(date(recent.created_at))+'</span><p>'+esc(recent.summary)+'</p></div>':
- '<p class="note">No completed recovery or published update has been recorded yet.</p>')+
- '<button type="button" class="btn tiny alt" data-a="nav" data-page="system-updates">View Full Version History (1–'+esc(current)+')</button></section>';
-}
 function systemVersionDirectory(){
  const history=window.ITRACK_VERSION_CATALOG;
  if(!history||!history.versions?.length)return '<section class="panel"><p class="notice">The historical version directory could not be loaded. Refresh the page to try again.</p></section>';
@@ -1424,7 +1411,6 @@ function dashboardPage(){
   }
  }
  const mine=[...byAnn.values()];
- const latest=(admin||oversight?state.announcements.filter(a=>a.status!=="draft"):mine).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,3);
  function receipt(assignmentId){
   const dates=submissions.filter(s=>s.assignment_id===assignmentId).map(s=>new Date(s.first_received_at).getTime()).filter(Number.isFinite);
   return dates.length?Math.min(...dates):null;
@@ -1461,34 +1447,66 @@ function dashboardPage(){
   '<button type="button" class="v2-metric v2-metric-'+i+'" data-a="connected-nav" data-page="'+targets[i][0]+'" data-filter="'+targets[i][1]+'" aria-label="Open '+esc(title)+' details">'+
   '<span class="v2-metric-icon" aria-hidden="true">'+signs[key]+'</span><span class="v2-metric-content"><span class="v2-metric-label">'+esc(title)+'</span><strong>'+esc(num)+'</strong></span><span class="connected-card-arrow" aria-hidden="true">'+ico('chevronRight')+'</span></button>'
  ).join("");
- const announcements=latest.map(a=>{
-  const status=admin||oversight?a.status:schoolStatus(a);
-  const detail=admin||oversight?"View status":status==="Submitted"?"View":"Open";
-  return '<div class="v2-notice-item"><span class="v2-notice-symbol" aria-hidden="true">'+ico('megaphone')+'</span>'+
-   '<button type="button" class="v2-notice-copy connected-copy" data-a="announcement-focus" data-id="'+esc(a.id)+'"><strong>'+esc(a.title)+'</strong><small>'+esc((a.announcement_code?a.announcement_code+' · ':'')+short(a.deadline_at))+'</small></button>'+
-   '<span class="v2-notice-state">'+pTag(status)+'</span>'+
-   '<button type="button" class="btn tiny alt" data-a="announcement-focus" data-id="'+esc(a.id)+'">'+detail+'</button></div>';
- }).join("")||'<div class="empty">No assigned announcements yet.</div>';
- const actionNeeded=!admin&&!oversight?state.docs.filter(d=>{const routes=documentRoutes(d.id),last=routes.at(-1);return last?.to_user_id===state.session.user.id&&(last.route_status==='awaiting_ack'||(last.route_status==='received'&&!last.processed_at));}).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,3):[];
- const actionNeededHtml=actionNeeded.map(d=>'<div class="v2-notice-item"><div class="v2-notice-copy"><strong>'+esc(d.subject)+'</strong><small>'+esc(d.tracking_number)+'</small></div><button class="btn tiny alt" data-a="detail" data-id="'+esc(d.id)+'">Review</button></div>').join('')||'<p class="note">No documents currently need your action.</p>';
- const upcoming=(admin||oversight?state.announcements.filter(a=>a.status!=="draft"):mine).filter(a=>a.deadline_at&&new Date(a.deadline_at)>new Date()&&a.status==="open")
-  .sort((a,b)=>new Date(a.deadline_at)-new Date(b.deadline_at)).slice(0,3);
- const reminders=upcoming.map(a=>'<button type="button" class="v2-reminder connected-reminder" data-a="announcement-focus" data-id="'+esc(a.id)+'"><span class="v2-dot" aria-hidden="true"></span><span>'+esc(short(a.deadline_at))+'</span><strong>'+esc(announcementName(a))+'</strong><span class="connected-reminder-arrow" aria-hidden="true">'+ico('chevronRight')+'</span></button>').join("")||
-  '<p class="note">No upcoming deadlines.</p>';
- return '<section class="v2-intro"><div><div class="eyebrow">SAN REMIGIO II DISTRICT</div><h1>Welcome back, '+esc(name)+'!</h1><p class="v2-role">'+esc(oversight?"OIC-PSDS · District Oversight (Read Only)":admin?"District Administrator":school)+'</p></div><div class="v2-motto">One District. One Direction.<br><strong>Organized for a Stronger SRII.</strong></div></section>'+
+ // ---- Home: four sections only. 1 what needs me, 2 counters, 3 deadlines, 4 recent activity.
+ const dayMs=86400000;
+ const manilaDay=t=>Math.floor((new Date(t).getTime()+8*3600000)/dayMs);
+ function dueText(deadline){
+  if(!deadline)return 'No deadline';
+  const days=manilaDay(deadline)-manilaDay(Date.now());
+  return days<0?'Overdue by '+(-days)+' day'+(days===-1?'':'s'):days===0?'Due today':days===1?'Due tomorrow':'Due in '+days+' days';
+ }
+ const nowMs=Date.now();
+ const openList=(admin||oversight?state.announcements.filter(a=>a.status==='open'):mine.filter(a=>a.status==='open'))
+  .map(a=>({...a,homeStatus:admin||oversight?'open':schoolStatus(a)}))
+  // Unfinished work first, then the nearest deadline.
+  .sort((x,y)=>(x.homeStatus==='Submitted')-(y.homeStatus==='Submitted')||
+   new Date(x.deadline_at||8.64e15)-new Date(y.deadline_at||8.64e15));
+ const deadlineRows=openList.slice(0,5).map(a=>{
+  const done=a.homeStatus==='Submitted'||a.homeStatus==='Late';
+  const overdue=!done&&a.deadline_at&&new Date(a.deadline_at).getTime()<nowMs;
+  const soon=!done&&!overdue&&a.deadline_at&&manilaDay(a.deadline_at)-manilaDay(nowMs)<=3;
+  return '<button type="button" class="home-row" data-a="announcement-focus" data-id="'+esc(a.id)+'">'+
+   '<span class="home-row-main"><strong>'+esc(a.title)+'</strong><small>'+esc((a.announcement_code?a.announcement_code+' · ':'')+short(a.deadline_at))+'</small></span>'+
+   (done?'':'<span class="home-due'+(overdue?' is-overdue':soon?' is-soon':'')+'">'+esc(dueText(a.deadline_at))+'</span>')+
+   (admin||oversight?'':pTag(a.homeStatus))+
+   '<span class="home-row-arrow" aria-hidden="true">'+ico('chevronRight')+'</span></button>';
+ }).join('');
+ const pageIcon=window.ITRACK_NAV_ICONS||{};
+ const TODO_LIMIT=5;
+ const todo=(state.actionItems||[]).slice(0,TODO_LIMIT).map((item,i)=>
+  '<button type="button" class="home-row home-task" data-a="action-go" data-index="'+i+'">'+
+  '<span class="home-task-icon" aria-hidden="true">'+ico(pageIcon[item.page]||'listChecks')+'</span>'+
+  '<span class="home-row-main"><strong>'+esc(item.title)+'</strong><small>'+esc(item.detail)+'</small></span>'+
+  ((item.count||1)>1?'<span class="home-count">'+esc(item.count)+'</span>':'')+
+  '<span class="home-row-arrow" aria-hidden="true">'+ico('chevronRight')+'</span></button>').join('');
+ const todoTotal=(state.actionItems||[]).reduce((n,x)=>n+(x.count||1),0);
+ const todoPanel='<section class="panel home-panel"><div class="panel-head"><h3>Needs your attention'+(todoTotal?' <span class="home-badge">'+todoTotal+'</span>':'')+'</h3></div>'+
+  (todo?'<div class="home-list">'+todo+'</div>':
+   '<div class="home-clear">'+ico('checkCircle')+'<div><strong>You\'re all caught up</strong><span>Nothing needs your action right now.</span></div></div>')+
+  ((state.actionItems||[]).length>TODO_LIMIT?'<button type="button" class="link-button home-more" data-a="action-open">See all tasks</button>':'')+
+  (state.actionError?'<p class="note">Some lists could not be checked. Refresh the page to try again.</p>':'')+'</section>';
+ const deadlinePanel='<section class="panel home-panel"><div class="panel-head"><h3>'+(admin||oversight?'Open announcements':'My requirements')+'</h3>'+
+  '<button class="btn tiny alt" data-a="nav" data-page="announcements">Show all</button></div>'+
+  (deadlineRows?'<div class="home-list">'+deadlineRows+'</div>':'<p class="empty">No open announcements right now.</p>')+'</section>';
+ const primary=oversight?'<button type="button" class="btn alt" data-a="nav" data-page="reports">'+ico('barChart')+'District Reports</button>':
+  admin?'<button type="button" class="btn" data-a="home-new-announcement">'+ico('plus')+'New Announcement</button>':
+  '<button type="button" class="btn" data-a="send">'+ico('plus')+'Route a Document</button>';
+ const todayText=new Date().toLocaleDateString('en-PH',{weekday:'long',day:'numeric',month:'long',timeZone:'Asia/Manila'});
+ const version=window.ITRACK_VERSION_CATALOG?.currentVersion;
+ const footer='<nav class="home-footer" aria-label="More on this page">'+
+  '<button type="button" class="link-button" data-a="nav" data-page="'+(admin?'feedback-admin':'feedback')+'">'+ico('message')+(admin?'Reports & Suggestions':'Report a problem or suggestion')+'</button>'+
+  '<button type="button" class="link-button" data-a="nav" data-page="system-updates">'+ico('refresh')+'What\'s new'+(version?' · v'+esc(version):'')+'</button>'+
+  (admin?'<span class="home-maint">'+ico('wrench')+'Maintenance: '+(state.maintenance.enabled?'<strong>ON</strong>':'off')+
+   ' <button type="button" class="link-button" data-a="maintenance-toggle">'+(state.maintenance.enabled?'Turn off':'Turn on')+'</button></span>':'')+
+  '</nav>';
+ return (admin&&state.maintenance.enabled?'<div class="notice warn home-maint-on"><strong>Maintenance mode is ON.</strong> Regular users cannot use the app until you turn it off. '+
+   '<button type="button" class="btn tiny" data-a="maintenance-toggle">Turn off maintenance</button></div>':'')+
+  '<section class="home-hello"><div><div class="eyebrow">'+esc(todayText)+'</div><h1>Welcome back, '+esc(name)+'</h1>'+
+  '<p class="v2-role">'+esc(oversight?"OIC-PSDS · District Oversight (Read Only)":admin?"District Administrator":school)+'</p></div>'+primary+'</section>'+
   '<div class="v2-metrics">'+metricHtml+'</div>'+
-  '<section class="panel feedback-shortcut"><div><strong>'+esc(admin?'Reports & Suggestions Consolidation':'Report a Problem / Suggestion')+'</strong>'+
-  '<p class="note">'+esc(admin?'Review submitted reports and reply to schools.':'Experiencing an issue or have an idea? Send it to the district administrator.')+'</p></div>'+
-  '<button type="button" class="btn" data-a="nav" data-page="'+(admin?'feedback-admin':'feedback')+'">'+(admin?'Open Consolidation':'Report / Suggest')+'</button></section>'+
-  (!oversight?documentNotificationPanel():'')+
-  '<div class="v2-home-grid"><div class="v2-home-primary">'+
-  '<section class="panel v2-board itrack-preview"><div class="panel-head"><h3>Latest Announcements</h3><button class="btn tiny alt itrack-show-all" data-a="nav" data-page="announcements">Show All</button></div><div class="v2-notice-list">'+announcements+'</div></section>'+
-  (!admin&&!oversight?'<section class="panel v2-board itrack-preview"><div class="panel-head"><h3>Documents Requiring Action</h3><button class="btn tiny alt itrack-show-all" data-a="nav" data-page="documents">Show All</button></div><div class="v2-notice-list">'+actionNeededHtml+'</div></section>':'')+
-  '</div><div class="v2-home-secondary">'+
-  '<section class="panel v2-board"><h3>At a Glance</h3><button type="button" class="v2-summary-big connected-summary" data-a="connected-nav" data-page="'+(admin?'announcements':oversight?'reports':'announcements')+'" data-filter="'+(admin?'open':oversight?'':'submitted')+'">'+esc(admin?state.announcements.filter(a=>a.status==="open").length:oversight?reportTotals.submitted:submitted)+'<small>'+esc(admin?"Open announcements":oversight?"On-time school submissions":"Submitted requirements")+'</small></button>'+
-   '<button class="btn alt block" data-a="nav" data-page="monitoring">View Submission Status</button></section>'+
-  '<section class="panel v2-board itrack-preview"><div class="panel-head"><h3>Upcoming Deadlines</h3><button class="btn tiny alt itrack-show-all" data-a="nav" data-page="announcements">Show All</button></div>'+reminders+'</section>'+
-  '</div></div>';
+  '<div class="home-grid"><div class="home-main">'+todoPanel+deadlinePanel+'</div>'+
+  (!oversight?'<div class="home-side">'+documentNotificationPanel()+'</div>':'')+'</div>'+
+  footer;
 }
 function districtReportPage(){
  if(!districtOversight())return '<div class="notice danger">District oversight access required.</div>';
@@ -3296,6 +3314,7 @@ async function click(e){
   }
   if(a==='close'){const refreshStatus=state.modal==='monitor-school';state.modal=null;state.monitorSchool=null;state.monitorSchoolFiles=[];state.monitorDetail=null;state.monitorFiles=[];if(refreshStatus&&state.view==='monitoring')await loadMonitor();show();return;}
   if(a==='new-announcement'){state.modal='new-announcement';show();return;}
+  if(a==='home-new-announcement'){if(!yesAdmin())throw Error('District administrator access required.');await loadRecipients();state.modal='new-announcement';show();return;}
   if(a==='edit-announcement'){
    await openAnnouncementEditor(t.dataset.id);return;
   }
