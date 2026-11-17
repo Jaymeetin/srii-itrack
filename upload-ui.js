@@ -118,7 +118,8 @@ function markPanel(){
    '<div class="iu-date" aria-live="polite"></div>'+
    '<div class="iu-file"><span class="iu-file-icon" aria-hidden="true">'+(window.ITRACK_ICON?.('upload')||'↥')+'</span><div class="iu-file-inner"><label for="iu-file-'+kind+'">Choose PDF, Word, Excel, PowerPoint or image files</label>'+
     '<input id="iu-file-'+kind+'" class="iu-input" type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.webp" aria-label="Select one or more files to upload">'+
-    '<p class="iu-muted">You can pick several files at once. Together they must not be more than 30 MB.</p></div></div>'+
+    '<p class="iu-muted">You can pick several files at once. Together they must not be more than 30 MB.</p>'+
+    '<button type="button" class="btn alt iu-scan">'+(window.ITRACK_ICON?.('camera')||'')+'Scan paper with camera</button></div></div>'+
    '<div class="iu-selection">No files selected</div>'+
    '<img class="iu-image" alt="Preview of the selected picture" hidden>'+
    '<div class="iu-actions"><button type="button" class="btn alt iu-compress" disabled>Compress Pictures</button>'+
@@ -299,6 +300,21 @@ async function initialize(node,kind){
     if(kind!=="announcement"&&saved.targetId&&options.some(x=>x.id===saved.targetId))select.value=saved.targetId;
     node._iuFiles=Array.isArray(saved.files)?saved.files:[];
   }else node._iuFiles=[];
+  // Camera scan: the photos become one PDF, added like any chosen file, marked "Scanned copy".
+  node.querySelector(".iu-scan")?.addEventListener("click",()=>{
+   if(!window.ITRACK_SCAN){notify(node,"The camera scan is still loading. Try again in a moment.","error");return;}
+   window.ITRACK_SCAN.open({onDone:file=>{
+    if(!node.isConnected)return;
+    node._iuFiles=[...(node._iuFiles||[]),{original:file,file,type:"scanned_copy"}];
+    if(kind==="announcement"){
+     node._iuConfirmed=false;
+     const check=node.querySelector(".iu-confirm-input");
+     if(check)check.checked=false;
+    }
+    updateFile(node);
+    notify(node,"Scanned PDF added: "+file.name+". Check the list below, then upload.","success");
+   }});
+  });
   const input=node.querySelector(".iu-input");
   input.addEventListener("change",async()=>{
    const picked=[...(input.files||[])];
@@ -517,9 +533,9 @@ async function upload(node,kind){
     schoolId:node._iuDelegated.schoolId,announcementId:node._iuDelegated.announcementId
    }}));
   }
-  notify(node,(done===1?"File uploaded and recorded successfully!":done+" files uploaded and recorded successfully!")+
-   " Received: "+displayTime(last?.received_at)+". "+
-   "Announcement submissions still require district verification.","success");
+  notify(node,(done===1?"Thank you! Your file was received and recorded.":"Thank you! All "+done+" files were received and recorded.")+
+   " Received: "+displayTime(last?.received_at)+"."+
+   (kind==="announcement"?" The District will check it next.":""),"success");
  }catch(error){
   updateUploadPhase(node,"Upload not confirmed. Check submission history before retrying.");
   await refreshHistory(node,kind).catch(()=>{});

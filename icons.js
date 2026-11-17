@@ -6,6 +6,7 @@
 (() => {
 "use strict";
 const shapes={
+ camera:'<path d="M3.5 8.5A2 2 0 0 1 5.5 6.5h2.2l1.6-2.3h5.4l1.6 2.3h2.2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.6"/>',
  home:'<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.2V20a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9.2"/><path d="M9.5 21v-6.5h5V21"/>',
  megaphone:'<path d="M3 10.6v2.8a1 1 0 0 0 .7 1L18 19V5L3.7 9.6a1 1 0 0 0-.7 1z"/><path d="M7.5 15.6V18a2.4 2.4 0 0 0 4.8 0v-.9"/><path d="M21 9.8v4.4"/>',
  bell:'<path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.6 2.5H4.4z"/><path d="M10 21a2.2 2.2 0 0 0 4 0"/>',
@@ -53,7 +54,7 @@ const shapes={
  more:'<circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/>'
 };
 /** One icon per application page, shared by the desktop sidebar and the mobile menu. */
-window.ITRACK_NAV_ICONS=Object.freeze({dashboard:'home',announcements:'megaphone',notifications:'bell',monitoring:'chart',documents:'fileText',division:'send',district:'building',retrieval:'inbox',reports:'barChart','system-recovery':'history','feedback-admin':'message',feedback:'message',settings:'sliders',verification:'clipboardCheck','school-files':'paperclip',approvals:'userCheck','document-types':'tag',archive:'archive','document-control':'trash','system-updates':'refresh'});
+window.ITRACK_NAV_ICONS=Object.freeze({dashboard:'home',announcements:'megaphone',templates:'folder',notifications:'bell',monitoring:'chart',documents:'fileText',division:'send',district:'building',retrieval:'inbox',reports:'barChart','system-recovery':'history','feedback-admin':'message',feedback:'message',settings:'sliders',verification:'clipboardCheck','school-files':'paperclip',approvals:'userCheck','document-types':'tag',archive:'archive','document-control':'trash','system-updates':'refresh'});
 /** Returns inline SVG markup for a named icon, or an empty string if unknown. */
 window.ITRACK_ICON=function(name,extraClass){
  const body=shapes[name];

@@ -40,7 +40,7 @@ const db=window.supabase?.createClient(C.url,C.publishableKey,{auth:{persistSess
 // Multiple clients refreshing the same mobile session can reset upload forms.
 window.ITRACK_DB=db;
 if(importedQueueTicket)localStorage.setItem('srii-registration-queue-ticket',importedQueueTicket);
-const knownViews=new Set(['dashboard','announcements','notifications','monitoring','documents','reports','school-files','verification','approvals','archive','division','retrieval','district','document-types','settings','system-recovery','system-updates','feedback','feedback-admin','document-control']);
+const knownViews=new Set(['dashboard','announcements','templates','notifications','monitoring','documents','reports','school-files','verification','approvals','archive','division','retrieval','district','document-types','settings','system-recovery','system-updates','feedback','feedback-admin','document-control']);
 // The manifest launches at ./ (Home). Navigation keeps the page in the URL,
 // so a real refresh returns to that page without persistent cross-launch state.
 const urlView=new URLSearchParams(location.search).get('view');
@@ -182,7 +182,9 @@ async function loadActionInbox(){
   routes:!oversight?db.rpc('i_track_document_route_history',{p_document_id:null}):Promise.resolve({data:[]}),
   retrieval:!oversight?db.rpc('i_track_retrieval_board'):Promise.resolve({data:{claimable:[],district_queue:[]}}),
   division:!oversight?db.rpc('i_track_division_list'):Promise.resolve({data:{transmittals:[]}}),
-  district:!oversight?db.rpc('i_track_district_list'):Promise.resolve({data:{claimable:[]}})
+  district:!oversight?db.rpc('i_track_district_list'):Promise.resolve({data:{claimable:[]}}),
+  // Before database change v94 there are no reminders yet; that is not an error.
+  reminders:!admin&&!oversight?db.rpc('i_track_my_reminders').then(r=>r.error?.code==='PGRST202'?{data:[]}:r):Promise.resolve({data:[]})
  };
  const names=Object.keys(jobs);
  const responses=await Promise.allSettled(names.map(key=>jobs[key]));
@@ -195,6 +197,11 @@ async function loadActionInbox(){
  });
  const items=[];
  const add=(key,title,detail,page,priority,more={})=>items.push({key,title,detail,page,priority,...more});
+ for(const r of results.reminders||[]){
+  add('reminder:'+r.assignment_id+':'+r.sent_at,'Reminder from the District',
+   (r.returned?'Returned for correction · ':'')+r.title+' · due '+short(r.deadline_at)+(r.message?' · “'+r.message+'”':''),
+   'announcements',0,{assignmentId:r.assignment_id,sourceIds:['reminder:'+r.assignment_id]});
+ }
  const ownPending=(results.compliance||[]).filter(c=>c.status==='pending_verification'&&(admin||assigned.has(c.announcement_id)));
  const grouped=new Map();
  for(const c of ownPending){
@@ -308,7 +315,16 @@ async function load(){
    if(error)throw error;state.integrityOverview=data||null;
   })());
   tasks.push((async()=>{const {data,error}=await db.rpc('i_track_approver_assignments');if(error)throw error;state.approverAssignments=data||[];})());
-  if(['dashboard','announcements','monitoring','verification','reports','school-files'].includes(state.view)){
+  if(['templates','announcements'].includes(state.view))tasks.push((async()=>{
+   const {data,error}=await db.from('templates').select('id,title,description,file_path,file_name,content_type,file_size,announcement_id,uploaded_at').order('uploaded_at',{ascending:false});
+   // Before database change v94 the templates table does not exist yet.
+   state.templates=error?null:(data||[]);
+  })());
+  if(districtOversight()&&['dashboard','reports'].includes(state.view))tasks.push((async()=>{
+   const {data,error}=await db.rpc('i_track_on_time_schools',{p_days:30});
+   state.onTimeSchools=error?null:(data||[]);
+  })());
+  if(['dashboard','announcements','templates','monitoring','verification','reports','school-files'].includes(state.view)){
    tasks.push((async()=>{
     const columns='id,announcement_code,title,description,status,deadline_at,original_deadline_at,created_at,cancelled_at,cancellation_reason';
     let result=await db.from('announcements').select(columns+',archived_at,archive_kind').order('created_at',{ascending:false});
@@ -626,10 +642,12 @@ async function oversightUploadList(announcementId){
 async function loadMonitor(){
  if(!state.selectedId){state.monitor=[];state.oversightUploads=[];return;}
  const selected=state.selectedId;
- const [monitor,uploads]=await Promise.all([
+ const [monitor,uploads,reminders]=await Promise.all([
   db.rpc('i_track_monitor',{p_announcement_id:selected}),
-  districtOversight()?oversightUploadList(selected):Promise.resolve({data:[],error:null})
+  districtOversight()?oversightUploadList(selected):Promise.resolve({data:[],error:null}),
+  districtOversight()?db.rpc('i_track_last_reminders',{p_announcement:selected}):Promise.resolve({data:[],error:null})
  ]);
+ state.lastReminders=new Map((reminders.error?[]:reminders.data||[]).map(r=>[r.school_id,r.sent_at]));
  if(monitor.error)throw monitor.error;
  if(uploads.error)throw uploads.error;
  if(state.selectedId!==selected)return;
@@ -1134,11 +1152,11 @@ const navIcons=window.ITRACK_NAV_ICONS||{};
 const menu=[['dashboard','Home'],['announcements','Announcements'],['notifications','Notifications'],['monitoring','Submission Status']];
 function appPage(){
  // The same permission-checked page list as before, now shown in short headed groups.
- const navItems=[...menu,...(!isOic()?[['documents','My Documents'],['division','Division Transmittals'],['district','District Transmittals'],['retrieval','Division Retrieval']]:[]),...(districtOversight()?[['reports','District Reports'],['system-recovery','Record Recovery']]:[]),...(yesAdmin()?[['feedback-admin','Reports & Suggestions']]:[['feedback','Report / Suggest']]),...(!yesAdmin()?[['settings','Personal Settings']]:[]),...((yesAdmin()||state.approverAssignments.some(x=>x.user_id===state.session.user.id))?[['verification','Submission Verification']]:[]),...(yesAdmin()?[['school-files','School Attachments'],['approvals','Account Approvals'],['document-types','Document Types'],['archive','Archive']]:[]),...(isMain()?[['document-control','Document Control / Trash']]:[]),['system-updates','System Updates']];
+ const navItems=[...menu,['templates','Templates'],...(!isOic()?[['documents','My Documents'],['division','Division Transmittals'],['district','District Transmittals'],['retrieval','Division Retrieval']]:[]),...(districtOversight()?[['reports','District Reports'],['system-recovery','Record Recovery']]:[]),...(yesAdmin()?[['feedback-admin','Reports & Suggestions']]:[['feedback','Report / Suggest']]),...(!yesAdmin()?[['settings','Personal Settings']]:[]),...((yesAdmin()||state.approverAssignments.some(x=>x.user_id===state.session.user.id))?[['verification','Submission Verification']]:[]),...(yesAdmin()?[['school-files','School Attachments'],['approvals','Account Approvals'],['document-types','Document Types'],['archive','Archive']]:[]),...(isMain()?[['document-control','Document Control / Trash']]:[]),['system-updates','System Updates']];
  const navButton=([id,title])=>`<button class="${state.view===id?'active':''}" data-a="nav" data-page="${id}"${state.view===id?' aria-current="page"':''}>${ico(navIcons[id]||'file')}<span>${title}</span></button>`;
  const navGroups=[
   ['',['dashboard','notifications']],
-  ['Submissions',['announcements','monitoring','verification']],
+  ['Submissions',['announcements','templates','monitoring','verification']],
   ['Documents',['documents','division','district','retrieval']],
   ['District',['reports','school-files','approvals','feedback-admin']],
   ['Account',['settings','feedback']],
@@ -1153,10 +1171,10 @@ function appPage(){
   if(collapsible&&items.length>2)return '<details class="nav-group nav-more"'+(items.some(([id])=>id===state.view)?' open':'')+'><summary>'+esc(heading)+'</summary>'+buttons+'</details>';
   return '<div class="nav-group">'+(heading?'<div class="nav-heading">'+esc(heading)+'</div>':'')+buttons+'</div>';
  }).join('')+navItems.filter(([id])=>!placed.has(id)).map(navButton).join('');
- const title={dashboard:'Home',announcements:'Announcements',notifications:'Notifications',monitoring:'Submission Monitoring',documents:'My Documents',division:'Division Transmittals',district:'District Transmittals','document-types':'Document Types',retrieval:'Division Retrieval',settings:'Personal Settings',reports:'District Reports','system-recovery':'Record Recovery','system-updates':'System Updates',feedback:'Report / Suggest','feedback-admin':'Reports & Suggestions','school-files':'School Attachments',verification:'Submission Verification',approvals:'Account Management',archive:'Archive','document-control':'Document Control / Trash'}[state.view]||'Overview';
+ const title={dashboard:'Home',announcements:'Announcements',templates:'Templates',notifications:'Notifications',monitoring:'Submission Monitoring',documents:'My Documents',division:'Division Transmittals',district:'District Transmittals','document-types':'Document Types',retrieval:'Division Retrieval',settings:'Personal Settings',reports:'District Reports','system-recovery':'Record Recovery','system-updates':'System Updates',feedback:'Report / Suggest','feedback-admin':'Reports & Suggestions','school-files':'School Attachments',verification:'Submission Verification',approvals:'Account Management',archive:'Archive','document-control':'Document Control / Trash'}[state.view]||'Overview';
  const school=state.schools.find(x=>x.id===state.profile.school_id)?.name||'District Office';
  const name=state.profile.display_name||(isOic()?'OIC-PSDS':yesAdmin()?'District Administrator':'School Personnel');
- let body={dashboard:dashboardPage,announcements:announcementPage,notifications:notificationsPage,monitoring:monitorPage,documents:documentPage,division:divisionPage,district:districtPage,'document-types':documentTypesAdminPage,retrieval:retrievalPage,settings:settingsPage,reports:districtReportPage,'system-updates':systemUpdatesPage,'system-recovery':systemRecoveryPage,feedback:feedbackPage,'feedback-admin':feedbackAdminPage,'school-files':schoolAttachmentsPage,verification:verificationPage,approvals:approvalPage,archive:archivePage,'document-control':documentControlPage}[state.view]?.()||dashboardPage();
+ let body={dashboard:dashboardPage,announcements:announcementPage,templates:templatesPage,notifications:notificationsPage,monitoring:monitorPage,documents:documentPage,division:divisionPage,district:districtPage,'document-types':documentTypesAdminPage,retrieval:retrievalPage,settings:settingsPage,reports:districtReportPage,'system-updates':systemUpdatesPage,'system-recovery':systemRecoveryPage,feedback:feedbackPage,'feedback-admin':feedbackAdminPage,'school-files':schoolAttachmentsPage,verification:verificationPage,approvals:approvalPage,archive:archivePage,'document-control':documentControlPage}[state.view]?.()||dashboardPage();
  // Read-only presentation context for the upload panel. Not an authorization
  // mechanism: Supabase RLS and the Edge Function enforce permissions.
  window.ITRACK_CONTEXT={
@@ -1539,12 +1557,15 @@ function dashboardPage(){
   admin?'<button type="button" class="btn" data-a="home-new-announcement">'+ico('plus')+'New Announcement</button>':
   '<button type="button" class="btn" data-a="submit-choice">'+ico('upload')+'Submit something</button>';
  const charts=window.ITRACK_CHARTS;
+ const perfectSchools=(state.onTimeSchools||[]).filter(x=>Number(x.due)>0&&Number(x.on_time)===Number(x.due));
  let chartPanel='';
  if(charts){
   if(admin||oversight){
    chartPanel='<section class="panel home-panel ch-panel"><div class="panel-head"><h3>District submissions</h3>'+
     '<button class="btn tiny alt" data-a="nav" data-page="reports">Details</button></div>'+
-    charts.donut(charts.totals(report),{centerLabel:'submitted',unit:'school requirement',empty:'No announcement has required schools yet.'})+'</section>';
+    charts.donut(charts.totals(report),{centerLabel:'submitted',unit:'school requirement',empty:'No announcement has required schools yet.'})+
+    (state.onTimeSchools&&state.onTimeSchools.length?'<p class="ch-foot ontime-line">'+ico('checkCircle')+'<span><strong>'+perfectSchools.length+' of '+state.onTimeSchools.length+' schools</strong> sent everything on time in the last 30 days. '+
+     '<button type="button" class="link-button" data-a="nav" data-page="reports">See them</button></span></p>':'')+'</section>';
   }else{
    const mineTotals={ontime:0,late:0,missed:0,waiting:0};
    for(const a of mine){
@@ -1556,6 +1577,23 @@ function dashboardPage(){
    }
    chartPanel='<section class="panel home-panel ch-panel"><div class="panel-head"><h3>My submissions</h3></div>'+
     charts.donut(mineTotals,{centerLabel:'submitted',unit:'requirement',empty:'No requirements are assigned to your school yet.'})+'</section>';
+  }
+ }
+ // Thank-yous for schools: everything open is done, and on-time streaks.
+ let thanks='';
+ if(!admin&&!oversight){
+  const openMine=mine.filter(a=>a.status==='open');
+  const allDone=openMine.length>0&&openMine.every(a=>schoolStatus(a)!=='Pending');
+  const finished=mine.filter(a=>['Submitted','Late'].includes(schoolStatus(a)))
+   .sort((x,y)=>new Date(y.deadline_at||0)-new Date(x.deadline_at||0));
+  let streak=0;for(const a of finished){if(schoolStatus(a)==='Submitted')streak++;else break;}
+  if(allDone){
+   thanks='<section class="thanks-card" role="status">'+ico('checkCircle')+'<div><strong>All done. Thank you!</strong>'+
+    '<span>Your school has sent everything that is open right now.'+(streak>=2?' That makes '+streak+' on time in a row.':'')+'</span></div></section>';
+   celebrateOnce();
+  }else if(streak>=2){
+   thanks='<section class="thanks-card is-streak" role="status">'+ico('checkCircle')+'<div><strong>'+streak+' on time in a row</strong>'+
+    '<span>Thank you for sending your requirements on time. Keep it going!</span></div></section>';
   }
  }
  const todayText=new Date().toLocaleDateString('en-PH',{weekday:'long',day:'numeric',month:'long',timeZone:'Asia/Manila'});
@@ -1571,7 +1609,7 @@ function dashboardPage(){
   '<section class="home-hello"><div><div class="eyebrow">'+esc(todayText)+'</div><h1>Welcome back, '+esc(name)+'</h1>'+
   '<p class="v2-role">'+esc(oversight?"OIC-PSDS · District Oversight (Read Only)":admin?"District Administrator":school)+'</p></div>'+primary+'</section>'+
   '<div class="v2-metrics">'+metricHtml+'</div>'+
-  '<div class="home-grid"><div class="home-main">'+todoPanel+deadlinePanel+'</div>'+
+  '<div class="home-grid"><div class="home-main">'+thanks+todoPanel+deadlinePanel+'</div>'+
   '<div class="home-side">'+chartPanel+(!oversight?documentNotificationPanel():'')+'</div></div>'+
   footer;
 }
@@ -1590,6 +1628,71 @@ function uploadFileCard(f,{showAnnouncement=false,showSchool=true}={}){
   '<span class="file-card-file">'+(showSchool?esc(f.original_filename||'Attachment')+' · ':'')+'Version '+esc(f.version_number||1)+copy+'</span>'+
   '<small>Uploaded '+esc(date(f.uploaded_at))+' by '+esc(f.uploader_name||'Unknown uploader')+'</small></div>'+
   '<div class="file-card-side">'+pTag(f.verification_status||'pending')+uploadFileButtons(f)+'</div></div>';
+}
+function onTimePanel(){
+ const all=state.onTimeSchools;
+ if(!all||!all.length)return '';
+ const perfect=all.filter(x=>Number(x.due)>0&&Number(x.on_time)===Number(x.due));
+ return '<section class="panel ontime-panel"><div class="panel-head"><h3>On-time schools <small>last 30 days</small></h3></div>'+
+  (perfect.length?'<p class="note"><strong>'+perfect.length+' of '+all.length+' schools</strong> sent every requirement that was due in the last 30 days on time. A good moment to thank them.</p>'+
+   '<div class="ontime-chips">'+perfect.map(x=>'<span class="ontime-chip">'+ico('checkCircle')+'<span>'+esc(x.school_name)+'</span><small>'+esc(x.on_time)+' of '+esc(x.due)+'</small></span>').join('')+'</div>':
+   '<p class="note">No school has every requirement from the last 30 days in on time yet.</p>')+'</section>';
+}
+let celebrated=false;
+function celebrateOnce(){
+ if(celebrated)return;celebrated=true;
+ const today=new Date(Date.now()+8*60*60*1000).toISOString().slice(0,10);
+ try{if(localStorage.getItem('srii-thanks-day')===today)return;localStorage.setItem('srii-thanks-day',today);}catch(_){return;}
+ if(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)return;
+ setTimeout(()=>{
+  const box=document.createElement('div');box.className='confetti';box.setAttribute('aria-hidden','true');
+  const colors=['#1baf7a','#eda100','#2a78d6','#e34948','#e6ab2e'];
+  for(let i=0;i<28;i++){const p=document.createElement('i');p.style.left=(4+Math.random()*92)+'%';p.style.background=colors[i%colors.length];
+   p.style.animationDelay=(Math.random()*0.35).toFixed(2)+'s';p.style.transform='rotate('+Math.round(Math.random()*360)+'deg)';box.append(p);}
+  document.body.append(box);setTimeout(()=>box.remove(),2600);
+ },350);
+}
+const TEMPLATE_TYPES={'.pdf':'application/pdf','.doc':'application/msword',
+ '.docx':'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+ '.xls':'application/vnd.ms-excel','.xlsx':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+ '.ppt':'application/vnd.ms-powerpoint','.pptx':'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+ '.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png'};
+const templateKind=t=>{const n=String(t.file_name||'').toLowerCase();
+ return /\.(docx?)$/.test(n)?'Word':/\.(xlsx?)$/.test(n)?'Excel':/\.(pptx?)$/.test(n)?'PowerPoint':/\.pdf$/.test(n)?'PDF':'Picture';};
+const fileSize=b=>Number(b)>=1048576?(Number(b)/1048576).toFixed(1)+' MB':Math.max(1,Math.round(Number(b)/1024))+' KB';
+function templatesPage(){
+ const head='<div class="sectionhead"><div><div class="eyebrow">Forms and templates</div><h1>Templates</h1>'+
+  '<p class="sub">Blank forms for district requirements. Download the one you need, fill it in, then submit it under Announcements.</p></div></div>';
+ if(state.templates===null)return head+'<div class="notice warn">Templates need the latest database update. Ask the person who maintains SRII i-TRACK to apply it.</div>';
+ const all=state.templates||[];
+ const forAnn=state.templateFilterAnn&&state.announcements.find(a=>a.id===state.templateFilterAnn);
+ const list=forAnn?all.filter(t=>t.announcement_id===forAnn.id):all;
+ const annOf=t=>t.announcement_id&&state.announcements.find(a=>a.id===t.announcement_id);
+ const upload=yesAdmin()?'<details class="panel template-upload"'+(all.length?'':' open')+'><summary><strong>Upload a template</strong>'+
+  '<span class="small muted">Word, Excel, PowerPoint, PDF or picture · up to 30 MB</span></summary>'+
+  '<div class="template-form"><div class="field"><label for="tpl-title">Title</label><input id="tpl-title" maxlength="150" placeholder="e.g. SF4 Monthly Learner Movement (blank form)"></div>'+
+  '<div class="field"><label for="tpl-desc">Short note <span class="muted">(optional)</span></label><textarea id="tpl-desc" maxlength="1000" rows="2" placeholder="What it is for, or how to fill it in"></textarea></div>'+
+  '<div class="field"><label for="tpl-ann">For an announcement <span class="muted">(optional)</span></label><select id="tpl-ann"><option value="">Not linked to an announcement</option>'+
+   state.announcements.filter(a=>['open','closed'].includes(a.status)).map(a=>'<option value="'+esc(a.id)+'">'+esc((a.announcement_code?a.announcement_code+' — ':'')+a.title)+'</option>').join('')+'</select>'+
+   '<p class="small muted">Linked templates also appear next to that requirement for schools.</p></div>'+
+  '<div class="field"><label for="tpl-file">File</label><input id="tpl-file" type="file" accept=".doc,.docx,.xls,.xlsx,.ppt,.pptx,.pdf,.jpg,.jpeg,.png"></div>'+
+  '<div class="toolbar"><button type="button" class="btn" data-a="template-upload">'+ico('upload')+'Upload template</button></div></div></details>':'';
+ const card=t=>{const ann=annOf(t);
+  return '<div class="file-card template-card" data-template-search="'+esc([t.title,t.description,t.file_name,ann?.announcement_code,ann?.title].join(' ').toLowerCase())+'">'+
+   '<span class="template-kind" data-kind="'+templateKind(t)+'">'+templateKind(t)+'</span>'+
+   '<div class="file-card-main"><strong>'+esc(t.title)+'</strong>'+
+   (t.description?'<span class="file-card-file">'+esc(t.description)+'</span>':'')+
+   (ann?'<span class="file-card-ann">For '+esc((ann.announcement_code?ann.announcement_code+' · ':'')+ann.title)+'</span>':'')+
+   '<small>'+esc(t.file_name)+' · '+fileSize(t.file_size)+' · added '+esc(short(t.uploaded_at))+'</small></div>'+
+   '<div class="file-card-side"><button type="button" class="btn" data-a="template-download" data-id="'+esc(t.id)+'">'+ico('download')+'Download</button>'+
+   (yesAdmin()?'<button type="button" class="btn tiny alt" data-a="template-remove" data-id="'+esc(t.id)+'">Remove</button>':'')+'</div></div>';};
+ return head+upload+
+  (forAnn?'<div class="connected-filter-banner"><strong>Templates for '+esc((forAnn.announcement_code?forAnn.announcement_code+' · ':'')+forAnn.title)+'</strong>'+
+   '<button type="button" class="btn tiny alt" data-a="templates-all">Show all templates</button></div>':'')+
+  (!forAnn&&all.length>6?'<div class="toolbar template-search"><input type="search" id="template-search" placeholder="Search templates by name or announcement"></div>':'')+
+  '<section class="panel"><div class="panel-head"><h3>'+(forAnn?'Templates':'All templates')+(list.length?' <span class="home-badge archive-badge">'+list.length+'</span>':'')+'</h3></div>'+
+  (list.length?'<div class="file-cards" id="template-list">'+list.map(card).join('')+'</div>':
+   '<p class="empty">'+(yesAdmin()?'No templates yet. Upload the first one above.':'No templates yet. The District Office will add them here.')+'</p>')+'</section>';
 }
 function districtReportPage(){
  if(!districtOversight())return '<div class="notice danger">District oversight access required.</div>';
@@ -1635,6 +1738,7 @@ function districtReportPage(){
    window.ITRACK_CHARTS.stackedRows(reports,{action:'report-uploads',limit:8})+'</div></div></section>':
    '<div class="stats">'+stat('Announcements',reports.length,'Published district requests','report-stat','all')+
    stat('Completion',complete+'%','Submitted on time or late','report-stat','all')+'</div>')+
+  onTimePanel()+
   '<details class="panel report-table-toggle"'+(state.reportFilter?' open':'')+'><summary><strong>Show as a table</strong><span class="small muted">Every announcement with its counts</span></summary>'+
   (state.reportFilter?'<div class="toolbar"><button type="button" class="btn tiny alt" data-a="report-stat" data-filter="all">Show All Announcements</button></div>':'')+
   table(['Announcement','Deadline','Required','On Time','Late','Pending','Completion'],rows)+
@@ -1709,9 +1813,12 @@ function announcementPage(){
   todoPanel='<section class="panel ann-todo"><div class="panel-head"><h3>Your school still needs to submit'+(todo.length?' <span class="home-badge">'+todo.length+'</span>':'')+'</h3></div>'+
    (todo.length?'<div class="home-list">'+todo.map(({asg,ann})=>{
     const overdue=ann.deadline_at&&new Date(ann.deadline_at).getTime()<now;
+    const tpls=(state.templates||[]).filter(x=>x.announcement_id===ann.id);
+    const tplButton=tpls.length===1?'<button type="button" class="btn alt" data-a="template-download" data-id="'+esc(tpls[0].id)+'">'+ico('download')+'Template</button>':
+     tpls.length>1?'<button type="button" class="btn alt" data-a="templates-for" data-id="'+esc(ann.id)+'">'+ico('folder')+'Templates ('+tpls.length+')</button>':'';
     return '<div class="home-row ann-todo-row"><span class="home-row-main"><strong>'+esc(ann.title)+'</strong>'+
      '<small>'+esc((ann.announcement_code?ann.announcement_code+' · ':'')+'Due '+date(ann.deadline_at))+'</small></span>'+
-     (overdue?'<span class="home-due is-overdue">Overdue</span>':'')+
+     (overdue?'<span class="home-due is-overdue">Overdue</span>':'')+tplButton+
      '<button type="button" class="btn" data-a="announcement-submit" data-id="'+esc(asg.id)+'">'+ico('upload')+'Submit</button></div>';
    }).join('')+'</div>':
    '<div class="home-clear">'+ico('checkCircle')+'<div><strong>Nothing left to submit</strong><span>Your school has sent something for every open announcement.</span></div></div>')+'</section>';
@@ -1739,13 +1846,20 @@ function monitorPage(){
   if(!school)return '';
   const uploads=districtOversight()?state.oversightUploads.filter(f=>f.school_id===school.id):[];
   const latest=uploads[0];
+  const reminded=['Pending','Returned for Correction'].includes(status)?state.lastReminders?.get(school.id):null;
   return '<button type="button" class="status-school-row" data-a="monitor-school" data-school-id="'+esc(school.id)+'" '+
    'aria-label="Open '+esc(school.name)+' — '+esc(status)+'">'+
    '<span class="status-school-name">'+esc(school.name)+
    (districtOversight()?'<small class="oversight-upload-time">'+(latest?'Latest file: '+esc(date(latest.uploaded_at))+' · '+uploads.length+' version(s)':'No file uploaded')+'</small>':'')+
+   (reminded?'<small class="reminded-at">'+ico('bell')+'Reminded '+esc(date(reminded))+'</small>':'')+
    '</span>'+pTag(status)+
    '<span class="status-school-chevron" aria-hidden="true">'+ico('chevronRight')+'</span></button>';
  }).join('');
+ const notYet=(state.monitor||[]).filter(x=>['Pending','Returned for Correction'].includes(x.submission_status)).length;
+ const reminderBar=districtOversight()&&currentAnnouncement?.status==='open'?
+  '<div class="remind-bar">'+ico('bell')+'<div><strong>'+(notYet?notYet+' school'+(notYet===1?' has':'s have')+' not sent anything yet':'Every school has sent something')+'</strong>'+
+  '<span>'+(notYet?'Send a friendly reminder. It stays on their Home page until they submit.':'No reminder needed.')+'</span></div>'+
+  (notYet?'<button type="button" class="btn" data-a="send-reminders">'+ico('bell')+'Remind '+notYet+'</button>':'')+'</div>':'';
  return '<div class="eyebrow">District-wide visibility</div><h1>Submission Monitoring</h1>'+
   '<p class="sub">Tap any school to view its submission status.'+
    (isAoII()?' As an approved AO II, you may submit for another school when its AO II is unavailable.':'')+
@@ -1755,6 +1869,7 @@ function monitorPage(){
   (state.selectedId?(isCancelledAnnouncement?'<div class="notice warn"><strong>Cancelled announcement.</strong> '+esc(currentAnnouncement?.cancellation_reason||'This announcement was cancelled by the district administrator.')+' New submissions are disabled; existing records are retained.</div>':'')+'<div class="stats">'+(isCancelledAnnouncement?stat('Status','Cancelled','No pending compliance required')+stat('Previously assigned schools',state.monitor.length,'Historical record','monitor-stat','all'):stat('Required Schools',state.monitor.length,'For selected announcement','monitor-stat','all')+
    stat('Verified',n('Submitted')+n('Late'),'Admin approved','monitor-stat','verified')+stat('Awaiting Review',n('Pending Verification'),'Pending approval','monitor-stat','Pending Verification')+stat('Returned',n('Returned for Correction'),'Needs correction','monitor-stat','Returned for Correction')+
    stat('Pending',n('Pending'),'Not yet submitted','monitor-stat','Pending'))+'</div>'+
+   reminderBar+
    '<div class="panel"><div class="panel-head"><h3>School Status</h3>'+
    (state.monitorStatusFilter?'<button type="button" class="btn tiny alt" data-a="monitor-stat" data-filter="all">Show All Schools</button>':'')+
    '</div><div class="status-school-list">'+(rows||'<p class="empty">No schools match this status.</p>')+'</div></div>':
@@ -2783,12 +2898,15 @@ async function click(e){
     rememberAnnouncement(item.announcementId,true);
    }
    if(item.transmittalId){state.divisionSelected=item.transmittalId;state.divisionNew=false;}
+   // A reminder opens the upload box with that requirement already chosen.
+   if(item.assignmentId)window.ITRACK_UPLOAD_TARGET=item.assignmentId;
    if(item.filter)state.connectedFilter=item.filter;
    if(item.page==='retrieval'&&item.section)state.retrievalTab='receive';
    rememberView(item.page);
    await load();
    if(item.page==='documents'&&item.documentId&&state.docs.some(d=>d.id===item.documentId))
     await openDetail(item.documentId);
+   if(item.assignmentId)setTimeout(()=>window.dispatchEvent(new CustomEvent('itrack:upload-target',{detail:{id:item.assignmentId}})),60);
    if(item.page==='retrieval'){
     if(item.section==='district'){
      const advanced=document.querySelector('.retrieval-advanced');
@@ -3456,6 +3574,71 @@ async function click(e){
    const {error}=await db.from('i_track_admin_feedback_entries').delete().eq('id',id);
    if(error)throw error;
    await load();pop('Administrator-entered reference removed.');return;
+  }
+  if(a==='template-upload'){
+   if(!yesAdmin())throw Error('District administrator access required.');
+   const title=clean(document.getElementById('tpl-title')?.value);
+   const description=clean(document.getElementById('tpl-desc')?.value)||null;
+   const announcementId=document.getElementById('tpl-ann')?.value||null;
+   const file=document.getElementById('tpl-file')?.files?.[0];
+   if(title.length<2)throw Error('Give the template a title.');
+   if(!file)throw Error('Choose the template file.');
+   const ext=(/\.[^.]+$/.exec(file.name)||[''])[0].toLowerCase();
+   const contentType=TEMPLATE_TYPES[ext];
+   if(!contentType)throw Error('Use a Word, Excel, PowerPoint, PDF, JPG or PNG file.');
+   if(file.size<1||file.size>30*1024*1024)throw Error('The file must be smaller than 30 MB.');
+   const safe=file.name.replace(/[^A-Za-z0-9._-]+/g,'_').replace(/^\.+/,'_').slice(-120)||'template'+ext;
+   const path=crypto.randomUUID()+'/'+safe;
+   state.busy=true;t.disabled=true;t.textContent='Uploading…';
+   try{
+    const put=await db.storage.from('templates').upload(path,file,{contentType,upsert:false});
+    if(put.error)throw put.error;
+    const {error}=await db.from('templates').insert({title,description,announcement_id:announcementId,
+     file_path:path,file_name:file.name.slice(0,180),content_type:contentType,file_size:file.size,uploaded_by:state.profile.id});
+    if(error)throw error;
+   }finally{state.busy=false;}
+   await load();pop('Template uploaded. Everyone can download it now.');return;
+  }
+  if(a==='template-download'){
+   const tpl=(state.templates||[]).find(x=>x.id===t.dataset.id);
+   if(!tpl)throw Error('Template not found. Refresh the page.');
+   const label=t.innerHTML;t.disabled=true;t.textContent='Downloading…';
+   try{
+    const {data,error}=await db.storage.from('templates').download(tpl.file_path);
+    if(error)throw error;
+    const url=URL.createObjectURL(data);
+    const link=document.createElement('a');link.href=url;link.download=tpl.file_name||'template';
+    document.body.append(link);link.click();link.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),60000);
+   }finally{t.disabled=false;t.innerHTML=label;}
+   return;
+  }
+  if(a==='template-remove'){
+   if(!yesAdmin())throw Error('District administrator access required.');
+   const tpl=(state.templates||[]).find(x=>x.id===t.dataset.id);
+   if(!tpl)throw Error('Template not found. Refresh the page.');
+   if(!confirm('Remove "'+tpl.title+'" from Templates? People will no longer see it.'))return;
+   const {error}=await db.rpc('i_track_remove_template',{p_template:tpl.id});
+   if(error)throw error;
+   await load();pop('Template removed.');return;
+  }
+  if(a==='templates-for'){state.templateFilterAnn=t.dataset.id;rememberView('templates');await load();return;}
+  if(a==='templates-all'){state.templateFilterAnn='';show();return;}
+  if(a==='send-reminders'){
+   if(!districtOversight())throw Error('District administrator or OIC-PSDS access required.');
+   const ann=state.announcements.find(x=>x.id===state.selectedId);
+   if(!ann)throw Error('Choose an announcement first.');
+   const notYet=(state.monitor||[]).filter(x=>['Pending','Returned for Correction'].includes(x.submission_status)).length;
+   const note=prompt('Remind the '+notYet+' school(s) that have not sent "'+ann.title+'"?\n\nThe reminder shows on their Home page and in Actions until they submit.\n\nShort message (optional):','');
+   if(note===null)return;
+   state.busy=true;try{
+    const {data,error}=await db.rpc('i_track_send_reminders',{p_announcement:ann.id,p_message:note.trim()||null});
+    if(error)throw error;
+    await loadMonitor();show();
+    pop(Number(data?.sent)?'Reminder sent to '+data.sent+' school'+(data.sent===1?'':'s')+'.'+(Number(data.recently_reminded)?' '+data.recently_reminded+' had already been reminded in the last 12 hours.':''):
+     'Those schools were already reminded in the last 12 hours. Try again later.');
+   }finally{state.busy=false;}
+   return;
   }
   if(a==='announcement-remove'){
    if(!yesAdmin())throw Error('District administrator access required.');
@@ -4148,6 +4331,10 @@ function filterDocumentRegistry(){
 $.addEventListener('input',e=>{
  if(['document-search','document-date-filter'].includes(e.target.id))filterDocumentRegistry();
  if(e.target.id==='retrieval-search')filterRetrievalAvailable();
+ if(e.target.id==='template-search'){
+  const q=e.target.value.trim().toLowerCase();
+  document.querySelectorAll('#template-list [data-template-search]').forEach(el=>{el.hidden=!!q&&!el.dataset.templateSearch.includes(q);});
+ }
 });
 $.addEventListener('change',async e=>{
  if(e.target.id==='district-school'&&state.view==='district'){
