@@ -112,7 +112,9 @@ function render(t,items,kind,people=[],schools=[]){
   const chunks=[];for(let i=0;i<sorted.length;i+=12)chunks.push(sorted.slice(i,i+12));if(!chunks.length)chunks.push([]);
   chunks.forEach((list,idx)=>{
    let lastCat='',number=idx*12;
-   const actor=type==='endorsement'?ENDORSER:{name:submitter.name||'________________________',position:submitter.position||'Administrative Officer II',office:submitter.school_name||'San Remigio II District'};
+   // Endorsement signer: the one saved on the transmittal (OIC-PSDS unless the preparer chose someone else).
+   const endorser=t.signer_name&&t.signer_position&&t.signer_office?{name:t.signer_name,position:t.signer_position,office:t.signer_office}:ENDORSER;
+   const actor=type==='endorsement'?endorser:{name:submitter.name||'________________________',position:submitter.position||'Administrative Officer II',office:submitter.school_name||'San Remigio II District'};
    const signer=esc(actor.name),position=esc(actor.position),office=esc(actor.office);
    const body=list.map(i=>{
     const cat=String(i.document_type||'DOCUMENTS').toUpperCase();
@@ -231,5 +233,5 @@ function renderPickupSlip(retriever,items){
  return '<!doctype html><html><head><meta charset="utf-8"><title>Division Retrieval Slip — SRII i-TRACK</title>'+
   printFonts+'<style>'+CSS+RETRIEVAL_CSS+PICKUP_CSS+'</style></head><body>'+pages.join('')+'</body></html>';
 }
-window.ITRACK_PRINT={render,renderRetrievalSlip,renderPickupSlip};
+window.ITRACK_PRINT={render,renderRetrievalSlip,renderPickupSlip,ENDORSER:Object.freeze({...ENDORSER})};
 })();

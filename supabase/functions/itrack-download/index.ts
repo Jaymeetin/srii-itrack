@@ -1,8 +1,11 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { decodeBase64 } from "jsr:@std/encoding@1/base64";
 
 const SITE_ORIGIN="https://jaymeetin.github.io";
-const MAX_BYTES=4*1024*1024;
+// Same ceiling as uploads, so every stored file can be opened again.
+const MAX_BYTES=30*1024*1024;
+const MAX_BASE64=Math.ceil(MAX_BYTES/3)*4;
 const ALLOWED_MIME=new Set([
   "image/jpeg","image/png","image/webp","application/pdf",
   "application/msword",
@@ -81,10 +84,14 @@ Deno.serve(async (req:Request)=>{
     if(pErr||!profile||profile.account_status!=="active")
       return fail("Account is not approved",403);
     const admin=profile.role==="main_admin"||profile.role==="backup_admin";
+    // The OIC-PSDS has district-wide, read-only oversight of announcement
+    // files (policy oic_psds_may_read_announcement_files). Routed document
+    // files stay limited to the people involved, through the same RLS.
+    const oversight=profile.role==="oic_psds"&&!profile.school_id;
     // Any approved member of the represented school may access its
     // announcement files. Actual delegated uploaders may access their own
     // files. The user-JWT-scoped submissions RLS enforces both rules.
-    if(!admin){
+    if(!admin&&!oversight){
       if(profile.role!=="school_user"||!profile.school_id)
         return fail("Account is not permitted to open files",403);
       const {data:school,error:sErr}=await service.from("schools")
@@ -125,7 +132,7 @@ Deno.serve(async (req:Request)=>{
       .eq("actor_user_id",uid).eq("action","file_downloaded")
       .gte("created_at",new Date(Date.now()-3600000).toISOString());
     if(rateErr)throw Error("Could not check access limits");
-    if((count??0)>=30)return fail("Hourly download limit reached",429);
+    if((count??0)>=(admin||oversight?100:30))return fail("Hourly download limit reached",429);
 
     const timestamp=Date.now(),nonce=crypto.randomUUID().replace(/-/g,"");
     const signedMessage=[
@@ -144,22 +151,24 @@ Deno.serve(async (req:Request)=>{
         fileId:file.drive_file_id,mimeType:file.content_type,
         byteLength:Number(file.file_size_bytes),sha256:receipt.sha256,signature
       }),
-      signal:AbortSignal.timeout(55000)
+      signal:AbortSignal.timeout(120000)
     });
     if(!bridge.ok)throw Error("Google Drive bridge unavailable");
-    const dataText=await bridge.text();
-    if(dataText.length>5_800_000)throw Error("Google Drive response exceeds allowed size");
+    let dataText:string|null=await bridge.text();
+    if(dataText.length>MAX_BASE64+4096)throw Error("Google Drive response exceeds allowed size");
     let data:Record<string,unknown>;
     try{data=JSON.parse(dataText);}catch{throw Error("Invalid Drive response");}
+    dataText=null; // release the raw response before decoding
     if(data.success!==true||typeof data.contentBase64!=="string"||
        data.mimeType!==file.content_type||
        data.byteLength!==Number(file.file_size_bytes)||
-       data.contentBase64.length>5_700_000)
+       data.contentBase64.length>MAX_BASE64)
       throw Error("File not available through secure bridge");
     let bytes:Uint8Array;
     try{
-      const decoded=atob(data.contentBase64);
-      bytes=Uint8Array.from(decoded,x=>x.charCodeAt(0));
+      // Decodes straight into bytes; avoids a second 30 MB string copy.
+      bytes=decodeBase64(data.contentBase64);
+      data.contentBase64="";
     }catch{throw Error("Invalid file encoding");}
     if(bytes.byteLength!==Number(file.file_size_bytes))throw Error("File size check failed");
     const digest=toB64url(new Uint8Array(await crypto.subtle.digest("SHA-256",bytes)));

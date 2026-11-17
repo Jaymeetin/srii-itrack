@@ -413,7 +413,7 @@ async function load(){
     state.feedbackAuthors=people.data||[];
     state.adminFeedbackEntries=adminEntries.data||[];
   })());
-  if(state.view==='announcements'&&!yesAdmin()&&!isOic()&&['required','submitted','pending','late'].includes(state.connectedFilter)){
+  if(state.view==='announcements'&&!yesAdmin()&&!isOic()){
    tasks.push((async()=>{
     const a=await db.from('announcement_assignments').select('id,announcement_id,school_id,assigned_user_id,obligation_status').eq('obligation_status','required');
     if(a.error)throw a.error;
@@ -426,8 +426,8 @@ async function load(){
    })());
   }
   if(state.view==='dashboard'){
-   if(isOic())tasks.push((async()=>{const {data,error}=await db.rpc('i_track_district_report');if(error)throw error;state.districtReport=data||[];})());
-   else if(yesAdmin())tasks.push((async()=>{const {data,error}=await db.rpc('i_track_registration_counts');if(!error)state.counts=Array.isArray(data)?data[0]:data;})());
+   if(isOic()||yesAdmin())tasks.push((async()=>{const {data,error}=await db.rpc('i_track_district_report');if(error)throw error;state.districtReport=data||[];})());
+   if(yesAdmin())tasks.push((async()=>{const {data,error}=await db.rpc('i_track_registration_counts');if(!error)state.counts=Array.isArray(data)?data[0]:data;})());
    else tasks.push((async()=>{
      const {data:assignments,error:aError}=await db.from('announcement_assignments')
        .select('id,announcement_id,school_id,assigned_user_id,obligation_status')
@@ -1486,7 +1486,8 @@ function dashboardPage(){
   const done=a.homeStatus==='Submitted'||a.homeStatus==='Late';
   const overdue=!done&&a.deadline_at&&new Date(a.deadline_at).getTime()<nowMs;
   const soon=!done&&!overdue&&a.deadline_at&&manilaDay(a.deadline_at)-manilaDay(nowMs)<=3;
-  return '<button type="button" class="home-row" data-a="announcement-focus" data-id="'+esc(a.id)+'">'+
+  const submitNow=!admin&&!oversight&&!done&&a.assignmentId;
+  return '<button type="button" class="home-row" '+(submitNow?'data-a="announcement-submit" data-id="'+esc(a.assignmentId)+'"':'data-a="announcement-focus" data-id="'+esc(a.id)+'"')+'>'+
    '<span class="home-row-main"><strong>'+esc(a.title)+'</strong><small>'+esc((a.announcement_code?a.announcement_code+' · ':'')+short(a.deadline_at))+'</small></span>'+
    (done?'':'<span class="home-due'+(overdue?' is-overdue':soon?' is-soon':'')+'">'+esc(dueText(a.deadline_at))+'</span>')+
    (admin||oversight?'':pTag(a.homeStatus))+
@@ -1511,7 +1512,27 @@ function dashboardPage(){
   (deadlineRows?'<div class="home-list">'+deadlineRows+'</div>':'<p class="empty">No open announcements right now.</p>')+'</section>';
  const primary=oversight?'<button type="button" class="btn alt" data-a="nav" data-page="reports">'+ico('barChart')+'District Reports</button>':
   admin?'<button type="button" class="btn" data-a="home-new-announcement">'+ico('plus')+'New Announcement</button>':
-  '<button type="button" class="btn" data-a="send">'+ico('plus')+'Route a Document</button>';
+  '<button type="button" class="btn" data-a="submit-choice">'+ico('upload')+'Submit something</button>';
+ const charts=window.ITRACK_CHARTS;
+ let chartPanel='';
+ if(charts){
+  if(admin||oversight){
+   chartPanel='<section class="panel home-panel ch-panel"><div class="panel-head"><h3>District submissions</h3>'+
+    '<button class="btn tiny alt" data-a="nav" data-page="reports">Details</button></div>'+
+    charts.donut(charts.totals(report),{centerLabel:'submitted',unit:'school requirement',empty:'No announcement has required schools yet.'})+'</section>';
+  }else{
+   const mineTotals={ontime:0,late:0,missed:0,waiting:0};
+   for(const a of mine){
+    const status=schoolStatus(a);
+    if(status==='Submitted')mineTotals.ontime++;
+    else if(status==='Late')mineTotals.late++;
+    else if(a.deadline_at&&new Date(a.deadline_at).getTime()<nowMs)mineTotals.missed++;
+    else mineTotals.waiting++;
+   }
+   chartPanel='<section class="panel home-panel ch-panel"><div class="panel-head"><h3>My submissions</h3></div>'+
+    charts.donut(mineTotals,{centerLabel:'submitted',unit:'requirement',empty:'No requirements are assigned to your school yet.'})+'</section>';
+  }
+ }
  const todayText=new Date().toLocaleDateString('en-PH',{weekday:'long',day:'numeric',month:'long',timeZone:'Asia/Manila'});
  const version=window.ITRACK_VERSION_CATALOG?.currentVersion;
  const footer='<nav class="home-footer" aria-label="More on this page">'+
@@ -1526,22 +1547,32 @@ function dashboardPage(){
   '<p class="v2-role">'+esc(oversight?"OIC-PSDS · District Oversight (Read Only)":admin?"District Administrator":school)+'</p></div>'+primary+'</section>'+
   '<div class="v2-metrics">'+metricHtml+'</div>'+
   '<div class="home-grid"><div class="home-main">'+todoPanel+deadlinePanel+'</div>'+
-  (!oversight?'<div class="home-side">'+documentNotificationPanel()+'</div>':'')+'</div>'+
+  '<div class="home-side">'+chartPanel+(!oversight?documentNotificationPanel():'')+'</div></div>'+
   footer;
+}
+function uploadFileButtons(f){
+ if(!f?.submission_id||f.storage_status!=='uploaded')return '<span class="small muted">'+(f?.storage_status==='archived'?'Archived':'Not available')+'</span>';
+ const name=esc(f.original_filename||'Attachment');
+ return '<span class="file-open-actions"><button type="button" class="btn tiny alt iu-file-action" data-mode="view" data-kind="announcement" data-id="'+esc(f.submission_id)+'" data-name="'+name+'">View</button>'+
+  '<button type="button" class="btn tiny alt iu-file-action" data-mode="download" data-kind="announcement" data-id="'+esc(f.submission_id)+'" data-name="'+name+'">Download</button></span>';
+}
+function uploadFileCard(f,{showAnnouncement=false,showSchool=true}={}){
+ const copy=f.copy_type&&window.ITRACK_UPLOAD?.copyTag?' '+window.ITRACK_UPLOAD.copyTag(f.copy_type):'';
+ const title=showSchool?(f.school_name||'District Office'):(f.original_filename||'Attachment');
+ return '<div class="file-card"><div class="file-card-main"><strong>'+esc(title)+'</strong>'+
+  (showAnnouncement?'<span class="file-card-ann">'+esc((f.announcement_code?f.announcement_code+' · ':'')+(f.announcement_title||''))+'</span>':'')+
+  '<span class="file-card-file">'+(showSchool?esc(f.original_filename||'Attachment')+' · ':'')+'Version '+esc(f.version_number||1)+copy+'</span>'+
+  '<small>Uploaded '+esc(date(f.uploaded_at))+' by '+esc(f.uploader_name||'Unknown uploader')+'</small></div>'+
+  '<div class="file-card-side">'+pTag(f.verification_status||'pending')+uploadFileButtons(f)+'</div></div>';
 }
 function districtReportPage(){
  if(!districtOversight())return '<div class="notice danger">District oversight access required.</div>';
  const reports=state.districtReport||[];
- const uploads=state.oversightUploads||[];
- const showAll=state.oversightShowAllUploads;
- const uploadRows=(showAll?uploads:uploads.slice(0,20)).map(f=>
-  '<tr><td><strong>'+esc(f.announcement_code||'')+'</strong><div class="small muted">'+esc(f.announcement_title||'')+'</div></td>'+
-  '<td>'+esc(f.school_name||'District Office')+'</td>'+
-  '<td><strong>'+esc(f.original_filename||'Attachment')+'</strong><div class="small muted">Version '+esc(f.version_number||1)+'</div></td>'+
-  '<td>'+esc(date(f.uploaded_at))+'</td>'+
-  '<td>'+esc(f.uploader_name||'Unknown uploader')+'</td>'+
-  '<td>'+pTag(f.verification_status||'pending')+'</td></tr>'
- );
+ const allUploads=state.oversightUploads||[];
+ const uploadAnn=state.reportUploadAnnouncement||'';
+ const uploads=uploadAnn?allUploads.filter(f=>f.announcement_id===uploadAnn):allUploads;
+ const showAll=state.oversightShowAllUploads||!!uploadAnn;
+ const uploadRows=(showAll?uploads:uploads.slice(0,20)).map(f=>uploadFileCard(f,{showAnnouncement:!uploadAnn})).join('');
  const total=reports.reduce((sum,r)=>({
   required:sum.required+Number(r.required_schools||0),
   onTime:sum.onTime+Number(r.submitted_count||0),
@@ -1567,24 +1598,27 @@ function districtReportPage(){
     '<td>'+esc(pending)+'</td><td><strong>'+esc(percent)+'%</strong></td></tr>';
  });
  return '<div class="sectionhead"><div><div class="eyebrow">District-wide reporting</div>'+
-  '<h1>District Reports</h1><p class="sub">Read-only compliance summaries and individual announcement upload times in Philippine time (PHT). File contents remain permission-controlled.</p></div>'+
+  '<h1>District Reports</h1><p class="sub">How each announcement is going, and every file the schools uploaded. Times are in Philippine time (PHT).</p></div>'+
   '<div class="toolbar">'+(yesAdmin()?'<button type="button" class="btn" data-a="nav" data-page="feedback-admin">Reports & Suggestions</button>':'')+
   '<button class="btn alt" data-a="export-district-report"'+(!reports.length?' disabled':'')+'>'+ico('download')+'Export CSV</button></div></div>'+
-  '<div class="stats">'+stat('Announcements',reports.length,'Published district requests','report-stat','all')+
-  stat('School requirements',total.required,'Across all announcements','report-stat','all')+
-  stat('On-time submissions',total.onTime,'Received by the deadline','report-stat','onTime')+
-  stat('Late submissions',total.late,'Received after the deadline','report-stat','late')+
-  stat('Pending',total.pending,'Not yet submitted','report-stat','pending')+
-  stat('Completion',complete+'%','Submitted on time or late','report-stat','all')+'</div>'+
-  '<section class="panel"><div class="panel-head"><h3>Announcement Compliance Summary</h3>'+
-  (state.reportFilter?'<button type="button" class="btn tiny alt" data-a="report-stat" data-filter="all">Show All Announcements</button>':'')+'</div>'+
+  (window.ITRACK_CHARTS&&reports.length?'<section class="panel ch-panel"><div class="panel-head"><h3>Submission status</h3>'+
+   '<span class="small muted">'+esc(reports.length)+' announcement'+(reports.length===1?'':'s')+' · '+esc(total.required)+' school requirements</span></div>'+
+   '<div class="ch-split">'+window.ITRACK_CHARTS.donut(window.ITRACK_CHARTS.totals(reports),{centerLabel:'submitted',unit:'school requirement'})+
+   '<div class="ch-split-rows"><h4>By announcement <small>Tap one to see its uploaded files</small></h4>'+
+   window.ITRACK_CHARTS.stackedRows(reports,{action:'report-uploads',limit:8})+'</div></div></section>':
+   '<div class="stats">'+stat('Announcements',reports.length,'Published district requests','report-stat','all')+
+   stat('Completion',complete+'%','Submitted on time or late','report-stat','all')+'</div>')+
+  '<details class="panel report-table-toggle"'+(state.reportFilter?' open':'')+'><summary><strong>Show as a table</strong><span class="small muted">Every announcement with its counts</span></summary>'+
+  (state.reportFilter?'<div class="toolbar"><button type="button" class="btn tiny alt" data-a="report-stat" data-filter="all">Show All Announcements</button></div>':'')+
   table(['Announcement','Deadline','Required','On Time','Late','Pending','Completion'],rows)+
-  '<p class="note">Counts are based on each school’s first securely received submission and the current official deadline.</p></section>'+
-  '<section class="panel"><div class="sectionhead"><h3>Announcement File Upload History</h3>'+
-  (uploads.length>20?'<button type="button" class="btn tiny alt" data-a="oversight-toggle-uploads">'+(showAll?'Show Latest 20':'Show All ('+uploads.length+')')+'</button>':'')+
-  '</div><p class="note">Exact upload date and time (PHT), uploader, filename and version for every recorded file. Previous versions are retained. Read-only metadata; file access remains restricted.</p>'+
-  (uploads.length?table(['Announcement','School','File / Version','Uploaded (PHT)','Uploaded By','Verification'],uploadRows):
-   '<p class="empty">No announcement attachments have been uploaded yet.</p>')+'</section>';
+  '<p class="note">Counts are based on each school’s first securely received submission and the current official deadline.</p></details>'+
+  '<section class="panel" id="report-uploads"><div class="panel-head"><h3>Uploaded files</h3>'+
+  (!uploadAnn&&uploads.length>20?'<button type="button" class="btn tiny alt" data-a="oversight-toggle-uploads">'+(showAll?'Show Latest 20':'Show All ('+uploads.length+')')+'</button>':'')+
+  '</div><div class="field report-upload-filter"><label for="report-upload-ann">Announcement</label><select id="report-upload-ann"><option value="">All announcements</option>'+
+  reports.map(r=>'<option value="'+esc(r.announcement_id)+'"'+(r.announcement_id===uploadAnn?' selected':'')+'>'+esc((r.announcement_code?r.announcement_code+' — ':'')+r.title)+'</option>').join('')+'</select></div>'+
+  '<p class="note">Every file a school uploaded, newest first, with the exact time (PHT). Previous versions are kept. Opening a file is recorded.</p>'+
+  (uploads.length?'<p class="small muted file-card-count">'+esc(uploads.length)+' file'+(uploads.length===1?'':'s')+(showAll||uploads.length<=20?'':' · showing the latest 20')+'</p><div class="file-cards">'+uploadRows+'</div>':
+   '<p class="empty">'+(uploadAnn?'No file has been uploaded for this announcement yet.':'No announcement attachments have been uploaded yet.')+'</p>')+'</section>';
 }
 function exportDistrictReport(){
  if(!districtOversight())throw new Error('District oversight access required.');
@@ -1634,9 +1668,27 @@ function announcementPage(){
    '<td>'+pTag(a.status)+'</td><td>'+esc(short(a.deadline_at))+'</td>'+
    '<td><div class="announcement-admin-actions">'+actions+'</div></td></tr>';
  });
+ let todoPanel='';
+ if(!yesAdmin()&&!isOic()){
+  const sent=new Set((state.schoolSubmissions||[]).map(x=>x.assignment_id));
+  const todo=(state.schoolAssignments||[]).map(x=>({asg:x,ann:state.announcements.find(a=>a.id===x.announcement_id)}))
+   .filter(x=>x.ann?.status==='open'&&!sent.has(x.asg.id))
+   .sort((x,y)=>new Date(x.ann.deadline_at||8.64e15)-new Date(y.ann.deadline_at||8.64e15));
+  const now=Date.now();
+  todoPanel='<section class="panel ann-todo"><div class="panel-head"><h3>Your school still needs to submit'+(todo.length?' <span class="home-badge">'+todo.length+'</span>':'')+'</h3></div>'+
+   (todo.length?'<div class="home-list">'+todo.map(({asg,ann})=>{
+    const overdue=ann.deadline_at&&new Date(ann.deadline_at).getTime()<now;
+    return '<div class="home-row ann-todo-row"><span class="home-row-main"><strong>'+esc(ann.title)+'</strong>'+
+     '<small>'+esc((ann.announcement_code?ann.announcement_code+' · ':'')+'Due '+date(ann.deadline_at))+'</small></span>'+
+     (overdue?'<span class="home-due is-overdue">Overdue</span>':'')+
+     '<button type="button" class="btn" data-a="announcement-submit" data-id="'+esc(asg.id)+'">'+ico('upload')+'Submit</button></div>';
+   }).join('')+'</div>':
+   '<div class="home-clear">'+ico('checkCircle')+'<div><strong>Nothing left to submit</strong><span>Your school has sent something for every open announcement.</span></div></div>')+'</section>';
+ }
  return '<div class="sectionhead"><div><div class="eyebrow">District requirements</div><h1>Announcements</h1>'+
-  '<p class="sub">Official school submission requests and deadlines. Cancelled announcements remain visible for reference, but no longer accept submissions.</p></div>'+
+  '<p class="sub">What the District asked schools to submit, and the deadlines. To send your own letter, request or form, use <button type="button" class="link-button" data-a="send">Route a document</button>.</p></div>'+
   (yesAdmin()?'<button class="btn" data-a="new-announcement">+ New Announcement</button>':'')+'</div>'+
+  todoPanel+'<div id="iu-anchor" hidden></div>'+
   (connectedFilterLabel(filter)?'<div class="connected-filter-banner"><strong>'+esc(connectedFilterLabel(filter))+' ('+filtered.length+')</strong><button type="button" class="btn tiny alt" data-a="connected-clear">Show All</button></div>':'')+
   '<div class="panel"><h3>Announcement Board</h3>'+table(['Announcement','Status','Deadline','Actions'],rows)+'</div>';
 }
@@ -1695,12 +1747,8 @@ function monitorSchoolModal(){
  const latestSchoolUpload=oversightHistory.slice().sort((a,b)=>new Date(b.uploaded_at||0)-new Date(a.uploaded_at||0))[0]||null;
  const oversightDetails=districtOversight()?state.monitorSchoolDetails:null;
  const oversightFiles=districtOversight()?'<section class="monitor-visible-files"><h4>Announcement File Upload History ('+oversightHistory.length+')</h4>'+
-  '<p class="note">Upload times use Philippine time (PHT). This is read-only upload metadata, not file access.</p>'+
-  (oversightHistory.length?oversightHistory.map(f=>
-   '<div class="monitor-visible-file"><div><strong>'+esc(f.original_filename||'Attachment')+'</strong>'+
-   '<div class="small muted">Version '+esc(f.version_number||1)+' · Uploaded '+esc(date(f.uploaded_at))+
-   ' · By '+esc(f.uploader_name||'Unknown uploader')+' · '+esc(label(f.verification_status||'pending'))+
-   (f.storage_status==='archived'?' · Archived':'')+'</div></div></div>').join(''):
+  '<p class="note">Upload times use Philippine time (PHT). Opening a file is recorded.</p>'+
+  (oversightHistory.length?'<div class="file-cards">'+oversightHistory.map(f=>uploadFileCard(f,{showSchool:false})).join('')+'</div>':
    '<p class="note">No file attached to this announcement by this school. A submission may have been recorded without a file.</p>')+'</section>':'';
  const info='<div class="monitor-file-summary">'+
   '<div><span class="small muted">School</span><strong>'+esc(item.schoolName)+'</strong></div>'+
@@ -1725,7 +1773,7 @@ function monitorSchoolModal(){
   '</div>'+ 
   '<div id="monitor-school-upload-host" data-announcement-id="'+esc(item.announcementId)+'" data-school-id="'+esc(item.schoolId)+'" data-assignment-id="'+esc(item.assignmentId)+'" data-school-name="'+esc(item.schoolName)+'"></div>'+
   '<p class="note">The actual uploader and represented school are recorded automatically. A submission requires district administrator verification; the represented school does not approve it.</p>':
-  '<p class="note">'+(isOic()?'Oversight account: view status only.':
+  '<p class="note">'+(isOic()?'Oversight account: you can open every uploaded file above, but not submit or verify.':
     item.announcementOpen?'Only approved AO II accounts and district administrators can submit for another school.':
     'This announcement is closed or cancelled; new submissions are unavailable.')+'</p>';
  const existing=!isOic()&&!yesAdmin()?'<section class="monitor-visible-files"><h4>Files You Can Access</h4>'+ 
@@ -1981,6 +2029,15 @@ function documentPage(){
 function districtPage(){return window.ITRACK_DISTRICT_VIEW?.(state,{esc,date,label})||'<p class="note">District transmittal module could not load. Refresh.</p>';}
 function documentTypesAdminPage(){return window.ITRACK_TYPES_VIEW?.(state,{esc,date})||'<p class="note">Document Types module could not load. Refresh.</p>';}
 function retrievalPage(){return window.ITRACK_RETRIEVAL_VIEW?.(state,{esc,date,label,divisionStageLabel})||'<p class="note">Retrieval module did not load. Refresh the application.</p>';}
+function updatePickList(list){
+ if(!list)return;
+ const boxes=[...list.querySelectorAll('input[type="checkbox"]:not(:disabled)')];
+ const on=boxes.filter(b=>b.checked).length;
+ const count=list.dataset.count&&document.getElementById(list.dataset.count);
+ if(count)count.textContent=on+' of '+boxes.length+' included';
+ const btn=list.dataset.button&&document.getElementById(list.dataset.button);
+ if(btn){btn.disabled=!on;const n=btn.querySelector('.pick-n');if(n)n.textContent='('+on+')';}
+}
 function divisionPage(){
  const data=state.divisionData||{},ts=data.transmittals||[],items=data.items||[],people=data.people||[];
  const activeId=state.divisionSelected&&ts.some(t=>t.id===state.divisionSelected)?state.divisionSelected:ts[0]?.id;
@@ -1991,126 +2048,180 @@ function divisionPage(){
  const transmittalLocked=!!t&&(!!t.dispatched_at||t.status!=='draft'||
   retainedItems.some(i=>i.submitted_at||i.division_status!=='in_transmittal'));
  const canEditDraft=!!t&&!transmittalLocked&&(t.prepared_by===state.profile.id||yesAdmin());
+ const mineId=state.profile.id;
+ const personName=id=>people.find(p=>p.id===id)?.name||'';
  const ownerPeople=people.filter(p=>p.id).slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')));
  const ownerSelect=(selected,id,cssClass)=>'<select id="'+esc(id)+'" class="'+esc(cssClass||'')+'" aria-label="Rightful document owner">'+
   '<option value="">Select rightful owner</option>'+
   ownerPeople.map(p=>'<option value="'+esc(p.id)+'"'+(p.id===selected?' selected':'')+'>'+
    esc(p.name||'Registered personnel')+' — '+esc(p.school_name||'District Office')+'</option>').join('')+'</select>';
- const opts=people.map(p=>'<option value="'+esc(p.id)+'" '+(p.id===state.session?.user?.id?'selected':'')+'>'+esc(p.name)+' — '+esc(p.position||'')+'</option>').join('');
- const eligible=(data.eligible||[]).map(d=>'<div class="division-owner-choice-row"><label><input type="checkbox" class="division-pick" value="'+esc(d.id)+'"> <strong>'+esc(d.tracking_number)+'</strong> — '+esc(d.subject)+' ('+esc(d.document_type)+')</label>'+
-  '<div class="division-owner-choice-control"><span>Rightful owner (receives returned document)</span>'+
-  ownerSelect(d.default_owner_id,'division-owner-new-'+d.id,'division-owner-choice')+'</div></div>').join('');
- const compEligible=(data.eligible_compliances||[]).map(d=>'<div class="division-owner-choice-row"><label><input type="checkbox" class="division-compliance-pick" value="'+esc(d.id)+'"><span><strong>'+esc(d.school_name)+'</strong> · '+esc(d.subject)+' <small>'+esc(d.tracking_number)+'</small></span></label>'+
-  '<div class="division-owner-choice-control"><span>Rightful owner (receives returned document)</span>'+
-  ownerSelect(d.default_owner_id,'division-owner-new-'+d.id,'division-owner-choice')+'</div></div>').join('');
- const mineId=state.profile.id;
- const submitterName=people.find(p=>p.id===t?.assigned_submitter)?.name||'the assigned submitter';
+ const opts=people.map(p=>'<option value="'+esc(p.id)+'" '+(p.id===mineId?'selected':'')+'>'+esc(p.name)+' — '+esc(p.position||'')+'</option>').join('');
  const iAmSubmitter=!!t&&t.assigned_submitter===mineId;
- // One visible row per document: its status, and the single action that applies to it now.
- const rows=activeItems.map(i=>{
-  const main=iAmSubmitter&&t.assignment_accepted_at&&i.division_status==='in_transmittal'?
-   '<button class="btn tiny" data-a="division-act" data-act="submit" data-id="'+esc(i.id)+'">Mark as Submitted to Division</button>':'';
-  const rule=i.division_status==='in_transmittal'&&(t?.prepared_by===mineId||iAmSubmitter||yesAdmin())?
-   '<button class="btn tiny alt" data-a="division-item-rule" data-id="'+esc(i.id)+'" data-return="'+
-   (i.effective_return_required?'no':'yes')+'">'+(i.effective_return_required?'Set No Return':'Set For Return')+'</button>':'';
-  const admin=yesAdmin()?'<details class="rt-more"><summary>Administrator</summary><div class="rt-row-actions">'+
-   '<button class="btn tiny alt" data-a="division-act" data-act="admin_received" data-id="'+esc(i.id)+'">Resolve Received</button>'+
-   '<button class="btn tiny alt" data-a="division-act" data-act="lost" data-id="'+esc(i.id)+'">Lost</button>'+
-   '<button class="btn tiny alt" data-a="division-act" data-act="not_for_return" data-id="'+esc(i.id)+'">Not for Return</button>'+
-   (i.division_status==='lost'?'<button class="btn tiny alt" data-a="division-act" data-act="recovered" data-id="'+esc(i.id)+'">Recovered</button>':'')+
-   (['lost','not_for_return','received_by_sender'].includes(i.division_status)?'<button class="btn tiny alt" data-a="division-act" data-act="correct" data-id="'+esc(i.id)+'">Correct</button>':'')+
-   '</div></details>':'';
-  return '<div class="rt-row"><div class="rt-item-main"><strong>'+esc(i.document_label)+'</strong>'+
-   '<small>'+esc(i.tracking_number)+' · Owner: '+esc(i.rightful_owner_name||'Original sender')+' · '+esc(i.rightful_owner_school||'District Office')+
-   ' · '+(i.effective_return_required?'For Return':'No Return')+'</small></div>'+
-   pTag(i.division_status==='received_by_sender'&&i.retrieved_from_division_at?'completed':i.division_status)+
-   (main||rule?'<div class="rt-row-actions">'+main+rule+'</div>':'')+admin+'</div>';
- });
- const draftControls=canEditDraft?
-  '<div class="draft-edit-bar"><button class="btn alt" data-a="draft-toggle-edit">'+(state.transmittalEditing?'Finish Editing':'Edit Transmittal')+'</button>'+
-   '<span class="small muted">Changes allowed only before the first physical Division submission.</span></div>'+
-  (state.transmittalEditing?'<div class="panel draft-transmittal-editor" id="draft-transmittal-editor">'+
-   '<div class="draft-included-header"><div><h4>Documents Already in This Transmittal ('+activeItems.length+')</h4>'+
-   '<p class="note">These are the documents already attached to <strong>'+esc(t.transmittal_number)+'</strong>. Check the ones to remove.</p></div></div>'+
-   '<div class="draft-current-list">'+
-    (activeItems.map(i=>'<div class="draft-current-item"><label><input type="checkbox" class="draft-remove-pick" value="'+esc(i.id)+'" aria-label="Select '+esc(i.document_label)+' for removal">'+
-     '<span class="draft-current-description"><strong>'+esc(i.document_label)+'</strong>'+
-     '<small>'+esc(i.tracking_number||'No tracking ID')+' · '+esc(i.document_type||'Document')+'</small></span></label>'+
-     '<div class="draft-owner-edit"><label for="division-owner-edit-'+esc(i.id)+'">Rightful Owner</label>'+
-     ownerSelect(i.rightful_owner_id,'division-owner-edit-'+i.id,'division-owner-edit-select')+
-     '<button class="btn tiny alt" data-a="division-owner-save" data-id="'+esc(i.id)+'">Save Owner</button></div>'+
-     '<button class="btn tiny alt" data-a="transmittal-rename" data-id="'+esc(i.id)+'">Edit Name</button></div>').join('')||
-     '<p class="note">There are no documents attached to this draft. Choose from the available documents below.</p>')+'</div>'+
-   (activeItems.length?'<button class="btn danger" data-a="draft-remove-selected">Remove Checked Documents</button>':'')+
-   '<div class="draft-add-divider"></div><h4>Available Documents to Add</h4>'+
-   '<p class="note">Only documents not currently assigned to an active transmittal appear here. If these lists are empty, your documents already attached above are <strong>not missing</strong>.</p>'+
-   '<h5>Regular Division Documents</h5><div class="division-eligible-list">'+
-    ((data.eligible||[]).map(d=>'<label class="division-choice"><input type="checkbox" class="draft-add-document" value="'+esc(d.id)+'"><span>'+esc(d.subject)+' <small>'+esc(d.tracking_number)+'</small></span></label>').join('')||'<p class="note">No additional regular documents available to add.</p>')+'</div>'+
-   '<h5>Verified Announcement Submissions</h5><div class="division-eligible-list">'+
-    ((data.eligible_compliances||[]).map(d=>'<label class="division-choice"><input type="checkbox" class="draft-add-compliance" value="'+esc(d.id)+'"><span>'+esc(d.school_name)+' · '+esc(d.subject)+' <small>'+esc(d.tracking_number)+'</small></span></label>').join('')||'<p class="note">No additional verified submissions available to add.</p>')+'</div>'+
-   '<button class="btn" data-a="draft-add-items">Add Checked Documents</button></div>':'')
-  :t?'<p class="note"><strong>Transmittal locked.</strong> Its first document has been marked Submitted to Division. Document names, authorized school details, and items can no longer be changed.</p>':'';
- const removedHistory=removedItems.length?'<details class="draft-removed-history"><summary>Removed / Administratively Archived Items ('+removedItems.length+')</summary>'+
-   removedItems.map(i=>'<p class="small muted">'+esc(i.tracking_number)+' — '+esc(i.document_label)+
-    (i.admin_removed?' (moved to recoverable Trash; original physical history retained)':' (removed from draft before submission)')+'</p>').join('')+'</details>':'';
+ const submitterName=personName(t?.assigned_submitter)||'the assigned submitter';
  const creating=state.divisionNew||!ts.length;
+ const today=new Date(Date.now()+8*60*60*1000).toISOString().slice(0,10);
+ const plural=(n,word)=>n+' '+word+(n===1?'':'s');
+
+ /* ---- my transmittals ---- */
  const itemCount=id=>items.filter(i=>i.transmittal_id===id&&i.division_status!=='cancelled'&&!i.admin_removed).length;
  const lockedOf=x=>!!x.dispatched_at||x.status!=='draft'||items.some(i=>i.transmittal_id===x.id&&(i.submitted_at||(i.division_status!=='in_transmittal'&&i.division_status!=='cancelled')));
- const stateOf=x=>lockedOf(x)?['Submitted to Division','info']:x.assignment_accepted_at?['Ready to submit','warn']:['Draft','warn'];
+ const stateOf=x=>x.status==='completed'?['Completed','good']:lockedOf(x)?['Handed to Division','info']:['Not yet handed over','warn'];
  const listRows=ts.map(x=>{const [text,kind]=stateOf(x);const n=itemCount(x.id);
   return '<button type="button" class="rt-item rt-pick'+(!creating&&x.id===activeId?' is-current':'')+'" data-a="division-open" data-id="'+esc(x.id)+'">'+
-   '<span class="rt-item-main"><strong>'+esc(x.transmittal_number)+'</strong><small>'+n+' document'+(n===1?'':'s')+' · Prepared '+esc(date(x.created_at))+'</small></span>'+
+   '<span class="rt-item-main"><strong>'+esc(x.transmittal_number)+'</strong><small>'+plural(n,'document')+' · Prepared '+esc(date(x.created_at))+'</small></span>'+
    '<span class="tag" data-tone="'+kind+'">'+text+'</span><span class="compact-doc-arrow" aria-hidden="true">'+ico('chevronRight')+'</span></button>';}).join('');
  const myList='<section class="panel rt-panel"><div class="panel-head"><h3>My transmittals</h3>'+
-  '<button class="btn'+(creating?' alt':'')+'" data-a="division-new">+ New Transmittal</button></div>'+
-  (ts.length?'<div class="rt-list">'+listRows+'</div>':'<p class="empty">No transmittal yet. Start with step 1 below.</p>')+'</section>';
- const step=(no,title,hint,body,open,done)=>'<details class="panel rt-panel rt-stepcard'+(done?' is-done':'')+'"'+(open?' open':'')+'>'+
-  '<summary><span class="rt-step-no">'+(done?ico('check'):no)+'</span><span class="rt-step-title"><strong>'+title+'</strong><small>'+hint+'</small></span></summary>'+
-  '<div class="rt-step-body">'+body+'</div></details>';
- const createForm='<p class="note">Tick the documents going to Division. <strong>Check the rightful owner of each one</strong>: that person receives the document when it comes back. The original uploader is preselected.</p>'+
-  '<h4>Division Documents</h4><div class="division-eligible-list">'+(eligible||'<p class="note">No eligible documents.</p>')+'</div>'+
-  '<h4>Verified School Submissions</h4><div class="division-eligible-list">'+(compEligible||'<p class="note">No verified submissions.</p>')+'</div>'+
-  '<div class="field"><label for="division-submitter">Who will bring them to Division?</label><select id="division-submitter">'+opts+'</select></div>'+
-  '<div class="rt-confirm"><button class="btn" data-a="division-create">Create Transmittal</button></div>';
- let body;
+  '<button class="btn'+(creating?' alt':'')+'" data-a="division-new">'+ico('plus')+'New Transmittal</button></div>'+
+  (ts.length?'<div class="rt-list guide-list">'+listRows+'</div>':'<p class="empty">No transmittal yet. The steps below start your first one.</p>')+'</section>';
+
+ /* ---- guide: one step at a time ---- */
+ const has=activeItems.length>0;
+ const pendingItems=activeItems.filter(i=>i.division_status==='in_transmittal');
+ const allOut=has&&!pendingItems.length;
+ const printed=!!state.divisionPrinted?.[activeId];
+ const step=creating?1:Math.min(3,Math.max(1,Number(state.divisionStep?.[activeId])||(transmittalLocked||allOut?3:has?2:1)));
+ const done=n=>!creating&&(n===1?has:n===2?(transmittalLocked||printed):allOut);
+ const stepper='<ol class="guide-steps" aria-label="Steps">'+[[1,'Choose documents'],[2,'Print the forms'],[3,'Hand over']].map(([n,name])=>
+  '<li><button type="button" class="guide-step'+(n===step?' is-current':'')+(done(n)?' is-done':'')+'" data-a="division-step" data-step="'+n+'"'+
+  (creating&&n>1?' disabled':'')+(n===step?' aria-current="step"':'')+'><span class="guide-step-no">'+(done(n)&&n!==step?ico('check'):n)+'</span>'+
+  '<span class="guide-step-name">'+name+'</span></button></li>').join('')+'</ol>';
+ const pickCard=(cls,value,title,meta,checked=true)=>
+  '<label class="pick-card"><input type="checkbox" class="'+cls+'" value="'+esc(value)+'"'+(checked?' checked':'')+'>'+
+  '<span class="pick-tick" aria-hidden="true">'+ico('check')+'</span>'+
+  '<span class="pick-main"><strong>'+esc(title)+'</strong><small>'+meta+'</small></span></label>';
+ const pickBar=(countId,total,scope)=>'<div class="pick-toolbar"><span id="'+countId+'">'+total+' of '+total+' included</span>'+
+  '<span class="pick-toolbar-links"><button type="button" class="link-button" data-a="pick-all" data-scope="'+scope+'">Include all</button>'+
+  '<button type="button" class="link-button" data-a="pick-none" data-scope="'+scope+'">Leave all out</button></span></div>';
+ const foot=(left,right)=>'<div class="guide-foot">'+(left||'<span></span>')+right+'</div>';
+ const back=n=>'<button type="button" class="btn alt" data-a="division-step" data-step="'+n+'">'+ico('chevronLeft')+'Back</button>';
+ const statusRow=i=>'<div class="rt-row"><div class="rt-item-main"><strong>'+esc(i.document_label)+'</strong>'+
+  '<small>'+esc(i.tracking_number)+' · Returns to '+esc(i.rightful_owner_name||'the original sender')+' · '+(i.effective_return_required?'For Return':'No Return')+'</small></div>'+
+  pTag(i.division_status==='received_by_sender'&&i.retrieved_from_division_at?'completed':i.division_status)+'</div>';
+
+ let body='',head='';
  if(creating){
-  body=step(1,'Choose documents','Pick what goes to Division and who will submit it',createForm,true,false)+
-   step(2,'Review and print','Available after the transmittal is created','<p class="note">Create the transmittal first.</p>',false,false)+
-   step(3,'Mark submitted to Division','Available after the transmittal is created','<p class="note">Create the transmittal first.</p>',false,false);
+  const eligibleDocs=data.eligible||[],eligibleComps=data.eligible_compliances||[];
+  const total=eligibleDocs.length+eligibleComps.length;
+  const ownerPick=d=>'<details class="pick-change"'+(d.default_owner_id?'':' open')+'><summary>Returns to <strong>'+esc(personName(d.default_owner_id)||'— choose a person')+'</strong> <span>Change</span></summary>'+
+   ownerSelect(d.default_owner_id,'division-owner-new-'+d.id,'division-owner-choice')+'</details>';
+  const docCards=eligibleDocs.map(d=>'<div class="pick-row division-owner-choice-row">'+
+   pickCard('division-pick',d.id,d.subject,esc(d.tracking_number)+' · '+esc(d.document_type||'Document'))+ownerPick(d)+'</div>').join('');
+  const compCards=eligibleComps.map(d=>'<div class="pick-row division-owner-choice-row">'+
+   pickCard('division-compliance-pick',d.id,d.subject,esc(d.school_name)+' · '+esc(d.tracking_number))+ownerPick(d)+'</div>').join('');
+  head='<div class="guide-head"><div><span class="small muted">Starting a</span><strong>New transmittal</strong></div></div>';
+  body=total?'<p class="guide-lead">'+plural(total,'document')+' '+(total===1?'is':'are')+' ready to go to Division, and '+(total===1?'it is':'all are')+' included. <strong>Tap a document to leave it out.</strong></p>'+
+   pickBar('division-pick-count',total,'#division-create-list')+
+   '<div class="pick-list" id="division-create-list" data-count="division-pick-count" data-button="division-create-btn">'+
+    (docCards?(compCards?'<h4 class="pick-group">My documents</h4>':'')+docCards:'')+
+    (compCards?'<h4 class="pick-group">Verified school submissions</h4>'+compCards:'')+'</div>'+
+   '<div class="guide-who">'+ico('user')+'<span><strong id="division-submitter-name">You</strong> will bring them to the Division Office.</span>'+
+   '<details class="pick-change"><summary><span>Someone else will</span></summary><select id="division-submitter" aria-label="Who will bring them to Division">'+opts+'</select></details></div>'+
+   foot('','<button class="btn" id="division-create-btn" data-a="division-create">Create transmittal <span class="pick-n">('+total+')</span>'+ico('chevronRight')+'</button>'):
+   '<div class="guide-empty">'+ico('inbox')+'<div><strong>Nothing to send to Division yet</strong>'+
+   '<span>Documents routed to the Division and verified school submissions appear here automatically.</span></div></div>';
  }else{
-  const has=activeItems.length>0;
-  const signer=people.find(p=>p.id===t.assigned_submitter);
-  const step1=(has?'<div class="rt-rows">'+activeItems.map(i=>'<div class="rt-row"><div class="rt-item-main"><strong>'+esc(i.document_label)+'</strong><small>'+esc(i.tracking_number||'')+' · '+esc(i.document_type||'Document')+'</small></div></div>').join('')+'</div>':
-   '<p class="empty">No documents in this transmittal yet.</p>')+draftControls+removedHistory;
-  const step2='<p class="note">Prints the endorsement and the transmittal together. You can print again at any time; printing never changes a document\'s status.</p>'+
-   '<div class="rt-facts"><div><small>Transmittal signed by (assigned AO)</small><strong>'+esc(signer?.name||activeItems.find(i=>i.ao_sender_is_submitted)?.ao_sender_name||'Name unavailable')+'</strong><span>'+esc(signer?.position||activeItems.find(i=>i.ao_sender_is_submitted)?.ao_sender_position||'Administrative Officer II')+'</span></div>'+
-   '<div><small>Endorsement signed by (fixed)</small><strong>SHERILL E. CORTEJO, PhD</strong><span>School Principal II · OIC, Office of the Public Schools District Supervisor</span></div></div>'+
-   '<div class="field"><label for="trans-authorized-school">Authorized School (Endorsement)</label><input id="trans-authorized-school" value="'+esc(t.authorized_school_name||'')+'" placeholder="Submitting AO II school"'+(transmittalLocked?' disabled':'')+'>'+
-   '<p class="small muted">Saved automatically when you print.</p></div>'+
-   '<div class="rt-confirm rt-confirm-start"><button class="btn" data-a="division-print"'+(!has?' disabled':'')+'>'+ico('file')+'Print Endorsement and Transmittal</button></div>'+
-   '<details class="rt-more rt-more-block"><summary>More options</summary>'+
-   '<div class="field"><label for="division-print-kind">Print only one form</label><select id="division-print-kind"><option value="both" selected>Both (default)</option><option value="endorsement">Endorsement only</option><option value="transmittal">Transmittal only</option></select></div>'+
-   '<div class="toolbar"><button class="btn alt" data-a="division-word"'+(!has?' disabled':'')+'>Editable Word</button>'+
-   '<button class="btn alt" data-a="transmittal-save-signer"'+(transmittalLocked?' disabled':'')+'>Save Authorized School</button></div>'+
-   (canEditDraft&&t.prepared_by===mineId?'<div class="field rt-reassign"><label for="division-reassign">Give the submission to someone else</label><div class="toolbar"><select id="division-reassign">'+opts+'</select><button class="btn alt" data-a="division-act" data-act="reassign">Reassign</button></div></div>':'')+
-   '</details>';
-  const allOut=has&&activeItems.every(i=>i.division_status!=='in_transmittal');
-  const step3=(allOut?'<div class="notice">All documents on this transmittal have left your hands. Pick them up later under <button type="button" class="btn tiny alt" data-a="nav" data-page="retrieval">Division Retrieval</button>.</div>':
-    iAmSubmitter&&!t.assignment_accepted_at?'<div class="notice warn"><strong>You are assigned to bring these to Division.</strong> Accept the assignment, then mark each document as it is physically handed over. <button class="btn tiny" data-a="division-act" data-act="accept">Accept Assignment</button></div>':
-    iAmSubmitter?'<p class="note">Mark each document only when it is physically handed to Division. The first one locks this transmittal.</p>':
-    '<p class="note">Only <strong>'+esc(submitterName)+'</strong>, the assigned submitter, can mark these as submitted.</p>')+
-   (has?'<div class="rt-rows">'+rows.join('')+'</div>':'<p class="empty">Add documents in step 1 first.</p>');
   const [text,kind]=stateOf(t);
-  body='<div class="rt-current"><div><span class="small muted">Selected transmittal</span><strong>'+esc(t.transmittal_number)+'</strong></div><span class="tag" data-tone="'+kind+'">'+text+'</span></div>'+
-   step(1,'Choose documents',has?activeItems.length+' document'+(activeItems.length===1?'':'s')+(transmittalLocked?' · locked':' · can still be edited'):'Nothing added yet',step1,!has||!!state.transmittalEditing,has)+
-   step(2,'Review and print','Endorsement and transmittal in one print',step2,has,transmittalLocked)+
-   step(3,'Mark submitted to Division',allOut?'All submitted':'Record the physical handover',step3,has,allOut);
+  head='<div class="guide-head"><div><span class="small muted">Transmittal</span><strong>'+esc(t.transmittal_number)+'</strong></div>'+
+   '<span class="tag" data-tone="'+kind+'">'+text+'</span></div>';
+  if(step===1){
+   const canRule=i=>i.division_status==='in_transmittal'&&(t.prepared_by===mineId||iAmSubmitter||yesAdmin());
+   const editMenu=i=>{
+    const parts=[];
+    if(canEditDraft)parts.push('<div class="pick-edit-owner"><label for="division-owner-edit-'+esc(i.id)+'">Returns to</label>'+
+     ownerSelect(i.rightful_owner_id,'division-owner-edit-'+i.id,'division-owner-edit-select')+
+     '<button class="btn tiny alt" data-a="division-owner-save" data-id="'+esc(i.id)+'">Save</button></div>');
+    const buttons=[];
+    if(canRule(i))buttons.push('<button class="btn tiny alt" data-a="division-item-rule" data-id="'+esc(i.id)+'" data-return="'+(i.effective_return_required?'no':'yes')+'">'+(i.effective_return_required?'Make it No Return':'Make it For Return')+'</button>');
+    if(canEditDraft)buttons.push('<button class="btn tiny alt" data-a="transmittal-rename" data-id="'+esc(i.id)+'">Rename on the form</button>');
+    if(canEditDraft)buttons.push('<button class="btn tiny danger" data-a="draft-remove-item" data-id="'+esc(i.id)+'">Remove</button>');
+    if(buttons.length)parts.push('<div class="rt-row-actions">'+buttons.join('')+'</div>');
+    return parts.length?'<details class="pick-change pick-edit"><summary><span>Edit</span></summary>'+parts.join('')+'</details>':'';
+   };
+   const docRows=activeItems.map(i=>'<div class="rt-row guide-doc"><div class="rt-item-main"><strong>'+esc(i.document_label)+'</strong>'+
+    '<small>'+esc(i.tracking_number||'')+' · '+esc(i.document_type||'Document')+' · Returns to '+esc(i.rightful_owner_name||'the original sender')+' · '+(i.effective_return_required?'For Return':'No Return')+'</small></div>'+
+    (transmittalLocked?pTag(i.division_status==='received_by_sender'&&i.retrieved_from_division_at?'completed':i.division_status):'')+editMenu(i)+'</div>').join('');
+   const addable=[...(data.eligible||[]).map(d=>({kind:'document',id:d.id,title:d.subject,meta:esc(d.tracking_number)+' · '+esc(d.document_type||'Document')})),
+    ...(data.eligible_compliances||[]).map(d=>({kind:'compliance',id:d.id,title:d.subject,meta:esc(d.school_name)+' · '+esc(d.tracking_number)}))];
+   const addMore=canEditDraft&&addable.length?'<details class="guide-add"><summary>'+ico('plus')+'Add more documents <span class="small muted">'+addable.length+' available</span></summary>'+
+    '<div class="rt-rows">'+addable.map(x=>'<div class="rt-row"><div class="rt-item-main"><strong>'+esc(x.title)+'</strong><small>'+x.meta+'</small></div>'+
+    '<div class="rt-row-actions"><button class="btn tiny" data-a="draft-add-one" data-kind="'+x.kind+'" data-id="'+esc(x.id)+'">'+ico('plus')+'Add</button></div></div>').join('')+'</div></details>':'';
+   const removedHistory=removedItems.length?'<details class="draft-removed-history"><summary>Removed items ('+removedItems.length+')</summary>'+
+    removedItems.map(i=>'<p class="small muted">'+esc(i.tracking_number)+' — '+esc(i.document_label)+
+     (i.admin_removed?' (moved to recoverable Trash; original physical history retained)':' (removed before submission)')+'</p>').join('')+'</details>':'';
+   body='<p class="guide-lead">'+(transmittalLocked?'These documents were handed to Division, so the list can no longer change.':
+     has?'Check the list. Use <strong>Edit</strong> on a document to change who it returns to, its return rule, or to remove it.':'This transmittal has no documents yet. Add some below.')+'</p>'+
+    (has?'<div class="rt-rows">'+docRows+'</div>':'')+addMore+removedHistory+
+    foot('',has?'<button class="btn" data-a="division-step" data-step="2">Next: print the forms'+ico('chevronRight')+'</button>':'');
+  }else if(step===2){
+   const PSDS=window.ITRACK_PRINT?.ENDORSER||{name:'SHERILL E. CORTEJO, PhD',position:'School Principal II',office:'OIC, Office of the Public Schools District Supervisor'};
+   const isPsds=!t.signer_name||t.signer_name===PSDS.name;
+   const signerLocked=!!t.dispatched_at||!(t.prepared_by===mineId||yesAdmin());
+   const sub=people.find(p=>p.id===t.assigned_submitter);
+   const aoName=sub?.name||activeItems.find(i=>i.ao_sender_is_submitted)?.ao_sender_name||'Name unavailable';
+   const aoPos=sub?.position||activeItems.find(i=>i.ao_sender_is_submitted)?.ao_sender_position||'Administrative Officer II';
+   body='<p class="guide-lead">Print the endorsement and the transmittal, sign them, and bring them with the documents. Printing never changes a document\'s status.</p>'+
+    '<div class="sign-grid">'+
+     '<div class="sign-card"><small>Transmittal is signed by</small><strong>'+esc(aoName)+'</strong><span>'+esc(aoPos)+'</span></div>'+
+     '<div class="sign-card"><label for="trans-signer-choice"><small>Endorsement is signed by</small></label>'+
+      '<select id="trans-signer-choice"'+(signerLocked?' disabled':'')+'>'+
+       '<option value="psds"'+(isPsds?' selected':'')+'>OIC-PSDS · '+esc(PSDS.name)+'</option>'+
+       '<option value="other"'+(!isPsds?' selected':'')+'>Someone else…</option></select>'+
+      '<span class="signer-default"'+(isPsds?'':' hidden')+'>'+esc(PSDS.position)+' · '+esc(PSDS.office)+'</span>'+
+      '<div class="signer-other"'+(isPsds?' hidden':'')+'>'+
+       '<input id="trans-signer-name" placeholder="Full name, e.g. JUAN A. DELA CRUZ" maxlength="120" value="'+esc(isPsds?'':t.signer_name)+'"'+(signerLocked?' disabled':'')+'>'+
+       '<input id="trans-signer-position" placeholder="Position, e.g. School Principal I" maxlength="120" value="'+esc(isPsds?'':t.signer_position)+'"'+(signerLocked?' disabled':'')+'>'+
+       '<input id="trans-signer-office" placeholder="Office or designation" maxlength="150" value="'+esc(isPsds?'':t.signer_office)+'"'+(signerLocked?' disabled':'')+'></div>'+
+      (signerLocked&&!t.dispatched_at?'<span class="small muted">Only the person who prepared this transmittal can change the signer.</span>':'')+
+     '</div></div>'+
+    '<div class="field guide-field"><label for="trans-authorized-school">School named on the endorsement</label><input id="trans-authorized-school" value="'+esc(t.authorized_school_name||'')+'" placeholder="School of the person bringing the documents"'+(transmittalLocked?' disabled':'')+'></div>'+
+    foot(back(1),'<button class="btn" data-a="division-print"'+(!has?' disabled':'')+'>'+ico('file')+'Print endorsement and transmittal</button>')+
+    '<details class="rt-more rt-more-block"><summary>More print options</summary>'+
+    '<div class="field"><label for="division-print-kind">Print only one form</label><select id="division-print-kind"><option value="both" selected>Both (default)</option><option value="endorsement">Endorsement only</option><option value="transmittal">Transmittal only</option></select></div>'+
+    '<div class="toolbar"><button class="btn alt" data-a="division-word"'+(!has?' disabled':'')+'>Download editable Word file</button>'+
+    '<button class="btn alt" data-a="division-step" data-step="3">I already printed them'+ico('chevronRight')+'</button></div>'+
+    (canEditDraft&&t.prepared_by===mineId?'<div class="field rt-reassign"><label for="division-reassign">Someone else will bring them</label><div class="toolbar"><select id="division-reassign">'+opts+'</select><button class="btn alt" data-a="division-act" data-act="reassign">Change</button></div></div>':'')+
+    '</details>';
+  }else{
+   const handed=activeItems.filter(i=>i.division_status!=='in_transmittal');
+   const adminRows=yesAdmin()&&has?'<details class="rt-more rt-more-block"><summary>Administrator: resolve a document</summary><div class="rt-rows">'+activeItems.map(i=>
+    '<div class="rt-row"><div class="rt-item-main"><strong>'+esc(i.document_label)+'</strong><small>'+esc(i.tracking_number)+'</small></div><div class="rt-row-actions">'+
+    '<button class="btn tiny alt" data-a="division-act" data-act="admin_received" data-id="'+esc(i.id)+'">Resolve Received</button>'+
+    '<button class="btn tiny alt" data-a="division-act" data-act="lost" data-id="'+esc(i.id)+'">Lost</button>'+
+    '<button class="btn tiny alt" data-a="division-act" data-act="not_for_return" data-id="'+esc(i.id)+'">Not for Return</button>'+
+    (i.division_status==='lost'?'<button class="btn tiny alt" data-a="division-act" data-act="recovered" data-id="'+esc(i.id)+'">Recovered</button>':'')+
+    (['lost','not_for_return','received_by_sender'].includes(i.division_status)?'<button class="btn tiny alt" data-a="division-act" data-act="correct" data-id="'+esc(i.id)+'">Correct</button>':'')+
+    '</div></div>').join('')+'</div></details>':'';
+   if(!has){
+    body='<p class="empty">Add documents in step 1 first.</p>'+foot(back(1),'');
+   }else if(allOut){
+    body='<div class="guide-success">'+ico('checkCircle')+'<div><strong>All '+plural(activeItems.length,'document')+' were handed to Division.</strong>'+
+     '<span>When Division returns them, pick them up in Division Retrieval. No Return documents are already complete.</span></div>'+
+     '<button class="btn alt" data-a="nav" data-page="retrieval">Open Division Retrieval</button></div>'+
+     '<div class="rt-rows">'+activeItems.map(statusRow).join('')+'</div>'+adminRows;
+   }else if(iAmSubmitter){
+    body=(!t.assignment_accepted_at&&t.prepared_by!==mineId?'<div class="notice warn guide-notice"><span><strong>You were asked to bring these to Division.</strong> Let the preparer know you will.</span>'+
+      '<button class="btn tiny" data-a="division-act" data-act="accept">I will bring them</button></div>':'')+
+     '<p class="guide-lead">After you hand the documents to the Division Office, record it here. '+
+     (pendingItems.length>1?'<strong>All '+pendingItems.length+' are included</strong>; leave out any that you did not hand over yet.':'')+'</p>'+
+     (pendingItems.length>1?pickBar('division-handover-count',pendingItems.length,'#division-handover-list'):'')+
+     '<div class="pick-list" id="division-handover-list" data-count="division-handover-count" data-button="division-handover-btn">'+
+      pendingItems.map(i=>pickCard('division-handover-pick',i.id,i.document_label,esc(i.tracking_number)+' · '+(i.effective_return_required?'For Return':'No Return, completes once handed over'))).join('')+'</div>'+
+     foot('<label class="guide-date">Date handed over<input type="date" id="division-handover-date" value="'+today+'" max="'+today+'"></label>',
+      '<button class="btn" id="division-handover-btn" data-a="division-handover">'+ico('check')+'Record handover <span class="pick-n">('+pendingItems.length+')</span></button>')+
+     (handed.length?'<h4 class="pick-group">Already handed over</h4><div class="rt-rows">'+handed.map(statusRow).join('')+'</div>':'')+adminRows;
+   }else{
+    body='<div class="notice guide-notice"><span><strong>'+esc(submitterName)+'</strong> will bring these to Division and records the handover on their own account.</span></div>'+
+     '<div class="rt-rows">'+activeItems.map(statusRow).join('')+'</div>'+adminRows;
+   }
+  }
  }
+ const guide='<section class="panel guide">'+head+stepper+'<div class="guide-body">'+body+'</div></section>';
  const adminTools=yesAdmin()?'<details class="panel rt-panel"><summary><strong>Administrator: search and resolve any document</strong></summary>'+
   '<p class="note">Search any tracking number or document title. A written reason is required for manual changes.</p><div class="toolbar"><input id="division-admin-query" placeholder="Tracking number or document name" value="'+esc(state.divisionQuery||'')+'"><button class="btn alt" data-a="division-admin-search">Search</button></div>'+
   table(['Tracking #','Document','Status','Resolution'],(state.divisionSearchResults||[]).map(d=>'<tr><td>'+esc(d.tracking_number)+'</td><td>'+esc(d.subject)+'</td><td>'+esc(d.resolution||d.status)+'</td><td>'+(['received','lost','not_for_return','recovered','corrected'].map(a=>'<button class="btn tiny alt" data-a="division-admin-resolve" data-id="'+esc(d.id)+'" data-act="'+a+'">'+esc(label(a))+'</button>').join(' '))+'</td></tr>'))+'</details>':'';
- return '<div class="sectionhead"><div><div class="eyebrow">Physical document custody</div><h1>Division Transmittals</h1><p class="sub">Three steps: choose the documents, print the forms, then mark them submitted. Picking documents up again is done in Division Retrieval.</p></div></div>'+
-  myList+body+adminTools;
+ return '<div class="sectionhead"><div><div class="eyebrow">Physical document custody</div><h1>Division Transmittals</h1>'+
+  '<p class="sub">The app guides you through three steps: choose the documents, print the forms, then record the handover.</p></div></div>'+
+  myList+guide+adminTools;
 }
 function divisionPrintHtml(t,items,qrImage=''){
  const sorted=[...items].sort((a,b)=>String(a.document_type||'').localeCompare(String(b.document_type||''))||String(state.schools.find(s=>s.id===a.school_id)?.name||'').localeCompare(String(state.schools.find(s=>s.id===b.school_id)?.name||''))||String(a.tracking_number).localeCompare(String(b.tracking_number)));let heading='';const rows=sorted.map((i,n)=>{const section=(i.document_type||'Document')+' — '+(state.schools.find(s=>s.id===i.school_id)?.name||'School');const head=section===heading?'':'<tr><th colspan="4" style="background:#eee;text-align:left">'+esc(section)+'</th></tr>';heading=section;return head+'<tr><td>'+(n+1)+'</td><td>'+esc(i.tracking_number)+'</td><td>'+esc(i.document_label)+'</td><td>'+esc(i.division_status)+'</td></tr>';}).join('');
@@ -2284,7 +2395,19 @@ function documentControlPage(){
 function archivePage(){return `<div class="eyebrow">Administrator controls</div><h1>Archive Documents</h1><p class="sub">Two-month archival to an SSD after verification.</p><div class="panel"><div class="notice warn"><b>Not yet enabled.</b> This will prepare downloadable archives, verify copies, and require administrator confirmation before any Drive files are deleted.</div><button class="btn" disabled>Archive Documents</button><p class="note" style="margin-top:12px">Submission metadata and audit history will remain in Supabase after archiving.</p></div>`;}
 function modalHtml(){
  const m=state.modal;let title='',body='',footer='';
- if(m==='new-announcement'){
+ if(m==='submit-choice'){
+  const sent=new Set((state.schoolSubmissions||[]).map(x=>x.assignment_id));
+  const left=(state.schoolAssignments||[]).filter(x=>state.announcements.find(a=>a.id===x.announcement_id)?.status==='open'&&!sent.has(x.id)).length;
+  title='What are you submitting?';
+  body='<div class="choice-grid">'+
+   '<button type="button" class="choice-card" data-a="choice-announcement"><span class="choice-icon" aria-hidden="true">'+ico('megaphone')+'</span>'+
+    '<strong>A requirement the District asked for</strong><span>Something every school must send for an announcement, such as SF4 or a quarterly report.</span>'+
+    (left?'<small class="choice-count">'+left+' still to submit</small>':'<small>Nothing pending right now</small>')+'</button>'+
+   '<button type="button" class="choice-card" data-a="send"><span class="choice-icon" aria-hidden="true">'+ico('send')+'</span>'+
+    '<strong>My own document</strong><span>A letter, request, leave form or any paper you send to a person, the District or the Division, or keep as a personal record.</span>'+
+    '<small>Opens Route a Document</small></button></div>';
+  footer='<button class="btn alt" data-a="close">Cancel</button>';
+ }else if(m==='new-announcement'){
   title='Create Announcement';
   body=`<form id="form-ann">${field('Title','title')}<div class="field"><label>Description / Instructions</label><textarea name="description" placeholder="What should schools submit?"></textarea></div>${field('Deadline (Philippine time)','deadline','datetime-local')}<div class="field"><label>Required schools</label><label class="small"><input type="checkbox" id="all-schools" checked> Select all schools</label><div class="school-grid">${state.schools.filter(x=>x.is_active).map(x=>`<label><input class="school-checkbox" type="checkbox" value="${x.id}" checked> ${esc(x.name)}</label>`).join('')}</div></div></form>`;
   body=body.replace('</form>','<div class="field"><label>Assigned Approvers (optional)</label>'+
@@ -2703,16 +2826,6 @@ async function click(e){
    state.retrievalTab=t.dataset.tab;show();return;
   }
   if(a==='retrieval-dismiss-recent'){state.retrievalRecent=[];show();return;}
-  if(a==='retrieval-clear'){
-   state.retrievalPicked.clear();state.retrievalSearch='';
-   show();return;
-  }
-  if(a==='retrieval-check-visible'){
-   document.querySelectorAll('#retrieval-available-list .retrieval-pick:not(:disabled)').forEach(c=>{
-    if(!c.closest('[data-retrieval-search]')?.hidden){c.checked=true;state.retrievalPicked.add(c.value);}
-   });
-   refreshRetrievalCheckboxCounters();return;
-  }
   if(a==='retrieval-slip-clear'||a==='retrieval-slip-my'||a==='retrieval-slip-others'){
    const all=state.retrievalData.my_batch_items||[];
    if(a==='retrieval-slip-clear')state.retrievalSlipPicked.clear();
@@ -2737,6 +2850,22 @@ async function click(e){
      img.onload=resolve;img.onerror=resolve;setTimeout(resolve,3500);
    })));
    await win.document.fonts?.ready;win.focus();win.print();return;
+  }
+  if(a==='retrieval-pickup-group'){
+   const items=state.retrievalData.available||[];
+   const number=t.dataset.trans||'';
+   const ids=items.filter(x=>(x.transmittal_number||'')===number).map(x=>x.item_id);
+   if(!ids.length)throw Error('Nothing from this transmittal is waiting at Division any more. Refresh the page.');
+   if(!confirm('Confirm you physically collected '+(ids.length===1?'this document':'all '+ids.length+' documents')+(number?' of '+number:'')+' from the Division Office?'))return;
+   state.retrievalPicked.clear();
+   state.retrievalRecent=ids;
+   try{await executeRetrievalAction('pickup',{p_item_ids:ids},result=>{
+     const completed=Number(result?.auto_completed||0);
+     return 'Retrieved '+ids.length+' document(s). '+
+       (completed?completed+' of yours were completed automatically. ':'')+
+       'You can print a retrieval slip now.';
+    });}catch(error){state.retrievalRecent=[];throw error;}
+   return;
   }
   if(a==='retrieval-pickup'){
    const items=state.retrievalData.available||[];
@@ -2849,9 +2978,15 @@ async function click(e){
   }
   if(a==='district-open'){
    if(!state.districtData.transmittals?.some(x=>x.id===t.dataset.id))throw Error('Transmittal not found. Reopen District Transmittals.');
-   state.districtSelected=t.dataset.id;state.districtNew=false;state.districtSubmitPicked.clear();show();return;
+   state.districtSelected=t.dataset.id;state.districtNew=false;state.districtSubmitKey=null;show();return;
   }
   if(a==='district-new'){state.districtNew=true;show();return;}
+  if(a==='district-step'){
+   const id=state.districtSelected||state.districtData?.transmittals?.[0]?.id;
+   if(!id||state.districtNew)return;
+   state.districtStep={...(state.districtStep||{}),[id]:Number(t.dataset.step)||1};show();
+   document.querySelector('.guide')?.scrollIntoView({behavior:'smooth',block:'start'});return;
+  }
   if(a==='district-create'){
    const school=state.schools.find(x=>x.id===state.districtSchoolId);
    if(!school||!school.is_active)throw Error('Choose an active school.');
@@ -2859,13 +2994,13 @@ async function click(e){
    const checked=[...state.districtPicked].filter(id=>eligible.some(x=>x.id===id&&x.school_id===school.id));
    if(!checked.length)throw Error('Check District-bound documents belonging to the selected school.');
    const addr=clean(document.getElementById('district-address')?.value);
-   if(!confirm('Create a School-to-District transmittal for '+school.name+' with '+checked.length+' document(s)? Your registered name will be the signer.'))return;
    state.busy=true;try{
     const {data,error}=await db.rpc('i_track_district_action',{p_action:'create',p_school:school.id,
      p_address:addr,p_document_ids:checked});
     if(error)throw error;
     state.districtPicked.clear();state.districtSelected=data.id;state.districtNew=false;
-    await load();pop('District transmittal '+data.number+' created. Print the slip before submission.');
+    state.districtStep={...(state.districtStep||{}),[data.id]:2};
+    await load();pop('District transmittal '+data.number+' created. Next: print the slip.');
    }finally{state.busy=false;}return;
   }
   if(a==='district-submit'){
@@ -2933,7 +3068,9 @@ async function click(e){
    await Promise.all([...win.document.images].map(img=>img.complete?Promise.resolve():new Promise(resolve=>{
      img.onload=resolve;img.onerror=resolve;setTimeout(resolve,4000);
    })));
-   win.focus();win.print();return;
+   win.focus();win.print();
+   state.districtPrinted={...(state.districtPrinted||{}),[trans.id]:true};
+   state.districtStep={...(state.districtStep||{}),[trans.id]:3};show();return;
   }
   if(a==='document-save-return-rule'){
    const d=state.docs.find(x=>x.id===t.dataset.id);
@@ -3000,12 +3137,9 @@ async function click(e){
    if(error)throw error;state.modal=null;await load();pop('Destination updated.');return;
   }
   if(a==='oversight-toggle-uploads'){if(!districtOversight()||state.view!=='reports')throw Error('District oversight reports required.');state.oversightShowAllUploads=!state.oversightShowAllUploads;show();return;}
-  if(a==='transmittal-save-signer'){
-   const t=state.divisionData.transmittals.find(x=>x.id===state.divisionSelected)||state.divisionData.transmittals[0];
-   if(!t)throw Error('Select a transmittal.');
-   const args={p_transmittal:t.id,p_name:'SHERILL E. CORTEJO, PhD',p_position:'School Principal II',p_office:'OIC, Office of the Public Schools District Supervisor',p_school:document.getElementById('trans-authorized-school')?.value.trim()||null};
-   const {error}=await db.rpc('i_track_edit_transmittal_signer',args);if(error)throw error;
-   await load();pop('Authorized school saved. Endorsement signatory remains Sherill E. Cortejo, PhD.');return;
+  if(a==='report-uploads'){
+   state.reportUploadAnnouncement=t.dataset.id||'';show();
+   document.getElementById('report-uploads')?.scrollIntoView({behavior:'smooth',block:'start'});return;
   }
   if(a==='transmittal-rename'){
    const item=state.divisionData.items.find(x=>x.id===t.dataset.id);if(!item)throw Error('Transmittal item not found.');
@@ -3013,28 +3147,6 @@ async function click(e){
    if(!newName||newName.trim()===item.document_label)return;
    const {error}=await db.rpc('i_track_edit_transmittal_item',{p_item:item.id,p_label:newName.trim()});if(error)throw error;
    await load();pop('Printed document name updated.');return;
-  }
-  if(a==='draft-toggle-edit'){
-   state.transmittalEditing=!state.transmittalEditing;show();return;
-  }
-  if(a==='draft-remove-selected'){
-   const trans=state.divisionData.transmittals.find(x=>x.id===state.divisionSelected)||state.divisionData.transmittals[0];
-   if(!trans)throw Error('Select a transmittal.');
-   const selected=[...document.querySelectorAll('#draft-transmittal-editor .draft-remove-pick:checked')].map(x=>x.value);
-   if(!selected.length)throw Error('Check at least one document under "Documents Already in This Transmittal" to remove it.');
-   const valid=(state.divisionData.items||[]).filter(x=>x.transmittal_id===trans.id&&x.division_status==='in_transmittal');
-   if(selected.some(id=>!valid.some(i=>i.id===id)))throw Error('A selected document is no longer editable. Refresh and check again.');
-   if(!confirm('Remove '+selected.length+' checked document(s) from '+trans.transmittal_number+'? They will become available for other transmittals.'))return;
-   state.busy=true;let removed=0;
-   try{
-    for(const id of selected){
-     const {error}=await db.rpc('i_track_edit_draft_transmittal',{p_transmittal:trans.id,p_action:'remove',p_item:id});
-     if(error)throw error;removed++;
-    }
-   }catch(ex){
-    await load();throw Error(removed+' document(s) removed before an error: '+ex.message);
-   }finally{state.busy=false;}
-   await load();pop(removed+' document(s) removed. They are available for selection again.');return;
   }
   if(a==='draft-remove-item'){
    const trans=state.divisionData.transmittals.find(x=>x.id===state.divisionSelected)||state.divisionData.transmittals[0];
@@ -3045,28 +3157,57 @@ async function click(e){
    if(error)throw error;
    await load();pop('Removed from draft. The original tracking ID is unchanged.');return;
   }
-  if(a==='draft-add-items'){
+  if(a==='division-step'){
+   const id=state.divisionSelected||state.divisionData?.transmittals?.[0]?.id;
+   if(!id||state.divisionNew)return;
+   state.divisionStep={...(state.divisionStep||{}),[id]:Number(t.dataset.step)||1};show();
+   document.querySelector('.guide')?.scrollIntoView({behavior:'smooth',block:'start'});return;
+  }
+  if(a==='draft-add-one'){
    const trans=state.divisionData.transmittals.find(x=>x.id===state.divisionSelected)||state.divisionData.transmittals[0];
    if(!trans)throw Error('Select a transmittal.');
-   const docIds=[...document.querySelectorAll('.draft-add-document:checked')].map(x=>x.value);
-   const compIds=[...document.querySelectorAll('.draft-add-compliance:checked')].map(x=>x.value);
-   if(!docIds.length&&!compIds.length)throw Error('Select an eligible document or submission.');
-   if(!confirm('Add '+(docIds.length+compIds.length)+' selected item(s) to the draft?'))return;
-   state.busy=true;
-   let added=0;
+   const compliance=t.dataset.kind==='compliance';
+   state.busy=true;try{
+    const {error}=await db.rpc('i_track_edit_draft_transmittal',compliance?
+     {p_transmittal:trans.id,p_action:'add_compliance',p_compliance:t.dataset.id}:
+     {p_transmittal:trans.id,p_action:'add_document',p_document:t.dataset.id});
+    if(error)throw error;
+   }finally{state.busy=false;}
+   await load();pop('Added to '+trans.transmittal_number+'.');return;
+  }
+  if(a==='division-handover'){
+   const trans=state.divisionData.transmittals.find(x=>x.id===state.divisionSelected)||state.divisionData.transmittals[0];
+   if(!trans)throw Error('Choose a transmittal.');
+   const pending=(state.divisionData.items||[]).filter(i=>i.transmittal_id===trans.id&&i.division_status==='in_transmittal'&&!i.admin_removed);
+   const chosen=[...document.querySelectorAll('.division-handover-pick:checked')].map(x=>x.value).filter(id=>pending.some(i=>i.id===id));
+   if(!chosen.length)throw Error('Include at least one document that you handed over.');
+   const day=document.getElementById('division-handover-date')?.value||'';
+   const today=new Date(Date.now()+8*60*60*1000).toISOString().slice(0,10);
+   if(!/^\d{4}-\d{2}-\d{2}$/.test(day)||day>today)throw Error('Enter the date you handed them over (today or earlier).');
+   if(!confirm('Record '+chosen.length+' document(s) as handed to the Division Office on '+short(day+'T12:00:00+08:00')+'?\n\nThis locks the transmittal and cannot be undone.'))return;
+   state.busy=true;let recorded=0;
    try{
-    for(const id of docIds){
-     const {error}=await db.rpc('i_track_edit_draft_transmittal',{p_transmittal:trans.id,p_action:'add_document',p_document:id});
-     if(error)throw error;added++;
+    if(!trans.assignment_accepted_at){
+     const {error}=await db.rpc('i_track_division_action',{p_action:'accept',p_transmittal:trans.id});
+     if(error&&!/already accepted/i.test(error.message||''))throw error;
     }
-    for(const id of compIds){
-     const {error}=await db.rpc('i_track_edit_draft_transmittal',{p_transmittal:trans.id,p_action:'add_compliance',p_compliance:id});
-     if(error)throw error;added++;
+    for(const id of chosen){
+     const {error}=await db.rpc('i_track_division_action',{p_action:'submit',p_transmittal:trans.id,p_item:id,p_actual_date:day});
+     if(error)throw error;recorded++;
     }
    }catch(ex){
-    await load();throw Error(added+' item(s) added before an error: '+ex.message);
+    await load();throw Error(recorded?recorded+' of '+chosen.length+' recorded before an error: '+ex.message:ex.message);
    }finally{state.busy=false;}
-   await load();pop(added+' item(s) added to the draft.');return;
+   await load();pop(recorded+' document(s) recorded as handed to Division.');return;
+  }
+  if(a==='pick-all'||a==='pick-none'){
+   const scope=document.querySelector(t.dataset.scope||'');
+   if(!scope)return;
+   const on=a==='pick-all';
+   scope.querySelectorAll('input[type="checkbox"]:not(:disabled)').forEach(box=>{
+    if(box.checked!==on){box.checked=on;box.dispatchEvent(new Event('change',{bubbles:true}));}
+   });
+   updatePickList(scope);return;
   }
   if(a==='division-open'){
    if(!state.divisionData.transmittals?.some(x=>x.id===t.dataset.id))throw Error('Transmittal not found. Reopen Division Transmittals.');
@@ -3085,12 +3226,14 @@ async function click(e){
     if(!chosen)throw Error('Choose a rightful owner for each selected document before creating the transmittal.');
     return {kind:c.classList.contains('division-pick')?'document':'compliance',source_id:c.value,owner_id:chosen};
    });
-   if(!confirm('Create a Division transmittal for '+selected.length+' document(s) with the selected rightful owners?'))return;
    state.busy=true;try{
     const {data,error}=await db.rpc('i_track_create_mixed_transmittal_with_owners',
      {p_documents:docs,p_compliances:compliances,p_submitter:submitter,p_owners:owners});
     if(error)throw error;state.divisionSelected=data.id;state.divisionNew=false;state.transmittalEditing=false;
-    await load();pop('Transmittal created with rightful owners recorded.');
+    // Bringing them yourself needs no separate "accept" click.
+    if(submitter===state.profile.id)await db.rpc('i_track_division_action',{p_action:'accept',p_transmittal:data.id});
+    state.divisionStep={...(state.divisionStep||{}),[data.id]:2};
+    await load();pop('Transmittal '+(data.number||'')+' created. Next: print the forms.');
    }finally{state.busy=false;}return;
   }
   if(a==='division-owner-save'){
@@ -3111,13 +3254,24 @@ async function click(e){
   if(a==='division-print'||a==='division-word'){
    const t=state.divisionData.transmittals.find(x=>x.id===state.divisionSelected)||state.divisionData.transmittals[0];if(!t)throw Error('Choose a transmittal.');
    if(!state.divisionData.items.some(item=>item.transmittal_id===t.id&&item.division_status!=='cancelled'))throw Error('Add at least one document before printing the transmittal.');
-   const edits={p_transmittal:t.id,p_name:document.getElementById('trans-signer-name')?.value?.trim()||t.signer_name,p_position:document.getElementById('trans-signer-position')?.value?.trim()||t.signer_position,p_office:document.getElementById('trans-signer-office')?.value?.trim()||t.signer_office,p_school:document.getElementById('trans-authorized-school')?.value?.trim()||null};
+   const PSDS=window.ITRACK_PRINT?.ENDORSER||{name:'SHERILL E. CORTEJO, PhD',position:'School Principal II',office:'OIC, Office of the Public Schools District Supervisor'};
+   const signerChoice=document.getElementById('trans-signer-choice')?.value;
+   const field=id=>document.getElementById(id)?.value?.trim()||'';
+   let signer={name:t.signer_name||PSDS.name,position:t.signer_position||PSDS.position,office:t.signer_office||PSDS.office};
+   if(signerChoice==='psds')signer={...PSDS};
+   else if(signerChoice==='other'){
+    signer={name:field('trans-signer-name'),position:field('trans-signer-position'),office:field('trans-signer-office')};
+    if(signer.name.length<2||signer.position.length<2||signer.office.length<2)throw Error('Enter the endorsement signer\'s name, position and office, or choose the OIC-PSDS.');
+   }
+   const edits={p_transmittal:t.id,p_name:signer.name,p_position:signer.position,p_office:signer.office,p_school:document.getElementById('trans-authorized-school')?.value?.trim()||null};
    if((edits.p_name!==t.signer_name||edits.p_position!==t.signer_position||edits.p_office!==t.signer_office||edits.p_school!==(t.authorized_school_name||null))&&!t.dispatched_at){
      const saved=await db.rpc('i_track_edit_transmittal_signer',edits);if(saved.error)throw saved.error;
      Object.assign(t,{signer_name:edits.p_name,signer_position:edits.p_position,signer_office:edits.p_office,authorized_school_name:edits.p_school});
    }
    let qrImage='';if(window.QRCode){const div=document.createElement('div');div.style.cssText='position:absolute;left:-9999px';document.body.append(div);try{new QRCode(div,{text:location.origin+location.pathname+'?view=division&transmittal='+encodeURIComponent(t.id),width:160,height:160,correctLevel:QRCode.CorrectLevel.M});qrImage=div.querySelector('canvas')?.toDataURL('image/png')||'';}finally{div.remove();}}const kind=document.getElementById('division-print-kind')?.value||'both';if(!window.ITRACK_PRINT?.render)throw Error('Official print templates are not loaded. Refresh SRII i-TRACK.');const html=window.ITRACK_PRINT.render(t,state.divisionData.items.filter(i=>i.transmittal_id===t.id),kind,state.divisionData.people||[],state.schools);
-   if(a==='division-word'){const link=document.createElement('a'),url=URL.createObjectURL(new Blob(['\\ufeff'+html],{type:'application/msword'}));link.href=url;link.download=t.transmittal_number+'.doc';link.click();setTimeout(()=>URL.revokeObjectURL(url),2000);}else{const w=window.open('','_blank');if(!w)throw Error('Allow popups for printing.');w.document.write(html);w.document.close();await Promise.all([...w.document.images].map(img=>img.complete?Promise.resolve():new Promise(done=>{img.onload=done;img.onerror=done;setTimeout(done,3500);})));await w.document.fonts?.ready;w.focus();w.print();}return;
+   if(a==='division-word'){const link=document.createElement('a'),url=URL.createObjectURL(new Blob(['\\ufeff'+html],{type:'application/msword'}));link.href=url;link.download=t.transmittal_number+'.doc';link.click();setTimeout(()=>URL.revokeObjectURL(url),2000);}else{const w=window.open('','_blank');if(!w)throw Error('Allow popups for printing.');w.document.write(html);w.document.close();await Promise.all([...w.document.images].map(img=>img.complete?Promise.resolve():new Promise(done=>{img.onload=done;img.onerror=done;setTimeout(done,3500);})));await w.document.fonts?.ready;w.focus();w.print();
+    state.divisionPrinted={...(state.divisionPrinted||{}),[t.id]:true};
+    state.divisionStep={...(state.divisionStep||{}),[t.id]:3};show();}return;
   }
   if(a==='division-act'){
    const action=t.dataset.act,trans=state.divisionData.transmittals.find(x=>x.id===state.divisionSelected)||state.divisionData.transmittals[0];if(!trans&&!t.dataset.trans)throw Error('Select a transmittal.');
@@ -3243,6 +3397,20 @@ async function click(e){
    const {error}=await db.from('i_track_admin_feedback_entries').delete().eq('id',id);
    if(error)throw error;
    await load();pop('Administrator-entered reference removed.');return;
+  }
+  if(a==='announcement-submit'){
+   const id=t.dataset.id;
+   window.ITRACK_UPLOAD_TARGET=id;
+   if(state.modal){state.modal=null;}
+   if(state.view!=='announcements'){rememberView('announcements');state.connectedFilter='';await load();}
+   else show();
+   setTimeout(()=>window.dispatchEvent(new CustomEvent('itrack:upload-target',{detail:{id}})),60);
+   return;
+  }
+  if(a==='submit-choice'){state.modal='submit-choice';show();return;}
+  if(a==='choice-announcement'){
+   state.modal=null;rememberView('announcements');state.connectedFilter='';await load();
+   setTimeout(()=>document.querySelector('.ann-todo')?.scrollIntoView({behavior:'smooth',block:'start'}),60);return;
   }
   if(a==='announcement-focus'){
    const announcement=state.announcements.find(x=>x.id===t.dataset.id);
@@ -3881,23 +4049,19 @@ $.addEventListener('input',e=>{
 });
 $.addEventListener('change',async e=>{
  if(e.target.id==='district-school'&&state.view==='district'){
-  state.districtSchoolId=e.target.value;state.districtPicked.clear();show();return;
+  state.districtSchoolId=e.target.value;state.districtPickKey=null;show();return;
  }
  if(e.target.id==='district-current'&&state.view==='district'){
-  state.districtSelected=e.target.value;state.districtSubmitPicked.clear();show();return;
+  state.districtSelected=e.target.value;state.districtSubmitKey=null;show();return;
  }
  if(state.view==='district'&&e.target.matches('input[type="checkbox"].district-eligible-pick')){
   if(e.target.checked)state.districtPicked.add(e.target.value);else state.districtPicked.delete(e.target.value);
-  const count=document.getElementById('district-pick-count'),btn=document.getElementById('district-create-btn');
-  if(count)count.textContent=state.districtPicked.size+' selected';
-  if(btn)btn.disabled=!state.districtPicked.size;
+  updatePickList(e.target.closest('.pick-list'));
   return;
  }
  if(state.view==='district'&&e.target.matches('input[type="checkbox"].district-submit-pick')){
   if(e.target.checked)state.districtSubmitPicked.add(e.target.value);else state.districtSubmitPicked.delete(e.target.value);
-  const count=document.getElementById('district-submit-count'),btn=document.getElementById('district-submit-btn');
-  if(count)count.textContent=state.districtSubmitPicked.size+' selected';
-  if(btn)btn.disabled=!state.districtSubmitPicked.size;
+  updatePickList(e.target.closest('.pick-list'));
   return;
  }
  if(e.target.matches('input[name="destination"]')&&e.target.closest('#form-doc')){
@@ -3907,12 +4071,6 @@ $.addEventListener('change',async e=>{
    if(who)who.style.display=dest==='personal'?'none':'';
    if(dest==='personal'){const r=document.getElementById('doc-recipient');if(r)r.value='';}
    return;
- }
- if(state.view==='retrieval'&&['retrieval-scope','retrieval-order','retrieval-transmittal'].includes(e.target.id)){
-  if(e.target.id==='retrieval-scope')state.retrievalScope=e.target.value;
-  if(e.target.id==='retrieval-order')state.retrievalOrder=e.target.value;
-  if(e.target.id==='retrieval-transmittal')state.retrievalTransmittal=e.target.value;
-  show();return;
  }
  if(state.view==='retrieval'&&e.target.matches('input[type="checkbox"].retrieval-check')){
   const cls=e.target.classList;
@@ -3981,6 +4139,26 @@ $.addEventListener('change',async e=>{
  if(e.target.id==='fb-type-filter'&&yesAdmin()&&state.view==='feedback-admin'){
   state.feedbackType=e.target.value;show();return;
  }
+ const pickList=e.target.closest?.('.pick-list');
+ if(pickList&&e.target.matches('input[type="checkbox"]'))updatePickList(pickList);
+ if(e.target.id==='trans-signer-choice'){
+  const card=e.target.closest('.sign-card');const other=e.target.value==='other';
+  card?.querySelector('.signer-other')?.toggleAttribute('hidden',!other);
+  card?.querySelector('.signer-default')?.toggleAttribute('hidden',other);
+  if(other)document.getElementById('trans-signer-name')?.focus();
+  return;
+ }
+ if(e.target.id==='division-submitter'){
+  const who=document.getElementById('division-submitter-name');
+  if(who)who.textContent=e.target.value===state.profile.id?'You':(e.target.selectedOptions[0]?.textContent||'').split(' — ')[0];
+  return;
+ }
+ if(e.target.matches?.('.division-owner-choice')){
+  const label=e.target.closest('details')?.querySelector('summary strong');
+  if(label)label.textContent=e.target.value?(e.target.selectedOptions[0]?.textContent||'').split(' — ')[0]:'— choose a person';
+  return;
+ }
+ if(e.target.id==='report-upload-ann'){state.reportUploadAnnouncement=e.target.value;show();return;}
  if(e.target.id==='pick-ann'){state.selectedId=e.target.value;state.monitorStatusFilter='';rememberAnnouncement(state.selectedId);try{await loadMonitor();show();}catch(ex){err(ex);}}
  if(['school-files-filter-school','school-files-filter-ann','school-files-filter-versions'].includes(e.target.id)&&yesAdmin()&&state.view==='school-files'){
   if(e.target.id==='school-files-filter-school')state.schoolFilesSchool=e.target.value;

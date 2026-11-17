@@ -9,7 +9,7 @@ const cfg=window.ITRACK_CONFIG;
 // Reuse the same authenticated client as the main district application.
 const db=window.ITRACK_DB;
 if(!root||!db||!cfg?.url||!cfg.publishableKey)return;
-const FILE_MAX=4*1024*1024;
+const FILE_MAX=30*1024*1024;
 let inProgress=false;
 const activeButtons=()=>[...root.querySelectorAll(".iu-file-action")];
 function notify(panel,text,success=false){
@@ -56,7 +56,7 @@ async function perform(button){
  const originalLabel=button.textContent;
  button.textContent=mode==="view"?"Opening…":"Downloading…";
  const controller=new AbortController();
- const timeout=setTimeout(()=>controller.abort(),65000);
+ const timeout=setTimeout(()=>controller.abort(),135000);
  try{
   const {data:{session},error:sessionError}=await db.auth.getSession();
   if(sessionError||!session?.access_token)throw Error("Your login expired. Sign in again.");

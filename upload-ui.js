@@ -100,9 +100,12 @@ function markPanel(){
  const newPanel=document.createElement("section");
  newPanel.className="panel itrack-upload";
  newPanel.innerHTML=
-  '<div class="iu-heading"><div><span class="iu-kicker">DEPED GOOGLE DRIVE</span>'+
-  '<h3>'+ (host?"Submit for This School":kind==="announcement"?"Submit a Requirement":"Attach a Document") +'</h3></div>'+
-  '<span class="iu-workspace-label">DISTRICT</span></div>'+
+  '<div class="iu-heading"><div><span class="iu-kicker">'+(kind==="announcement"?"DISTRICT ANNOUNCEMENT":"MY DOCUMENTS")+'</span>'+
+  '<h3>'+ (host?"Submit for This School":kind==="announcement"?"Upload for an announcement":"Add files to a routed document") +'</h3></div>'+
+  '<span class="iu-workspace-label">'+(kind==="announcement"?"ANNOUNCEMENT":"ROUTED DOCUMENT")+'</span></div>'+
+  (host?'':'<p class="iu-which">'+(kind==="announcement"?
+   'Use this only for what the <strong>District asked schools to submit</strong>. Sending your own letter, request or form? <button type="button" class="link-button" data-a="send">Route a document</button> instead.':
+   'Use this for <strong>your own documents</strong> (letters, requests, forms). Answering a District announcement? <button type="button" class="link-button" data-a="nav" data-page="announcements">Go to Announcements</button> instead.')+'</p>')+
   '<p class="iu-description">'+(kind==="announcement"?
    (host?'Upload for this school using your own AO II account. Your identity and the represented school are recorded; only district administrators verify the submission.':'Choose an assigned requirement and upload a PDF, Word file, or image. Revised submissions keep their version history.'):
    'Attach a file to a document you created, sent, or received through routing. Files remain private to authorized participants.'
@@ -129,7 +132,7 @@ function markPanel(){
     schoolId:host.dataset.schoolId,assignmentId:host.dataset.assignmentId};
   host.append(newPanel);
  }else{
-  const section=content.querySelector(".sectionhead");
+  const section=content.querySelector("#iu-anchor")||content.querySelector(".sectionhead");
   if(section)section.after(newPanel);else content.prepend(newPanel);
  }
  if(kind==="document"){
@@ -275,7 +278,11 @@ async function initialize(node,kind){
   const select=node.querySelector(".iu-select");
   select.innerHTML=(kind==="announcement"?'<option value="" selected disabled>— Choose the announcement first —</option>':"")+
     options.map(x=>'<option value="'+esc(x.id)+'">'+esc(x.label)+'</option>').join("");
-  if(kind==="announcement")select.value="";
+  if(kind==="announcement"){
+   select.value="";
+   const wanted=window.ITRACK_UPLOAD_TARGET;
+   if(wanted&&!node._iuDelegated&&options.some(x=>x.id===wanted)){select.value=wanted;window.ITRACK_UPLOAD_TARGET=null;}
+  }
   node._iuConfirmed=false;
   const checkbox=node.querySelector(".iu-confirm-input");
   if(checkbox){checkbox.checked=false;checkbox.disabled=true;
@@ -522,6 +529,17 @@ async function upload(node,kind){
    (done?" The files still listed above were not uploaded.":""),"error");
  }finally{if(node.isConnected)setProcessing(node,false);}
 }
+// "Submit" on a requirement: choose it in the announcement panel and bring the panel into view.
+// The person still confirms the school and announcement before anything uploads.
+window.addEventListener("itrack:upload-target",event=>{
+ const id=event.detail?.id;if(!id)return;
+ const node=[...root.querySelectorAll(".itrack-upload")].find(n=>n._iuKind==="announcement"&&!n._iuDelegated);
+ const select=node?.querySelector(".iu-select");
+ if(select&&node._iuOptions?.some(x=>x.id===id)){
+  select.value=id;select.dispatchEvent(new Event("change"));window.ITRACK_UPLOAD_TARGET=null;
+ }else window.ITRACK_UPLOAD_TARGET=id;   // picked up when the panel finishes loading
+ (node||root.querySelector(".itrack-upload"))?.scrollIntoView({behavior:"smooth",block:"start"});
+});
 const observer=new MutationObserver(markPanel);
 observer.observe(root,{childList:true});
 markPanel();

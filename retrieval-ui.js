@@ -1,5 +1,5 @@
 /* SRII i-TRACK Division Retrieval: three plain tabs.
- *   At Division        tick what you physically collected, then confirm
+ *   At Division        one tap per transmittal you collected (or tick single documents)
  *   With me            documents you carry for someone else, slips, District handover
  *   For me to receive  confirm documents that were handed to you
  * Presentation only. Every custody change still goes through the same
@@ -37,20 +37,8 @@ window.ITRACK_RETRIEVAL_VIEW=function(state,{esc,date,label,divisionStageLabel})
   (note?'<span class="rt-item-note">'+note+'</span>':'')+'</label>';
  const empty=(text)=>'<p class="empty">'+esc(text)+'</p>';
 
- /* ---------- 1. At Division ---------- */
- const scope=state.retrievalScope||'all', sort=state.retrievalOrder||'recent', trans=state.retrievalTransmittal||'';
+ /* ---------- 1. At Division: grouped by transmittal, one tap per group ---------- */
  const q=(state.retrievalSearch||'').trim().toLowerCase();
- const rows=all.filter(x=>
-  (scope==='all'||(scope==='mine'?x.owner_id===mine:x.owner_id!==mine))&&
-  (!trans||x.transmittal_number===trans)&&
-  (!q||[x.tracking_number,x.document_label,x.school_name,x.transmittal_number].join(' ').toLowerCase().includes(q))
- ).sort((a,b)=>
-  sort==='transmittal'?String(a.transmittal_number||'').localeCompare(String(b.transmittal_number||''))||
-     String(a.tracking_number||'').localeCompare(String(b.tracking_number||'')):
-  sort==='id'?String(a.tracking_number||'').localeCompare(String(b.tracking_number||'')):
-  new Date(b.submitted_at||0)-new Date(a.submitted_at||0)||
-     String(b.tracking_number||'').localeCompare(String(a.tracking_number||'')));
- const transmittals=[...new Set(all.map(x=>x.transmittal_number).filter(Boolean))].sort();
  const recent=(state.retrievalRecent||[]).filter(id=>myItems.some(x=>x.item_id===id));
  const recentBanner=recent.length?'<div class="rt-done" role="status">'+
   '<div><strong>'+recent.length+' document'+(recent.length===1?'':'s')+' retrieved.</strong> '+
@@ -63,24 +51,27 @@ window.ITRACK_RETRIEVAL_VIEW=function(state,{esc,date,label,divisionStageLabel})
     '<option value="">Choose owner</option>'+accounts.map(p=>'<option value="'+esc(p.id)+'"'+
      (i.owner_id===p.id?' selected':'')+'>'+esc(p.name||'Registered account')+' — '+esc(p.position||'')+'</option>').join('')+
    '</select><button class="btn tiny alt" data-a="retrieval-set-owner" data-id="'+esc(i.item_id)+'">Save Owner</button></div>').join('');
+ const groups=new Map();
+ for(const x of all){const k=x.transmittal_number||'';if(!groups.has(k))groups.set(k,[]);groups.get(k).push(x);}
+ const latest=list=>Math.max(...list.map(x=>new Date(x.submitted_at||0).getTime()));
+ const groupHtml=[...groups.entries()].sort((a,b)=>latest(b[1])-latest(a[1])).map(([number,list])=>{
+  const sorted=list.slice().sort((a,b)=>(b.owner_id===mine)-(a.owner_id===mine)||String(a.tracking_number||'').localeCompare(String(b.tracking_number||'')));
+  const handed=list.map(x=>x.submitted_at).filter(Boolean).sort()[0];
+  return '<div class="rt-group"><div class="rt-group-head"><div><strong>'+esc(number||'Without transmittal')+'</strong>'+
+   '<small>'+list.length+' document'+(list.length===1?'':'s')+(handed?' · handed to Division '+esc(date(handed)):'')+'</small></div>'+
+   '<button type="button" class="btn" data-a="retrieval-pickup-group" data-trans="'+esc(number)+'">'+icon('check')+(list.length===1?'Picked it up':'Picked up all '+list.length)+'</button></div>'+
+   '<div class="rt-list">'+sorted.map(x=>pickRow(x,'retrieval-pick',state.retrievalPicked,
+    x.owner_id===mine?'<span class="tag" data-tone="good">Mine</span>':'<span class="tag" data-tone="neutral">Other owner</span>')).join('')+'</div></div>';
+ }).join('');
  const division=recentBanner+
-  '<section class="panel rt-panel"><div class="rt-step"><span class="rt-step-no">1</span><div><h3>Tick the documents you collected</h3>'+
-  '<p class="note">Only documents already marked Submitted to Division appear here. You may collect documents for other people.</p></div></div>'+
-  '<div class="toolbar retrieval-search-bar"><input type="search" id="retrieval-search" placeholder="Search by tracking ID, title, school or transmittal" value="'+esc(state.retrievalSearch||'')+'">'+
-  '<button class="btn alt" data-a="retrieval-check-visible">Select all shown</button>'+
-  '<button class="btn alt" data-a="retrieval-clear">Clear</button></div>'+
-  '<div class="toolbar retrieval-quick-filters">'+
-   '<label>Show '+select('retrieval-scope',[['all','All documents'],['mine','My documents'],['others','Other owners']],scope)+'</label>'+
-   '<label>Sort by '+select('retrieval-order',[['recent','Most recent'],['transmittal','Transmittal'],['id','Tracking ID']],sort)+'</label>'+
-   '<label>Transmittal '+select('retrieval-transmittal',[['','All transmittals'],...transmittals.map(t=>[t,t])],trans)+'</label></div>'+
-  '<p class="small muted rt-count">'+rows.length+' shown · '+all.length+' at Division</p>'+
-  '<div id="retrieval-available-list" class="rt-list">'+(rows.map(x=>pickRow(x,'retrieval-pick',state.retrievalPicked,
-    x.owner_id===mine?'<span class="tag" data-tone="good">Mine</span>':'<span class="tag" data-tone="neutral">Other owner</span>')).join('')||
-    empty(all.length?'No documents match these filters.':'No documents are waiting at Division.'))+'</div>'+
-  '<div class="rt-step rt-step-action"><span class="rt-step-no">2</span><div><h3>Confirm the pickup</h3>'+
+  '<section class="panel rt-panel"><div class="rt-step"><span class="rt-step-no">'+icon('inbox')+'</span><div><h3>What did you collect from Division?</h3>'+
+  '<p class="note">Documents are grouped by transmittal. Press <strong>Picked up all</strong> when you collected a whole transmittal, or tap single documents and confirm below. You may collect documents for other people.</p></div></div>'+
+  (all.length>6?'<div class="toolbar retrieval-search-bar"><input type="search" id="retrieval-search" placeholder="Search by tracking ID, title, school or transmittal" value="'+esc(state.retrievalSearch||'')+'"></div>':'')+
+  '<div id="retrieval-available-list" class="rt-groups">'+(groupHtml||empty('No documents are waiting at Division.'))+'</div>'+
+  (all.length?'<div class="rt-step rt-step-action"><div><h3>Only some of them?</h3>'+
   '<p class="note">Your own documents become Completed right away. Documents for others stay with you until you hand them over.</p></div>'+
   '<div class="rt-confirm"><span class="small muted" id="retrieval-pick-count">'+(state.retrievalPicked?.size||0)+' checked</span>'+
-  '<button class="btn" id="retrieval-pickup-btn" data-a="retrieval-pickup"'+(!state.retrievalPicked?.size?' disabled':'')+'>Confirm Physical Retrieval</button></div></div></section>'+
+  '<button class="btn" id="retrieval-pickup-btn" data-a="retrieval-pickup"'+(!state.retrievalPicked?.size?' disabled':'')+'>Confirm pickup of checked</button></div></div>':'')+'</section>'+
   (manageable.length?'<details class="panel rt-panel"><summary><strong>Change the rightful owner of a document</strong><span class="small muted">Original sender or administrator</span></summary>'+
    '<p class="note">The rightful owner is the person who confirms final receipt. It is the original sender unless you choose someone else here.</p>'+ownerList+'</details>':'');
 
