@@ -1551,7 +1551,8 @@ function dashboardPage(){
   footer;
 }
 function uploadFileButtons(f){
- if(!f?.submission_id||f.storage_status!=='uploaded')return '<span class="small muted">'+(f?.storage_status==='archived'?'Archived':'Not available')+'</span>';
+ if(f?.storage_status==='archived')return '<span class="small muted">Archived</span>';
+ if(!f?.submission_id||f.storage_status!=='uploaded')return '';
  const name=esc(f.original_filename||'Attachment');
  return '<span class="file-open-actions"><button type="button" class="btn tiny alt iu-file-action" data-mode="view" data-kind="announcement" data-id="'+esc(f.submission_id)+'" data-name="'+name+'">View</button>'+
   '<button type="button" class="btn tiny alt iu-file-action" data-mode="download" data-kind="announcement" data-id="'+esc(f.submission_id)+'" data-name="'+name+'">Download</button></span>';
@@ -1773,7 +1774,7 @@ function monitorSchoolModal(){
   '</div>'+ 
   '<div id="monitor-school-upload-host" data-announcement-id="'+esc(item.announcementId)+'" data-school-id="'+esc(item.schoolId)+'" data-assignment-id="'+esc(item.assignmentId)+'" data-school-name="'+esc(item.schoolName)+'"></div>'+
   '<p class="note">The actual uploader and represented school are recorded automatically. A submission requires district administrator verification; the represented school does not approve it.</p>':
-  '<p class="note">'+(isOic()?'Oversight account: you can open every uploaded file above, but not submit or verify.':
+  '<p class="note">'+(isOic()?(oversightHistory.some(f=>f.submission_id)?'Oversight account: you can open every uploaded file above, but not submit or verify.':'Oversight account: view status only.'):
     item.announcementOpen?'Only approved AO II accounts and district administrators can submit for another school.':
     'This announcement is closed or cancelled; new submissions are unavailable.')+'</p>';
  const existing=!isOic()&&!yesAdmin()?'<section class="monitor-visible-files"><h4>Files You Can Access</h4>'+ 

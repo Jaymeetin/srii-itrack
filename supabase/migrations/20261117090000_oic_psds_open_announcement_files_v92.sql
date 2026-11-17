@@ -60,4 +60,4 @@ AS $function$
  LIMIT 2000
 $function$;
 REVOKE ALL ON FUNCTION public.i_track_oversight_announcement_uploads(uuid) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.i_track_oversight_announcement_uploads(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.i_track_oversight_announcement_uploads(uuid) TO authenticated, service_role;
