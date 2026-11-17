@@ -1705,3 +1705,12 @@ button.ch-row:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
 .guide-address>summary{display:block;line-height:1.6}
 .pick-change>summary{flex-wrap:wrap}
 @media(max-width:620px){.report-table-toggle>summary{flex-wrap:wrap;row-gap:2px}}
+
+/* ---------------------------------------------------------------------
+   20  Archive page (archived and deleted announcements)
+   --------------------------------------------------------------------- */
+.archive-list{display:grid;gap:10px}
+.archive-item{display:grid;gap:8px}
+.archive-files{margin-left:18px;padding-left:14px;border-left:2px solid var(--line)}
+.archive-badge{background:var(--neutral-bg);color:var(--neutral)}
+@media(max-width:620px){.archive-files{margin-left:6px;padding-left:10px}}

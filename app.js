@@ -295,13 +295,29 @@ async function load(){
    })());
   }
   if(state.view==='notifications')state.notificationHasMore=false;
+  if(state.view==='announcements'&&yesAdmin())tasks.push((async()=>{
+   const {data,error}=await db.rpc('i_track_announcement_activity');
+   state.announcementActivity=error?null:new Map((data||[]).map(r=>[r.announcement_id,r]));
+  })());
+  if(state.view==='archive'&&yesAdmin())tasks.push((async()=>{
+   const {data,error}=await db.rpc('i_track_archived_announcements');
+   state.archivedAnnouncements=error?null:(data||[]);
+  })());
   if(state.view==='system-recovery'&&yesAdmin())tasks.push((async()=>{
    const {data,error}=await db.rpc('i_track_integrity_overview');
    if(error)throw error;state.integrityOverview=data||null;
   })());
   tasks.push((async()=>{const {data,error}=await db.rpc('i_track_approver_assignments');if(error)throw error;state.approverAssignments=data||[];})());
   if(['dashboard','announcements','monitoring','verification','reports','school-files'].includes(state.view)){
-   tasks.push((async()=>{const {data,error}=await db.from('announcements').select('id,announcement_code,title,description,status,deadline_at,original_deadline_at,created_at,cancelled_at,cancellation_reason').order('created_at',{ascending:false});if(error)throw error;state.announcements=data||[];if(!state.selectedId||!state.announcements.some(x=>x.id===state.selectedId))state.selectedId=state.announcements.find(x=>x.status!=='draft')?.id||'';})());
+   tasks.push((async()=>{
+    const columns='id,announcement_code,title,description,status,deadline_at,original_deadline_at,created_at,cancelled_at,cancellation_reason';
+    let result=await db.from('announcements').select(columns+',archived_at,archive_kind').order('created_at',{ascending:false});
+    // Before database change v93 the archive columns do not exist yet.
+    if(result.error&&(result.error.code==='42703'||/archived_at|archive_kind/.test(result.error.message||'')))
+     result=await db.from('announcements').select(columns).order('created_at',{ascending:false});
+    if(result.error)throw result.error;
+    // Archived and deleted announcements leave every list; the Archive page shows them.
+    state.announcements=(result.data||[]).filter(a=>!a.archived_at);if(!state.selectedId||!state.announcements.some(x=>x.id===state.selectedId))state.selectedId=state.announcements.find(x=>x.status!=='draft')?.id||'';})());
   }
   if(!isOic()&&['dashboard','documents','division','notifications'].includes(state.view)){
    tasks.push((async()=>{const {data,error}=await db.from('documents').select('id,tracking_number,subject,document_type,status,destination,return_required,completion_kind,rightful_owner_id,notes,created_by,origin_school_id,created_at').is('admin_removed_at',null).order('created_at',{ascending:false}).limit(200);if(error)throw error;state.docs=data||[];if(state.view==='documents')await Promise.all([loadDocumentAttachments(),loadRoutingHistory(),loadDocumentTypes(),loadSchoolSubmissionDocuments(),loadCompliances()]);
@@ -1118,7 +1134,7 @@ const navIcons=window.ITRACK_NAV_ICONS||{};
 const menu=[['dashboard','Home'],['announcements','Announcements'],['notifications','Notifications'],['monitoring','Submission Status']];
 function appPage(){
  // The same permission-checked page list as before, now shown in short headed groups.
- const navItems=[...menu,...(!isOic()?[['documents','My Documents'],['division','Division Transmittals'],['district','District Transmittals'],['retrieval','Division Retrieval']]:[]),...(districtOversight()?[['reports','District Reports'],['system-recovery','Record Recovery']]:[]),...(yesAdmin()?[['feedback-admin','Reports & Suggestions']]:[['feedback','Report / Suggest']]),...(!yesAdmin()?[['settings','Personal Settings']]:[]),...((yesAdmin()||state.approverAssignments.some(x=>x.user_id===state.session.user.id))?[['verification','Submission Verification']]:[]),...(yesAdmin()?[['school-files','School Attachments'],['approvals','Account Approvals'],['document-types','Document Types'],['archive','Archive Documents']]:[]),...(isMain()?[['document-control','Document Control / Trash']]:[]),['system-updates','System Updates']];
+ const navItems=[...menu,...(!isOic()?[['documents','My Documents'],['division','Division Transmittals'],['district','District Transmittals'],['retrieval','Division Retrieval']]:[]),...(districtOversight()?[['reports','District Reports'],['system-recovery','Record Recovery']]:[]),...(yesAdmin()?[['feedback-admin','Reports & Suggestions']]:[['feedback','Report / Suggest']]),...(!yesAdmin()?[['settings','Personal Settings']]:[]),...((yesAdmin()||state.approverAssignments.some(x=>x.user_id===state.session.user.id))?[['verification','Submission Verification']]:[]),...(yesAdmin()?[['school-files','School Attachments'],['approvals','Account Approvals'],['document-types','Document Types'],['archive','Archive']]:[]),...(isMain()?[['document-control','Document Control / Trash']]:[]),['system-updates','System Updates']];
  const navButton=([id,title])=>`<button class="${state.view===id?'active':''}" data-a="nav" data-page="${id}"${state.view===id?' aria-current="page"':''}>${ico(navIcons[id]||'file')}<span>${title}</span></button>`;
  const navGroups=[
   ['',['dashboard','notifications']],
@@ -1137,7 +1153,7 @@ function appPage(){
   if(collapsible&&items.length>2)return '<details class="nav-group nav-more"'+(items.some(([id])=>id===state.view)?' open':'')+'><summary>'+esc(heading)+'</summary>'+buttons+'</details>';
   return '<div class="nav-group">'+(heading?'<div class="nav-heading">'+esc(heading)+'</div>':'')+buttons+'</div>';
  }).join('')+navItems.filter(([id])=>!placed.has(id)).map(navButton).join('');
- const title={dashboard:'Home',announcements:'Announcements',notifications:'Notifications',monitoring:'Submission Monitoring',documents:'My Documents',division:'Division Transmittals',district:'District Transmittals','document-types':'Document Types',retrieval:'Division Retrieval',settings:'Personal Settings',reports:'District Reports','system-recovery':'Record Recovery','system-updates':'System Updates',feedback:'Report / Suggest','feedback-admin':'Reports & Suggestions','school-files':'School Attachments',verification:'Submission Verification',approvals:'Account Management',archive:'Document Archiving','document-control':'Document Control / Trash'}[state.view]||'Overview';
+ const title={dashboard:'Home',announcements:'Announcements',notifications:'Notifications',monitoring:'Submission Monitoring',documents:'My Documents',division:'Division Transmittals',district:'District Transmittals','document-types':'Document Types',retrieval:'Division Retrieval',settings:'Personal Settings',reports:'District Reports','system-recovery':'Record Recovery','system-updates':'System Updates',feedback:'Report / Suggest','feedback-admin':'Reports & Suggestions','school-files':'School Attachments',verification:'Submission Verification',approvals:'Account Management',archive:'Archive','document-control':'Document Control / Trash'}[state.view]||'Overview';
  const school=state.schools.find(x=>x.id===state.profile.school_id)?.name||'District Office';
  const name=state.profile.display_name||(isOic()?'OIC-PSDS':yesAdmin()?'District Administrator':'School Personnel');
  let body={dashboard:dashboardPage,announcements:announcementPage,notifications:notificationsPage,monitoring:monitorPage,documents:documentPage,division:divisionPage,district:districtPage,'document-types':documentTypesAdminPage,retrieval:retrievalPage,settings:settingsPage,reports:districtReportPage,'system-updates':systemUpdatesPage,'system-recovery':systemRecoveryPage,feedback:feedbackPage,'feedback-admin':feedbackAdminPage,'school-files':schoolAttachmentsPage,verification:verificationPage,approvals:approvalPage,archive:archivePage,'document-control':documentControlPage}[state.view]?.()||dashboardPage();
@@ -1578,7 +1594,8 @@ function uploadFileCard(f,{showAnnouncement=false,showSchool=true}={}){
 function districtReportPage(){
  if(!districtOversight())return '<div class="notice danger">District oversight access required.</div>';
  const reports=state.districtReport||[];
- const allUploads=state.oversightUploads||[];
+ const liveAnnouncements=new Set((state.announcements||[]).map(a=>a.id));
+ const allUploads=(state.oversightUploads||[]).filter(f=>liveAnnouncements.has(f.announcement_id));
  const uploadAnn=state.reportUploadAnnouncement||'';
  const uploads=uploadAnn?allUploads.filter(f=>f.announcement_id===uploadAnn):allUploads;
  const showAll=state.oversightShowAllUploads||!!uploadAnn;
@@ -1667,10 +1684,14 @@ function announcementPage(){
  });
  const rows=filtered.map(a=>{
   const canManage=yesAdmin()&&a.status!=='cancelled';
+  const activity=yesAdmin()?state.announcementActivity?.get(a.id):null;
+  const used=activity&&(Number(activity.files)+Number(activity.records))>0;
   const actions='<button class="btn tiny alt" data-a="monitor" data-id="'+esc(a.id)+'">Monitor</button>'+
    (canManage?'<button class="btn tiny alt" data-a="edit-announcement" data-id="'+esc(a.id)+'">Edit</button>'+
     '<button class="btn tiny alt" data-a="manage-approvers" data-id="'+esc(a.id)+'">Approvers</button>'+
-    '<button class="btn tiny danger" data-a="cancel-announcement" data-id="'+esc(a.id)+'">Cancel Announcement</button>':'');
+    '<button class="btn tiny danger" data-a="cancel-announcement" data-id="'+esc(a.id)+'">Cancel Announcement</button>':'')+
+   (activity?(used?'<button class="btn tiny alt" data-a="announcement-remove" data-id="'+esc(a.id)+'">'+ico('archive')+'Archive</button>':
+    '<button class="btn tiny danger" data-a="announcement-remove" data-id="'+esc(a.id)+'">'+ico('trash')+'Delete</button>'):'');
   const cancellation=a.status==='cancelled'?'<div class="announcement-cancelled-note"><strong>Cancelled '+esc(date(a.cancelled_at))+'</strong> · '+esc(a.cancellation_reason||'Cancelled by district administrator')+'</div>':'';
   return '<tr><td><span class="ann-ref">'+esc(a.announcement_code||'')+'</span>'+
    '<button type="button" class="connected-ann-title" data-a="announcement-focus" data-id="'+esc(a.id)+'">'+esc(a.title)+'</button>'+
@@ -2402,7 +2423,35 @@ function documentControlPage(){
  (state.docAdminSampleMode?sampleDialog:dialog);
 }
 
-function archivePage(){return `<div class="eyebrow">Administrator controls</div><h1>Archive Documents</h1><p class="sub">Two-month archival to an SSD after verification.</p><div class="panel"><div class="notice warn"><b>Not yet enabled.</b> This will prepare downloadable archives, verify copies, and require administrator confirmation before any Drive files are deleted.</div><button class="btn" disabled>Archive Documents</button><p class="note" style="margin-top:12px">Submission metadata and audit history will remain in Supabase after archiving.</p></div>`;}
+function archivePage(){
+ const head='<div class="sectionhead"><div><div class="eyebrow">Administrator controls</div><h1>Archive</h1>'+
+  '<p class="sub">Announcements you archived or deleted. Nothing here is erased: files stay in Google Drive, every record is kept, and you can restore any of them.</p></div></div>';
+ if(!yesAdmin())return head+'<div class="notice danger">District administrator access required.</div>';
+ const list=state.archivedAnnouncements;
+ if(list===null)return head+'<div class="notice warn">The archive needs the latest database update. Ask the person who maintains SRII i-TRACK to apply it.</div>';
+ const all=list||[];
+ const plural=(n,word)=>n+' '+word+(n===1?'':'s');
+ const card=x=>{
+  const open=state.archiveOpenId===x.id;
+  const files=(state.archiveFiles||{})[x.id];
+  const counts=[Number(x.files)?plural(Number(x.files),'file'):'',Number(x.records)?plural(Number(x.records),'submission record'):''].filter(Boolean).join(' · ');
+  return '<div class="archive-item"><div class="file-card"><div class="file-card-main">'+
+   '<strong>'+esc((x.announcement_code?x.announcement_code+' · ':'')+x.title)+'</strong>'+
+   '<span class="file-card-file">'+(x.archive_kind==='removed'?'Deleted':'Archived')+' '+esc(date(x.archived_at))+' by '+esc(x.archived_by_name)+(counts?' · '+esc(counts):'')+'</span>'+
+   (x.archive_reason?'<small>Reason: '+esc(x.archive_reason)+'</small>':'')+'</div>'+
+   '<div class="file-card-side">'+
+    (Number(x.files)?'<button type="button" class="btn tiny alt" data-a="archive-files" data-id="'+esc(x.id)+'">'+(open?'Hide files':'Show files')+'</button>':'')+
+    '<button type="button" class="btn tiny" data-a="announcement-restore" data-id="'+esc(x.id)+'">'+ico('refresh')+'Restore</button></div></div>'+
+   (open?'<div class="archive-files">'+(files===undefined?'<p class="note">Loading files…</p>':
+     files.length?'<div class="file-cards">'+files.map(f=>uploadFileCard(f)).join('')+'</div>':'<p class="note">No files.</p>')+'</div>':'')+
+   '</div>';
+ };
+ const section=(title,note,items,empty)=>'<section class="panel"><div class="panel-head"><h3>'+title+(items.length?' <span class="home-badge archive-badge">'+items.length+'</span>':'')+'</h3></div>'+
+  '<p class="note">'+note+'</p>'+(items.length?'<div class="archive-list">'+items.map(card).join('')+'</div>':'<p class="empty">'+empty+'</p>')+'</section>';
+ return head+
+  section('Archived announcements','They had files or submission records. Opening a file here is recorded, as everywhere else.',all.filter(x=>x.archive_kind==='archived'),'Nothing archived.')+
+  section('Deleted announcements','No school had sent anything for them.',all.filter(x=>x.archive_kind==='removed'),'Nothing deleted.');
+}
 function modalHtml(){
  const m=state.modal;let title='',body='',footer='';
  if(m==='submit-choice'){
@@ -3407,6 +3456,49 @@ async function click(e){
    const {error}=await db.from('i_track_admin_feedback_entries').delete().eq('id',id);
    if(error)throw error;
    await load();pop('Administrator-entered reference removed.');return;
+  }
+  if(a==='announcement-remove'){
+   if(!yesAdmin())throw Error('District administrator access required.');
+   const ann=state.announcements.find(x=>x.id===t.dataset.id);
+   if(!ann)throw Error('Announcement not found. Refresh the page.');
+   const activity=state.announcementActivity?.get(ann.id);
+   const files=Number(activity?.files||0),records=Number(activity?.records||0);
+   const name=(ann.announcement_code?ann.announcement_code+' — ':'')+ann.title;
+   const reason=prompt(files+records>0?
+    'Archive "'+name+'"?\n\nIt has '+files+' file(s)'+(records?' and '+records+' submission record(s)':'')+'. Everything is kept and the files stay in Google Drive. '+
+    'It leaves the board, Home, reports and the schools\' lists, and stops accepting uploads. You can restore it from the Archive page.\n\nReason (optional):':
+    'Delete "'+name+'"?\n\nNo school has sent anything for it. It leaves every list. You can still restore it from the Archive page.\n\nReason (optional):','');
+   if(reason===null)return;
+   state.busy=true;try{
+    const {data,error}=await db.rpc('i_track_archive_announcement',{p_announcement:ann.id,p_reason:reason.trim()||null});
+    if(error)throw error;
+    if(state.selectedId===ann.id){state.selectedId='';try{sessionStorage.removeItem('srii-last-announcement');}catch(_){}}
+    await load();
+    pop((data?.kind==='removed'?'Deleted':'Archived')+': '+name+'. It can be restored from the Archive page.');
+   }finally{state.busy=false;}
+   return;
+  }
+  if(a==='announcement-restore'){
+   if(!yesAdmin())throw Error('District administrator access required.');
+   const item=(state.archivedAnnouncements||[]).find(x=>x.id===t.dataset.id);
+   if(!item)throw Error('Announcement not found. Refresh the page.');
+   const name=(item.announcement_code?item.announcement_code+' — ':'')+item.title;
+   if(!confirm('Restore "'+name+'"?\n\nIt goes back on the board as '+label(item.previous_status||'closed')+'.'))return;
+   state.busy=true;try{
+    const {error}=await db.rpc('i_track_restore_announcement',{p_announcement:item.id});
+    if(error)throw error;
+    if(state.archiveOpenId===item.id)state.archiveOpenId='';
+    await load();pop('Restored: '+name+'.');
+   }finally{state.busy=false;}
+   return;
+  }
+  if(a==='archive-files'){
+   const id=t.dataset.id;
+   if(state.archiveOpenId===id){state.archiveOpenId='';show();return;}
+   state.archiveOpenId=id;state.archiveFiles=state.archiveFiles||{};show();
+   const {data,error}=await oversightUploadList(id);
+   if(error)throw error;
+   state.archiveFiles[id]=data||[];show();return;
   }
   if(a==='announcement-submit'){
    const id=t.dataset.id;

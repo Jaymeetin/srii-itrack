@@ -121,7 +121,7 @@ function openMore(){
   section("DOCUMENTS",[link('division','Division Transmittals'),link('district','District Transmittals'),link('retrieval','Division Retrieval')])+
   section("DISTRICT",[link('reports','District Reports'),link('school-files','School Attachments'),link('approvals','Account Approvals'),link('feedback-admin','Reports & Suggestions')])+
   section("ACCOUNT",[link('settings','Personal Settings'),link('feedback','Report a Problem / Suggestion')])+
-  section("MORE TOOLS",[link('document-types','Document Types'),link('document-control','Document Control / Trash'),link('system-recovery','Record Recovery'),link('archive','Archive Documents'),link('system-updates','System Updates')]);
+  section("MORE TOOLS",[link('document-types','Document Types'),link('document-control','Document Control / Trash'),link('system-recovery','Record Recovery'),link('archive','Archive'),link('system-updates','System Updates')]);
  const sheet=document.createElement("div");
  sheet.className="mobile-more-overlay";
  sheet.setAttribute("role","presentation");
