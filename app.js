@@ -162,7 +162,7 @@ async function sync(){
   if(error)throw error;
   state.profile=data;
   if(active())await readMaintenance();
-  if(isOic()&&!['dashboard','announcements','notifications','monitoring','reports','settings','system-recovery','system-updates','feedback'].includes(state.view))rememberView('dashboard');
+  if(isOic()&&!['dashboard','announcements','templates','notifications','monitoring','reports','settings','system-recovery','system-updates','feedback'].includes(state.view))rememberView('dashboard');
   if(!yesAdmin()&&['school-files','verification','approvals','archive','document-types','feedback-admin'].includes(state.view))rememberView('dashboard');
   if(!isMain()&&state.view==='document-control')rememberView('dashboard');
   if(yesAdmin()&&['settings','feedback'].includes(state.view))rememberView('dashboard');
@@ -316,6 +316,7 @@ async function load(){
    if(error)throw error;state.integrityOverview=data||null;
   })());
   tasks.push((async()=>{const {data,error}=await db.rpc('i_track_approver_assignments');if(error)throw error;state.approverAssignments=data||[];})());
+  if(state.view==='templates')tasks.push(loadSamples());
   if(['templates','announcements'].includes(state.view))tasks.push((async()=>{
    const {data,error}=await db.from('templates').select('id,title,description,file_path,file_name,content_type,file_size,announcement_id,uploaded_at').order('uploaded_at',{ascending:false});
    // Before database change v94 the templates table does not exist yet.
@@ -1153,7 +1154,7 @@ const navIcons=window.ITRACK_NAV_ICONS||{};
 const menu=[['dashboard','Home'],['announcements','Announcements'],['notifications','Notifications'],['monitoring','Submission Status']];
 function appPage(){
  // The same permission-checked page list as before, now shown in short headed groups.
- const navItems=[...menu,['templates','Templates'],...(!isOic()?[['documents','My Documents'],['division','Division Transmittals'],['district','District Transmittals'],['retrieval','Division Retrieval']]:[]),...(districtOversight()?[['reports','District Reports'],['system-recovery','Record Recovery']]:[]),...(yesAdmin()?[['feedback-admin','Reports & Suggestions']]:[['feedback','Report / Suggest']]),...(!yesAdmin()?[['settings','Personal Settings']]:[]),...((yesAdmin()||state.approverAssignments.some(x=>x.user_id===state.session.user.id))?[['verification','Submission Verification']]:[]),...(yesAdmin()?[['school-files','School Attachments'],['approvals','Account Approvals'],['document-types','Document Types'],['archive','Archive']]:[]),...(isMain()?[['document-control','Document Control / Trash']]:[]),['system-updates','System Updates']];
+ const navItems=[...menu,['templates','Checklists & Templates'],...(!isOic()?[['documents','My Documents'],['division','Division Transmittals'],['district','District Transmittals'],['retrieval','Division Retrieval']]:[]),...(districtOversight()?[['reports','District Reports'],['system-recovery','Record Recovery']]:[]),...(yesAdmin()?[['feedback-admin','Reports & Suggestions']]:[['feedback','Report / Suggest']]),...(!yesAdmin()?[['settings','Personal Settings']]:[]),...((yesAdmin()||state.approverAssignments.some(x=>x.user_id===state.session.user.id))?[['verification','Submission Verification']]:[]),...(yesAdmin()?[['school-files','School Attachments'],['approvals','Account Approvals'],['document-types','Document Types'],['archive','Archive']]:[]),...(isMain()?[['document-control','Document Control / Trash']]:[]),['system-updates','System Updates']];
  const navButton=([id,title])=>`<button class="${state.view===id?'active':''}" data-a="nav" data-page="${id}"${state.view===id?' aria-current="page"':''}>${ico(navIcons[id]||'file')}<span>${title}</span></button>`;
  const navGroups=[
   ['',['dashboard','notifications']],
@@ -1172,7 +1173,7 @@ function appPage(){
   if(collapsible&&items.length>2)return '<details class="nav-group nav-more"'+(items.some(([id])=>id===state.view)?' open':'')+'><summary>'+esc(heading)+'</summary>'+buttons+'</details>';
   return '<div class="nav-group">'+(heading?'<div class="nav-heading">'+esc(heading)+'</div>':'')+buttons+'</div>';
  }).join('')+navItems.filter(([id])=>!placed.has(id)).map(navButton).join('');
- const title={dashboard:'Home',announcements:'Announcements',templates:'Templates',notifications:'Notifications',monitoring:'Submission Monitoring',documents:'My Documents',division:'Division Transmittals',district:'District Transmittals','document-types':'Document Types',retrieval:'Division Retrieval',settings:'Personal Settings',reports:'District Reports','system-recovery':'Record Recovery','system-updates':'System Updates',feedback:'Report / Suggest','feedback-admin':'Reports & Suggestions','school-files':'School Attachments',verification:'Submission Verification',approvals:'Account Management',archive:'Archive','document-control':'Document Control / Trash'}[state.view]||'Overview';
+ const title={dashboard:'Home',announcements:'Announcements',templates:'Checklists & Templates',notifications:'Notifications',monitoring:'Submission Monitoring',documents:'My Documents',division:'Division Transmittals',district:'District Transmittals','document-types':'Document Types',retrieval:'Division Retrieval',settings:'Personal Settings',reports:'District Reports','system-recovery':'Record Recovery','system-updates':'System Updates',feedback:'Report / Suggest','feedback-admin':'Reports & Suggestions','school-files':'School Attachments',verification:'Submission Verification',approvals:'Account Management',archive:'Archive','document-control':'Document Control / Trash'}[state.view]||'Overview';
  const school=state.schools.find(x=>x.id===state.profile.school_id)?.name||'District Office';
  const name=state.profile.display_name||(isOic()?'OIC-PSDS':yesAdmin()?'District Administrator':'School Personnel');
  let body={dashboard:dashboardPage,announcements:announcementPage,templates:templatesPage,notifications:notificationsPage,monitoring:monitorPage,documents:documentPage,division:divisionPage,district:districtPage,'document-types':documentTypesAdminPage,retrieval:retrievalPage,settings:settingsPage,reports:districtReportPage,'system-updates':systemUpdatesPage,'system-recovery':systemRecoveryPage,feedback:feedbackPage,'feedback-admin':feedbackAdminPage,'school-files':schoolAttachmentsPage,verification:verificationPage,approvals:approvalPage,archive:archivePage,'document-control':documentControlPage}[state.view]?.()||dashboardPage();
@@ -1661,9 +1662,106 @@ const TEMPLATE_TYPES={'.pdf':'application/pdf','.doc':'application/msword',
 const templateKind=t=>{const n=String(t.file_name||'').toLowerCase();
  return /\.(docx?)$/.test(n)?'Word':/\.(xlsx?)$/.test(n)?'Excel':/\.(pptx?)$/.test(n)?'PowerPoint':/\.pdf$/.test(n)?'PDF':'Picture';};
 const fileSize=b=>Number(b)>=1048576?(Number(b)/1048576).toFixed(1)+' MB':Math.max(1,Math.round(Number(b)/1024))+' KB';
+/* ---- requirement checklists (requirements.js) with shared samples ---- */
+const SAMPLE_BUCKET='requirement-samples';
+const SAMPLE_TYPES=Object.fromEntries(Object.entries(TEMPLATE_TYPES).filter(([ext])=>!/^\.pptx?$/.test(ext)));
+async function loadSamples(){
+ const {data,error}=await db.rpc('i_track_requirement_samples');
+ // Before database change v96 the function does not exist: show the checklists without samples.
+ if(error){if(error.code==='PGRST202')state.samples=null;return;}
+ state.samples=data||[];
+}
+// Short-lived links for PDF and picture samples, so "View" is an ordinary link.
+async function signSampleUrls(key){
+ const list=(state.samples||[]).filter(x=>x.doc_key===key&&!x.url&&/^(application\/pdf|image\/)/.test(x.content_type||''));
+ if(!list.length)return;
+ const {data}=await db.storage.from(SAMPLE_BUCKET).createSignedUrls(list.map(x=>x.file_path),3600);
+ const byPath=new Map((data||[]).map(u=>[u.path,u.signedUrl]));
+ list.forEach(x=>{x.url=byPath.get(x.file_path)||'';});
+}
+function checklistMatch(set,q){
+ const head=(set.title+' '+(set.subtitle||'')).toLowerCase();
+ const headHit=!!q&&head.includes(q);
+ const items=set.items.map(it=>!q||headHit||(it[1]+' '+it[2]).toLowerCase().includes(q));
+ return {show:!q||headHit||items.some(Boolean),items};
+}
+function filterChecklists(){
+ const R=window.ITRACK_REQUIREMENTS;if(!R)return;
+ const q=(document.getElementById('checklist-search')?.value||'').trim().toLowerCase();
+ state.checklistSearch=q;let any=false;
+ R.sets.forEach(set=>{
+  const el=document.querySelector('.req-set[data-req-set="'+set.id+'"]');if(!el)return;
+  const m=checklistMatch(set,q);
+  el.hidden=!m.show;if(m.show)any=true;if(q&&m.show)el.open=true;
+  el.querySelectorAll('.req-item').forEach((li,i)=>{li.hidden=!m.items[i];});
+ });
+ const none=document.getElementById('req-none');if(none)none.hidden=any;
+}
+function checklistsHtml(){
+ const R=window.ITRACK_REQUIREMENTS;
+ if(!R)return '<div class="notice warn">The checklists could not load. Refresh the page.</div>';
+ const samples=state.samples,count=new Map();
+ for(const x of samples||[])count.set(x.doc_key,(count.get(x.doc_key)||0)+1);
+ const q=(state.checklistSearch||'').trim().toLowerCase();
+ const sampleBtn=key=>{
+  if(samples===null)return '';
+  if(R.docs[key]?.personal)return '<span class="req-own" title="Each person submits their own copy, so no samples are shared">Own copy</span>';
+  const n=count.get(key)||0;
+  return '<button type="button" class="req-sample'+(n?' has-samples':'')+'" data-a="samples-open" data-doc="'+esc(key)+'">'+
+   (n?ico('fileText')+n+' sample'+(n===1?'':'s'):ico('plus')+'Share a sample')+'</button>';
+ };
+ let any=false;
+ const sets=R.sets.map(set=>{
+  const m=checklistMatch(set,q);if(m.show)any=true;
+  return '<details class="req-set" data-req-set="'+esc(set.id)+'"'+(m.show?'':' hidden')+(q&&m.show?' open':'')+'>'+
+   '<summary><span class="req-head"><strong>'+esc(set.title)+'</strong>'+(set.subtitle?'<small>'+esc(set.subtitle)+'</small>':'')+'</span>'+
+   '<span class="req-toggle" aria-hidden="true">'+ico('chevronDown')+'</span>'+
+   '<span class="req-meta"><span class="req-chip">'+set.items.length+' documents</span><span class="req-chip is-copies">'+esc(set.copies)+'</span>'+
+   (set.deadline?'<span class="req-chip is-deadline">'+ico('clock')+'Deadline: '+esc(set.deadline)+'</span>':'')+'</span></summary>'+
+   '<ol class="req-list">'+set.items.map((it,i)=>'<li class="req-item"'+(m.items[i]?'':' hidden')+'><span class="req-no">'+(i+1)+'</span>'+
+    '<span class="req-name">'+esc(it[1])+(it[2]?'<small>'+esc(it[2])+'</small>':'')+'</span>'+sampleBtn(it[0])+'</li>').join('')+'</ol></details>';
+ }).join('');
+ return '<div class="req-intro">'+ico('info')+'<p><strong>What to submit</strong> for common personnel claims. '+
+  (samples===null?'':'Open <strong>samples</strong> to see how a document should look, or share yours to help others. Samples of the same document are numbered Version 1, 2, 3.')+'</p></div>'+
+  '<div class="toolbar req-search"><input type="search" id="checklist-search" placeholder="Search a claim or a document, e.g. Oath of Office" value="'+esc(state.checklistSearch||'')+'" autocomplete="off"></div>'+
+  '<div class="req-sets" id="req-sets">'+sets+'</div><p class="empty req-none" id="req-none"'+(any?' hidden':'')+'>No claim or document matches your search.</p>';
+}
+function samplesModalBody(){
+ const R=window.ITRACK_REQUIREMENTS,key=state.sampleDoc,doc=R?.docs?.[key]||{label:key};
+ const list=(state.samples||[]).filter(x=>x.doc_key===key).sort((a,b)=>b.version-a.version);
+ const usedIn=(R?.sets||[]).filter(x=>x.items.some(i=>i[0]===key)).map(x=>x.title+(x.subtitle?' ('+x.subtitle+')':''));
+ const canShare=!isOic()&&!doc.personal;
+ return '<p class="sub sample-used">Needed for: '+esc(usedIn.join(' · '))+'</p>'+
+  (list.length?'<div class="sample-list">'+list.map((x,i)=>{
+    return '<div class="sample-row"><div class="sample-version"><strong>Version '+x.version+'</strong>'+(i===0&&list.length>1?'<span>Newest</span>':'')+'</div>'+
+     '<div class="sample-main"><span class="sample-file">'+esc(x.file_name)+'</span>'+(x.note?'<span class="sample-note">'+esc(x.note)+'</span>':'')+
+     '<small>Shared by '+esc(x.uploader_name)+' · '+esc(x.school_name)+' · '+esc(short(x.uploaded_at))+' · '+fileSize(x.file_size)+'</small></div>'+
+     '<div class="sample-actions">'+(x.url?'<a class="btn tiny alt" href="'+esc(x.url)+'" target="_blank" rel="noopener">View</a>':'')+
+     '<button type="button" class="btn tiny" data-a="sample-download" data-id="'+esc(x.id)+'">'+ico('download')+'Download</button>'+
+     (x.mine||yesAdmin()?'<button type="button" class="btn tiny alt sample-remove" data-a="sample-remove" data-id="'+esc(x.id)+'">Remove</button>':'')+'</div></div>';}).join('')+'</div>':
+   '<p class="empty sample-empty">No sample yet.'+(canShare?' Be the first to share one.':'')+'</p>')+
+  (canShare?'<section class="sample-share"><h3>Share your sample</h3>'+
+   '<p class="small muted">Cover or remove names, ID numbers, signatures and amounts first. Everyone signed in to SRII i-TRACK can open shared samples.</p>'+
+   '<div class="sample-pick"><label class="btn alt sample-choose">'+ico('upload')+'Choose file<input type="file" id="sample-file" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" hidden></label>'+
+   (window.ITRACK_SCAN?'<button type="button" class="btn alt" data-a="sample-scan">'+ico('camera')+'Scan paper</button>':'')+
+   '<span class="small muted" id="sample-file-name">'+esc(state.sampleFile?state.sampleFile.name+' · '+fileSize(state.sampleFile.size):'No file chosen')+'</span></div>'+
+   '<div class="field"><label for="sample-note">Short note <span class="muted">(optional)</span></label><input id="sample-note" maxlength="300" placeholder="e.g. Blank form, or a filled sample for Teacher I"></div>'+
+   '<label class="sample-privacy"><input type="checkbox" id="sample-privacy"> <span>I covered or removed personal details (names, ID numbers, signatures, amounts).</span></label>'+
+   '<div class="toolbar"><button type="button" class="btn" data-a="sample-share">'+ico('upload')+'Share sample</button></div></section>':'');
+}
 function templatesPage(){
- const head='<div class="sectionhead"><div><div class="eyebrow">Forms and templates</div><h1>Templates</h1>'+
-  '<p class="sub">Blank forms for district requirements. Download the one you need, fill it in, then submit it under Announcements.</p></div></div>';
+ const R=window.ITRACK_REQUIREMENTS;
+ const tab=state.templateFilterAnn?'forms':(state.templatesTab==='forms'?'forms':'checklists');
+ const head='<div class="sectionhead"><div><div class="eyebrow">Requirements and forms</div><h1>Checklists &amp; Templates</h1>'+
+  '<p class="sub">What to submit for common personnel claims, samples shared by co-workers, and blank forms from the District.</p></div></div>';
+ const tabBtn=(id,text,n)=>'<button type="button" role="tab" class="rt-tab'+(tab===id?' is-active':'')+'" aria-selected="'+(tab===id)+'" data-a="templates-tab" data-tab="'+id+'">'+
+  text+(n!=null?'<span class="rt-tab-count">'+n+'</span>':'')+'</button>';
+ const tabs='<div class="rt-tabs" role="tablist" aria-label="Checklists and templates">'+
+  tabBtn('checklists','Requirement checklists',R?R.sets.length:null)+tabBtn('forms','Blank forms',Array.isArray(state.templates)?state.templates.length:null)+'</div>';
+ return head+tabs+(tab==='forms'?blankFormsHtml():checklistsHtml());
+}
+function blankFormsHtml(){
+ const head='';
  if(state.templates===null)return head+'<div class="notice warn">Templates need the latest database update. Ask the person who maintains SRII i-TRACK to apply it.</div>';
  const all=state.templates||[];
  const forAnn=state.templateFilterAnn&&state.announcements.find(a=>a.id===state.templateFilterAnn);
@@ -2602,7 +2700,12 @@ function archivePage(){
 }
 function modalHtml(){
  const m=state.modal;let title='',body='',footer='';
- if(m==='submit-choice'){
+ if(m==='samples'){
+  const doc=window.ITRACK_REQUIREMENTS?.docs?.[state.sampleDoc];
+  title=(doc?.label||'Document')+' samples';
+  body=samplesModalBody();
+  footer='<button type="button" class="btn alt" data-a="close">Close</button>';
+ }else if(m==='submit-choice'){
   const sent=new Set((state.schoolSubmissions||[]).map(x=>x.assignment_id));
   const left=(state.schoolAssignments||[]).filter(x=>state.announcements.find(a=>a.id===x.announcement_id)?.status==='open'&&!sent.has(x.id)).length;
   title='What are you submitting?';
@@ -3653,6 +3756,70 @@ async function click(e){
    if(error)throw error;
    await load();pop('Administrator-entered reference removed.');return;
   }
+  if(a==='templates-tab'){state.templatesTab=t.dataset.tab==='forms'?'forms':'checklists';state.templateFilterAnn='';show();return;}
+  if(a==='samples-open'){
+   state.sampleDoc=t.dataset.doc;state.sampleFile=null;
+   await signSampleUrls(state.sampleDoc).catch(()=>{});
+   state.modal='samples';show();return;
+  }
+  if(a==='sample-scan'){
+   window.ITRACK_SCAN?.open({onDone:file=>{
+    state.sampleFile=file;const el=document.getElementById('sample-file-name');
+    if(el)el.textContent=file.name+' · '+fileSize(file.size);
+   }});
+   return;
+  }
+  if(a==='sample-share'){
+   if(isOic())throw Error('OIC-PSDS accounts can open samples but not share them.');
+   const key=state.sampleDoc,doc=window.ITRACK_REQUIREMENTS?.docs?.[key];
+   if(!doc||doc.personal)throw Error('Samples are not collected for this document.');
+   const file=state.sampleFile;
+   if(!file)throw Error('Choose the sample file first, or scan the paper.');
+   const ext=(/\.[^.]+$/.exec(file.name)||[''])[0].toLowerCase();
+   const contentType=SAMPLE_TYPES[ext];
+   if(!contentType)throw Error('Use a PDF, Word, Excel, JPG or PNG file.');
+   if(file.size<1||file.size>10*1024*1024)throw Error('The file must be smaller than 10 MB. Scan it with the camera or compress it first.');
+   if(!document.getElementById('sample-privacy')?.checked)throw Error('Cover or remove personal details first, then tick the box.');
+   const note=clean(document.getElementById('sample-note')?.value)||null;
+   const safe=file.name.replace(/[^A-Za-z0-9._-]+/g,'_').replace(/^\.+/,'_').slice(-120)||('sample'+ext);
+   const path=key+'/'+crypto.randomUUID()+'/'+safe;
+   const label=t.innerHTML;state.busy=true;t.disabled=true;t.textContent='Sharing…';
+   let version=null;
+   try{
+    const put=await db.storage.from(SAMPLE_BUCKET).upload(path,file,{contentType,upsert:false});
+    if(put.error)throw put.error;
+    const {data,error}=await db.rpc('i_track_add_requirement_sample',{p_doc_key:key,p_file_path:path,
+     p_file_name:file.name.slice(0,180),p_content_type:contentType,p_note:note,p_privacy_checked:true});
+    if(error)throw error;
+    version=data?.version??null;
+   }catch(err){t.disabled=false;t.innerHTML=label;throw err;}
+   finally{state.busy=false;}
+   state.sampleFile=null;await loadSamples();await signSampleUrls(key).catch(()=>{});show();
+   pop('Thank you! Your sample is shared'+(version?' as Version '+version:'')+'.');return;
+  }
+  if(a==='sample-download'){
+   const x=(state.samples||[]).find(y=>y.id===t.dataset.id);
+   if(!x)throw Error('Sample not found. Refresh the page.');
+   const label=t.innerHTML;t.disabled=true;t.textContent='Downloading…';
+   try{
+    const {data,error}=await db.storage.from(SAMPLE_BUCKET).download(x.file_path);
+    if(error)throw error;
+    const url=URL.createObjectURL(data),link=document.createElement('a');
+    link.href=url;link.download=x.file_name||'sample';
+    document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
+   }finally{t.disabled=false;t.innerHTML=label;}
+   return;
+  }
+  if(a==='sample-remove'){
+   const x=(state.samples||[]).find(y=>y.id===t.dataset.id);
+   if(!x)throw Error('Sample not found. Refresh the page.');
+   let reason=null;
+   if(x.mine){if(!confirm('Remove Version '+x.version+'? Other people will no longer see it.'))return;}
+   else{reason=prompt('Why remove Version '+x.version+' shared by '+x.uploader_name+'? (required)');if(!reason?.trim())return;}
+   const {error}=await db.rpc('i_track_remove_requirement_sample',{p_sample:x.id,p_reason:reason});
+   if(error)throw error;
+   await loadSamples();await signSampleUrls(state.sampleDoc).catch(()=>{});show();pop('Sample removed.');return;
+  }
   if(a==='template-upload'){
    if(!yesAdmin())throw Error('District administrator access required.');
    const title=clean(document.getElementById('tpl-title')?.value);
@@ -3700,8 +3867,8 @@ async function click(e){
    if(error)throw error;
    await load();pop('Template removed.');return;
   }
-  if(a==='templates-for'){state.templateFilterAnn=t.dataset.id;rememberView('templates');await load();return;}
-  if(a==='templates-all'){state.templateFilterAnn='';show();return;}
+  if(a==='templates-for'){state.templateFilterAnn=t.dataset.id;state.templatesTab='forms';rememberView('templates');await load();return;}
+  if(a==='templates-all'){state.templateFilterAnn='';state.templatesTab='forms';show();return;}
   if(a==='send-reminders'){
    if(!districtOversight())throw Error('District administrator or OIC-PSDS access required.');
    const ann=state.announcements.find(x=>x.id===state.selectedId);
@@ -3796,7 +3963,7 @@ async function click(e){
    if(t.dataset.page==='verification'&&!yesAdmin()&&!state.approverAssignments.some(x=>x.user_id===state.session.user.id))throw new Error('Not an assigned approver.');
    if(['reports','system-recovery'].includes(t.dataset.page)&&!districtOversight())throw new Error('District oversight access required.');
    if(['settings','feedback'].includes(t.dataset.page)&&yesAdmin())throw new Error('Reports & Suggestions Consolidation is available to administrators.');
-   if(isOic()&&!['dashboard','announcements','notifications','monitoring','reports','settings','system-recovery','system-updates','feedback'].includes(t.dataset.page))throw new Error('This OIC-PSDS account is read-only.');
+   if(isOic()&&!['dashboard','announcements','templates','notifications','monitoring','reports','settings','system-recovery','system-updates','feedback'].includes(t.dataset.page))throw new Error('This OIC-PSDS account is read-only.');
    rememberView(t.dataset.page);state.connectedFilter=a==='connected-nav'?(t.dataset.filter||''):'';
    if(t.dataset.page==='monitoring')state.monitorStatusFilter='';
    state.modal=null;await load();return;
@@ -4409,12 +4576,19 @@ function filterDocumentRegistry(){
 $.addEventListener('input',e=>{
  if(['document-search','document-date-filter'].includes(e.target.id))filterDocumentRegistry();
  if(e.target.id==='retrieval-search')filterRetrievalAvailable();
+ if(e.target.id==='checklist-search')filterChecklists();
  if(e.target.id==='template-search'){
   const q=e.target.value.trim().toLowerCase();
   document.querySelectorAll('#template-list [data-template-search]').forEach(el=>{el.hidden=!!q&&!el.dataset.templateSearch.includes(q);});
  }
 });
 $.addEventListener('change',async e=>{
+ if(e.target.id==='sample-file'){
+  const file=e.target.files?.[0];if(!file)return;
+  state.sampleFile=file;
+  const el=document.getElementById('sample-file-name');if(el)el.textContent=file.name+' · '+fileSize(file.size);
+  return;
+ }
  if(e.target.id==='district-school'&&state.view==='district'){
   state.districtSchoolId=e.target.value;state.districtPickKey=null;show();return;
  }

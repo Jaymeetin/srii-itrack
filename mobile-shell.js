@@ -116,7 +116,7 @@ function openMore(){
  const groups=
   section("DAILY",[
    '<button type="button" class="mobile-menu-button" data-mobile="navigate" data-page="notifications">'+row('bell','Notifications')+'</button>',
-   link('templates','Templates'),
+   link('templates','Checklists & Templates'),
    link('verification','Submission Verification')
   ])+
   section("DOCUMENTS",[link('division','Division Transmittals'),link('district','District Transmittals'),link('retrieval','Division Retrieval')])+
